@@ -27,6 +27,12 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # when Compose Watch syncs files.
 FROM builder AS development
 
+# GeoDjango system libraries (GDAL, GEOS, PROJ); -dev packages provide the
+# unversioned libgdal.so / libgeos_c.so symlinks Django looks for.
+RUN apk add --no-cache gdal-dev geos-dev proj-dev
+ENV GDAL_LIBRARY_PATH=/usr/lib/libgdal.so \
+    GEOS_LIBRARY_PATH=/usr/lib/libgeos_c.so
+
 ENV PATH="/app/.venv/bin:$PATH"
 
 COPY . .
@@ -40,6 +46,11 @@ FROM python:3.14-alpine AS production
 ENV PYTHONUNBUFFERED=1
 # Activate the virtual environment copied from the build stage.
 ENV PATH="/app/.venv/bin:$PATH"
+
+# GeoDjango libraries (-dev provides the unversioned .so symlinks Django needs).
+RUN apk add --no-cache gdal-dev geos-dev proj
+ENV GDAL_LIBRARY_PATH=/usr/lib/libgdal.so \
+    GEOS_LIBRARY_PATH=/usr/lib/libgeos_c.so
 
 WORKDIR /app
 
