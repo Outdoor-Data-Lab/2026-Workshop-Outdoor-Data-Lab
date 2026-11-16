@@ -36,6 +36,26 @@ services:
           path: pyproject.toml
         - action: rebuild
           path: uv.lock
+  frontend:
+    build:
+      context: ./frontend
+      target: development
+    ports:
+      - "5173:5173"
+    depends_on:
+      - web
+    develop:
+      watch:
+        # Sync source changes so Vite's HMR picks them up.
+        - action: sync
+          path: ./frontend
+          target: /app
+          ignore:
+            - node_modules/
+            - dist/
+        # Rebuild the image when dependencies change.
+        - action: rebuild
+          path: ./frontend/package.json
   db:
     image: postgis/postgis:18-3.7
     restart: always
