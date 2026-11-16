@@ -23,7 +23,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = "django-insecure-*khvq8@n3)g@ri25)tp@(9xbj21y7ytn8y&em5w^+74c0s*hr_"
 
-DEBUG = os.environ.get('DEBUG', '0') == '1'
+DEBUG = os.environ.get("DEBUG", "0") == "1"
 
 DATABASES = {
     "default": {
@@ -48,7 +48,9 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "accounts",
+    "rest_framework",
 ]
+
 
 AUTH_USER_MODEL = "accounts.User"
 LOGIN_URL = "login"
