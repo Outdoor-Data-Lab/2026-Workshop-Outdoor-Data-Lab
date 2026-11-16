@@ -25,9 +25,16 @@ SECRET_KEY = "django-insecure-*khvq8@n3)g@ri25)tp@(9xbj21y7ytn8y&em5w^+74c0s*hr_
 
 DEBUG = os.environ.get("DEBUG", "0") == "1"
 
+# GeoDjango library locations (set in the Docker image; unset elsewhere
+# so Django falls back to its own lookup).
+if os.environ.get("GDAL_LIBRARY_PATH"):
+    GDAL_LIBRARY_PATH = os.environ["GDAL_LIBRARY_PATH"]
+if os.environ.get("GEOS_LIBRARY_PATH"):
+    GEOS_LIBRARY_PATH = os.environ["GEOS_LIBRARY_PATH"]
+
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.postgresql",
+        "ENGINE": "django.contrib.gis.db.backends.postgis",
         "NAME": os.environ.get("POSTGRES_DB", "myapp"),
         "USER": os.environ.get("POSTGRES_USER", "postgres"),
         "PASSWORD": os.environ.get("POSTGRES_PASSWORD", "password"),
@@ -47,6 +54,7 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    "django.contrib.gis",
     "accounts",
     "rest_framework",
 ]
