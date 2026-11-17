@@ -1,11 +1,17 @@
 from datetime import datetime, timedelta, timezone
+from unittest.mock import patch
 
 from django.contrib.gis.geos import Point
 from django.db import IntegrityError, connection, transaction
+from django.db.models import Sum
 from django.db.models import ProtectedError
-from django.test import TestCase
+from django.test import Client, SimpleTestCase, TestCase
 
 from commons.models import DataSource, Practice
+from workshop2026.processing.score import (
+    BasicFrequentationScore,
+    CazalisFrequentationScore,
+)
 
 from .models import CountingMeasure, CountingObject, CountingObjectType, Unit
 
@@ -23,7 +29,11 @@ class TrafficTestCase(TestCase):
         cls.person = Unit.objects.get(code="person")
 
     def make_object(self, **kwargs):
-        values = {"type": self.type, "source": self.source, "geom": Point(6.4, 44.9, srid=4326)}
+        values = {
+            "type": self.type,
+            "source": self.source,
+            "geom": Point(6.4, 44.9, srid=4326),
+        }
         return CountingObject.objects.create(**(values | kwargs))
 
 
@@ -110,7 +120,9 @@ class CountingMeasureTests(TrafficTestCase):
     def test_measure_may_point_to_any_practice_level(self):
         self.measure(practice=Practice.objects.get(code="walking"))
         self.measure(practice=Practice.objects.get(code="mountain_biking"))
-        self.assertEqual(CountingMeasure.objects.filter(practice__isnull=False).count(), 2)
+        self.assertEqual(
+            CountingMeasure.objects.filter(practice__isnull=False).count(), 2
+        )
 
     def test_unit_and_practice_in_use_are_protected(self):
         self.measure(practice=Practice.objects.get(code="hiking"))
@@ -153,7 +165,9 @@ class CountingObjectApiTests(TrafficTestCase):
     def test_spatial_and_code_filters(self):
         self.assertEqual(self.get("bbox=6,44,7,45")["count"], 1)
         self.assertEqual(self.get("point=6.4,44.9")["count"], 1)
-        square = '{"type": "Polygon", "coordinates": [[[6,44],[7,44],[7,45],[6,45],[6,44]]]}'
+        square = (
+            '{"type": "Polygon", "coordinates": [[[6,44],[7,44],[7,45],[6,45],[6,44]]]}'
+        )
         self.assertEqual(self.get(f"intersects={square}")["count"], 1)
         self.assertEqual(self.get("origin_code=garmin")["count"], 1)
         self.assertEqual(self.get("type_code=segment")["count"], 0)
@@ -161,11 +175,16 @@ class CountingObjectApiTests(TrafficTestCase):
     def test_measures_paginated_with_codes(self):
         for day in (15, 16, 17):
             CountingMeasure.objects.create(
-                counting_object=self.inside, start_datetime=dt(day),
-                end_datetime=dt(day) + timedelta(days=1), count=1, unit=self.person,
+                counting_object=self.inside,
+                start_datetime=dt(day),
+                end_datetime=dt(day) + timedelta(days=1),
+                count=1,
+                unit=self.person,
                 practice=Practice.objects.get(code="hiking"),
             )
-        response = self.client.get("/api/traffic/counting-measures?limit=2&practice_code=hiking")
+        response = self.client.get(
+            "/api/traffic/counting-measures?limit=2&practice_code=hiking"
+        )
         data = response.json()
         self.assertEqual((data["count"], len(data["results"])), (3, 2))
         self.assertEqual(data["results"][0]["unit_code"], "person")
@@ -183,3 +202,73 @@ class ReferenceDataTests(TestCase):
             set(CountingObjectType.objects.values_list("code", flat=True)),
             {"counter", "segment"},
         )
+
+
+class BasicFrequentationScoreTests(SimpleTestCase):
+    @patch("workshop2026.processing.score.MaterializedViewCount.objects.filter")
+    def test_compute_sums_counts_from_all_sources_per_area(self, filter_counts):
+        filter_counts.return_value.values.return_value.annotate.return_value = [
+            {"id_area": 12, "total": 25},
+            {"id_area": 13, "total": 8},
+        ]
+        score_grid = BasicFrequentationScore.compute(geom_ids=[12, 13])
+
+        filter_counts.assert_called_once_with(id_area__in=[12, 13])
+        filter_counts.return_value.values.assert_called_once_with("id_area")
+        filter_counts.return_value.values.return_value.annotate.assert_called_once_with(
+            total=Sum("counts")
+        )
+        self.assertEqual(score_grid, {12: 25, 13: 8})
+
+    @patch("workshop2026.processing.score.MaterializedViewCount.objects.filter")
+    @patch("workshop2026.processing.score.LArea.objects.filter")
+    def test_compute_includes_ids_from_geometry_and_geom_ids(
+        self, filter_areas, filter_counts
+    ):
+        filter_areas.return_value.values_list.return_value = [13, 14]
+        filter_counts.return_value.values.return_value.annotate.return_value = [
+            {"id_area": 12, "total": 25},
+            {"id_area": 13, "total": 8},
+            {"id_area": 14, "total": 4},
+        ]
+
+        score_grid = BasicFrequentationScore.compute(
+            geoms=Point(6.4, 44.9, srid=4326),
+            geom_ids=[12, 13],
+        )
+
+        filter_areas.assert_called_once()
+        self.assertEqual(filter_areas.call_args.kwargs["geom__intersects"].srid, 2154)
+        filter_counts.assert_called_once_with(id_area__in=[12, 13, 14])
+        self.assertEqual(score_grid, {12: 25, 13: 8, 14: 4})
+
+
+class CazalisFrequentationScoreTests(SimpleTestCase):
+    @patch("workshop2026.processing.score.MaterializedViewCount.objects.filter")
+    def test_compute_applies_source_weights_per_area(self, filter_counts):
+        filter_counts.return_value.values.return_value = [
+            {"id_area": 12, "id_source": 1, "counts": 10},
+            {"id_area": 12, "id_source": 2, "counts": 5},
+            {"id_area": 13, "id_source": 1, "counts": 4},
+            {"id_area": 13, "id_source": 2, "counts": 3},
+        ]
+
+        score_grid = CazalisFrequentationScore.compute(
+            geom_ids=[12, 13],
+            source_weights={1: 2, 2: 3},
+        )
+
+        filter_counts.assert_called_once_with(id_area__in=[12, 13])
+        filter_counts.return_value.values.assert_called_once_with(
+            "id_area", "id_source", "counts"
+        )
+        self.assertEqual(score_grid, {12: 35, 13: 17})
+
+    @patch("workshop2026.processing.score.MaterializedViewCount.objects.filter")
+    def test_compute_rejects_missing_source_weight(self, filter_counts):
+        filter_counts.return_value.values.return_value = [
+            {"id_area": 12, "id_source": 3, "counts": 10},
+        ]
+
+        with self.assertRaisesRegex(ValueError, "Missing weight for source ID 3"):
+            CazalisFrequentationScore.compute(geom_ids=[12], source_weights={})
