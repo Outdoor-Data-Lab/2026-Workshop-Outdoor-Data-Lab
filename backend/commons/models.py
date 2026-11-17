@@ -43,9 +43,24 @@ class DataImport(models.Model):
     )
     line_numbers = models.IntegerField(default=0)
     error_numbers = models.IntegerField(default=0)
+    file = models.FileField(upload_to="imports")
 
     class Meta:
         db_table = table("data_imports")
+
+    def run_parser(self):
+        """Run the parser associated with this import's source, if available."""
+        if self.source.code_source != "outdoorvision":
+            return None
+        if not self.pk:
+            raise ValueError("Le DataImport doit être enregistré avant son traitement.")
+        if not self.file:
+            raise ValueError("Aucun fichier n'est associé au DataImport.")
+
+        # Local import: the traffic parser itself imports DataImport.
+        from traffic.parsers.outdoorvision import OutdoorVisionParser
+
+        return OutdoorVisionParser(self).import_data()
 
     def __str__(self):
         return f"{self.source} {self.date_import:%Y-%m-%d %H:%M}"
