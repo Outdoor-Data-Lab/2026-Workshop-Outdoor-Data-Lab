@@ -20,10 +20,8 @@ class TrafficTestCase(TestCase):
         cls.source = DataSource.objects.create(
             code_source="outdoorvision", source="Outdoorvision"
         )
-        cls.type = CountingObjectType.objects.create(
-            code_type="eco_counter", type="Éco-compteur"
-        )
-        # Seeded by migration 0002.
+        # Seeded by migrations 0002 and 0003.
+        cls.type = CountingObjectType.objects.get(code_type="counter")
         cls.person = Unit.objects.get(code_unit="person")
 
     def make_object(self, **kwargs):
@@ -120,4 +118,10 @@ class ReferenceDataTests(TestCase):
         self.assertEqual(
             set(Activity.objects.values_list("code_activity", flat=True)),
             {"running", "hiking", "biking", "skiing"},
+        )
+
+    def test_initial_counting_object_types(self):
+        self.assertEqual(
+            set(CountingObjectType.objects.values_list("code_type", flat=True)),
+            {"counter", "segment"},
         )
