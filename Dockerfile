@@ -20,9 +20,6 @@ ENV UV_LINK_MODE=copy
 
 WORKDIR /app
 
-# GDAL before uv sync: pyogrio is compiled on Alpine and needs it.
-RUN apk add --no-cache build-base gdal-dev geos-dev proj-dev
-
 # Install dependencies into a virtual environment using cache and bind mounts
 # so neither uv nor the lock files need to be copied into the image.
 RUN --mount=type=cache,target=/root/.cache/uv \
