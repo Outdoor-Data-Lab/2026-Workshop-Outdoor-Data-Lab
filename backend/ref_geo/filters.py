@@ -1,4 +1,6 @@
-from django.contrib.gis.gdal import GDALException
+from math import isfinite
+
+from django.contrib.gis.gdal import GDALException, SRSException
 from django.contrib.gis.geos import GEOSException, GEOSGeometry, Point, Polygon
 from django_filters import rest_framework as filters
 from rest_framework.exceptions import ValidationError
@@ -11,6 +13,8 @@ def parse_geometry(value):
     geom = GEOSGeometry(value)
     if not geom.srid:
         geom.srid = 4326
+    elif geom.srid != 4326:
+        geom.transform(4326)  # fails early on an unknown SRID
     return geom
 
 
@@ -27,11 +31,15 @@ class BBoxMixin(filters.FilterSet):
     intersects = filters.CharFilter(method="filter_geometry")
     within = filters.CharFilter(method="filter_geometry")
     contains = filters.CharFilter(method="filter_geometry")
-    bbox_field = "geom_4326"
+    # Native, GiST-indexed Lambert-93 column: the WGS84 input is reprojected
+    # once in SQL, instead of scanning geom_4326 (no spatial index).
+    bbox_field = "geom"
 
     def filter_bbox(self, queryset, name, value):
         try:
             xmin, ymin, xmax, ymax = (float(v) for v in value.split(","))
+            if not all(map(isfinite, (xmin, ymin, xmax, ymax))):
+                raise ValueError
         except ValueError:
             raise ValidationError({"bbox": "Expected minlon,minlat,maxlon,maxlat."})
         box = Polygon.from_bbox((xmin, ymin, xmax, ymax))
@@ -41,6 +49,8 @@ class BBoxMixin(filters.FilterSet):
     def filter_point(self, queryset, name, value):
         try:
             lon, lat = (float(v) for v in value.split(","))
+            if not (isfinite(lon) and isfinite(lat)):
+                raise ValueError
         except ValueError:
             raise ValidationError({"point": "Expected lon,lat."})
         return queryset.filter(
@@ -50,7 +60,7 @@ class BBoxMixin(filters.FilterSet):
     def filter_geometry(self, queryset, name, value):
         try:
             geom = parse_geometry(value)
-        except (ValueError, GDALException, GEOSException):
+        except (ValueError, TypeError, GDALException, SRSException, GEOSException):
             raise ValidationError({name: "Invalid GeoJSON or WKT geometry."})
         return queryset.filter(**{f"{self.bbox_field}__{name}": geom})
 
@@ -66,7 +76,6 @@ class LAreaFilter(BBoxMixin):
 
 
 class LLinearFilter(BBoxMixin):
-    bbox_field = "geom"
     type_code = filters.CharFilter(field_name="type__type_code")
     name = filters.CharFilter(field_name="linear_name", lookup_expr="icontains")
 

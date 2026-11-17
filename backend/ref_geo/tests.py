@@ -40,10 +40,19 @@ MODELS = [
 ]
 
 
-def square(xmin, ymin, xmax, ymax, srid):
+def square(xmin, ymin, xmax, ymax, srid=4326):
     poly = Polygon.from_bbox((xmin, ymin, xmax, ymax))
     poly.srid = srid
     return MultiPolygon(poly, srid=srid)
+
+
+def both_geoms(xmin, ymin, xmax, ymax):
+    """WGS84 square as ``geom_4326`` plus its Lambert-93 ``geom``.
+
+    The spatial filters use ``geom`` (indexed), the GeoJSON output ``geom_4326``.
+    """
+    wgs84 = square(xmin, ymin, xmax, ymax)
+    return {"geom_4326": wgs84, "geom": wgs84.transform(2154, clone=True)}
 
 
 class RefGeoTestCase(TestCase):
@@ -62,19 +71,19 @@ class RefGeoTestCase(TestCase):
             type=cls.com,
             area_name="Chamonix-Mont-Blanc",
             area_code="74056",
-            geom_4326=square(6.8, 45.9, 6.9, 46.0, 4326),
+            **both_geoms(6.8, 45.9, 6.9, 46.0),
         )
         cls.paris = LArea.objects.create(
             type=cls.com,
             area_name="Paris",
             area_code="75056",
-            geom_4326=square(2.2, 48.8, 2.5, 48.9, 4326),
+            **both_geoms(2.2, 48.8, 2.5, 48.9),
         )
         cls.cell = LArea.objects.create(
             type=cls.m1,
             area_name="E090N6839",
             area_code="1kmL93E090N6839",
-            geom_4326=square(6.85, 45.92, 6.86, 45.93, 4326),
+            **both_geoms(6.85, 45.92, 6.86, 45.93),
         )
         LiMunicipality.objects.create(
             id_municipality="COMMUNE_1",
@@ -253,3 +262,69 @@ class GeoJSONTests(RefGeoTestCase):
         x, y = data["features"][0]["geometry"]["coordinates"]
         self.assertLess(abs(x), 180)
         self.assertLess(abs(y), 90)
+
+
+class RobustnessTests(RefGeoTestCase):
+    def status(self, params, **extra):
+        return self.client.get(reverse("ref_geo:area-list"), params, **extra).status_code
+
+    def test_nan_and_inf_are_400(self):
+        self.assertEqual(self.status({"bbox": "nan,nan,nan,nan"}), 400)
+        self.assertEqual(self.status({"bbox": "0,0,inf,1"}), 400)
+        self.assertEqual(self.status({"point": "nan,1"}), 400)
+
+    def test_unknown_srid_is_400(self):
+        self.assertEqual(self.status({"intersects": "SRID=99999;POINT(1 1)"}), 400)
+
+    def test_known_ewkt_srid_is_reprojected(self):
+        point = Point(6.87, 45.92, srid=4326).transform(2154, clone=True)
+        ewkt = f"SRID=2154;POINT({point.x} {point.y})"
+        data = self.get("area-list", f"type_code=COM&intersects={quote(ewkt)}")
+        self.assertEqual(self.codes(data), {"74056"})
+
+    def test_geojson_with_accept_json_header(self):
+        response = self.client.get(
+            reverse("ref_geo:area-list"),
+            {"format": "geojson"},
+            headers={"Accept": "application/json"},
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "application/geo+json")
+
+    def test_ordering_is_whitelisted(self):
+        from django.test.utils import CaptureQueriesContext
+
+        with CaptureQueriesContext(connection) as ctx:
+            self.assertEqual(self.status({"ordering": "geom_4326"}), 200)
+        order_by = ctx.captured_queries[-1]["sql"].split("ORDER BY")[-1]
+        self.assertNotIn("geom_4326", order_by)  # unknown field: dropped
+        data = self.get("area-list", "type_code=COM&ordering=-area_name")
+        self.assertEqual(
+            [a["area_name"] for a in data["results"]],
+            ["Paris", "Chamonix-Mont-Blanc"],
+        )
+
+    def test_views_work_without_request_for_schema_generation(self):
+        # Schema generators instantiate views with no request (or an unrendered one)
+        from rest_framework.request import Request
+        from rest_framework.test import APIRequestFactory
+
+        from .views import LAreaViewSet, LLinearViewSet, LPointViewSet
+
+        for viewset in (LAreaViewSet, LLinearViewSet, LPointViewSet):
+            view = viewset()
+            self.assertFalse(view.is_geojson())  # no request at all
+            view.request = Request(APIRequestFactory().get("/"))  # no accepted_renderer
+            self.assertFalse(view.is_geojson())
+            self.assertIsNotNone(view.get_serializer_class())
+            view.get_queryset()
+
+    def test_linear_queries_do_not_load_native_geometry(self):
+        from django.test.utils import CaptureQueriesContext
+
+        with CaptureQueriesContext(connection) as ctx:
+            self.get("linear-list", "format=geojson")
+        select = ctx.captured_queries[-1]["sql"].split(" FROM ")[0]
+        self.assertIn("ST_Transform", select)
+        # the only use of the native column is inside ST_Transform
+        self.assertEqual(select.count('"l_linears"."geom"'), 1)

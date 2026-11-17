@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from rest_framework_gis.fields import GeometrySerializerMethodField
+from rest_framework_gis.fields import GeometryField
 from rest_framework_gis.serializers import GeoFeatureModelSerializer
 
 from .models import (
@@ -69,27 +69,24 @@ class LAreaGeoSerializer(GeoFeatureModelSerializer):
         exclude = ("geom", "centroid", "type")
 
 
-class _Wgs84Mixin(GeoFeatureModelSerializer):
-    """Native geometry is Lambert-93: reproject to WGS84 for output."""
-
+class LLinearGeoSerializer(GeoFeatureModelSerializer):
     type_code = serializers.CharField(source="type.type_code", read_only=True)
-    geometry = GeometrySerializerMethodField()
+    # annotated in SQL by the viewset (Transform(geom, 4326))
+    geom_4326 = GeometryField(read_only=True)
 
-    def get_geometry(self, obj):
-        return obj.geom.transform(4326, clone=True) if obj.geom else None
-
-
-class LLinearGeoSerializer(_Wgs84Mixin):
     class Meta:
         model = LLinear
-        geo_field = "geometry"
+        geo_field = "geom_4326"
         exclude = ("geom", "geojson_4326", "type")
 
 
-class LPointGeoSerializer(_Wgs84Mixin):
+class LPointGeoSerializer(GeoFeatureModelSerializer):
+    type_code = serializers.CharField(source="type.type_code", read_only=True)
+    geom_4326 = GeometryField(read_only=True)
+
     class Meta:
         model = LPoint
-        geo_field = "geometry"
+        geo_field = "geom_4326"
         exclude = ("geom", "geojson_4326", "type")
 
 
