@@ -38,9 +38,9 @@ class CountingObjectAdmin(GISModelAdmin):
 
 @admin.register(CountingMeasure)
 class CountingMeasureAdmin(admin.ModelAdmin):
-    list_display = ("counting_object", "start_datetime", "end_datetime", "count", "unit", "activity", "processed")
-    list_filter = ("unit", "activity", "processed")
-    list_select_related = ("counting_object", "unit", "activity")
+    list_display = ("counting_object", "start_datetime", "end_datetime", "count", "unit", "practice", "processed")
+    list_filter = ("unit", "practice", "processed")
+    list_select_related = ("counting_object", "unit", "practice")
     date_hierarchy = "start_datetime"
 
     # Measures come from CSV imports: the admin only displays them.

@@ -5,7 +5,7 @@ from django.db import IntegrityError, connection, transaction
 from django.db.models import ProtectedError
 from django.test import TestCase
 
-from commons.models import DataSource, PracticeCategory
+from commons.models import DataSource, Practice
 
 from .models import CountingMeasure, CountingObject, CountingObjectType, Unit
 
@@ -17,8 +17,8 @@ def dt(day, hour=0):
 class TrafficTestCase(TestCase):
     @classmethod
     def setUpTestData(cls):
-        cls.source = DataSource.objects.create(code="outdoorvision", label="Outdoorvision")
-        # Seeded by migration 0002.
+        # Seeded by commons 0002 and traffic 0002.
+        cls.source = DataSource.objects.get(code="outdoorvision")
         cls.type = CountingObjectType.objects.get(code="counter")
         cls.person = Unit.objects.get(code="person")
 
@@ -71,8 +71,8 @@ class CountingObjectTests(TrafficTestCase):
             self.make_object(external_id="42")
 
     def test_same_segment_from_several_origins(self):
-        garmin = DataSource.objects.create(code="garmin", label="Garmin")
-        komoot = DataSource.objects.create(code="komoot", label="Komoot")
+        garmin = DataSource.objects.get(code="garmin")
+        komoot = DataSource.objects.get(code="komoot")
         self.make_object(external_id="segment-1", origin=garmin)
         self.make_object(external_id="segment-1", origin=komoot)
         with self.assertRaises(IntegrityError):
@@ -108,15 +108,20 @@ class CountingMeasureTests(TrafficTestCase):
         with self.assertRaises(IntegrityError), transaction.atomic():
             self.measure(end_datetime=dt(15, 10))
 
-    def test_activity_is_optional(self):
-        self.assertIsNone(self.measure().activity)
+    def test_practice_is_optional(self):
+        self.assertIsNone(self.measure().practice)
 
-    def test_unit_and_activity_in_use_are_protected(self):
-        self.measure(activity=PracticeCategory.objects.get(code="hiking"))
+    def test_measure_may_point_to_any_practice_level(self):
+        self.measure(practice=Practice.objects.get(code="walking"))
+        self.measure(practice=Practice.objects.get(code="mountain_biking"))
+        self.assertEqual(CountingMeasure.objects.filter(practice__isnull=False).count(), 2)
+
+    def test_unit_and_practice_in_use_are_protected(self):
+        self.measure(practice=Practice.objects.get(code="hiking"))
         with self.assertRaises(ProtectedError):
             self.person.delete()
         with self.assertRaises(ProtectedError):
-            PracticeCategory.objects.get(code="hiking").delete()
+            Practice.objects.get(code="hiking").delete()
 
 
 class ReferenceDataTests(TestCase):

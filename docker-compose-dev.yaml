@@ -15,6 +15,11 @@ services:
       - POSTGRES_PASSWORD=password
       - POSTGRES_HOST=db
       - POSTGRES_PORT=5432
+      # Uploaded files (data imports), kept in the media-data volume.
+      - MEDIA_ROOT=/app/media
+    volumes:
+      # Persist uploaded files across container rebuilds.
+      - media-data:/app/media
     # Wait for the database to pass its healthcheck before starting the web service.
     depends_on:
       db:
@@ -79,3 +84,4 @@ services:
       retries: 5
 volumes:
   db-data:
+  media-data:
