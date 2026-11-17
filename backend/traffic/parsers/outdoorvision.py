@@ -7,10 +7,9 @@ import pandas as pd
 from django.contrib.gis.geos import GEOSGeometry
 from django.db import transaction
 
-from commons.models import DataImport
+from commons.models import DataImport, Practice
 
 from ..models import (
-    Activity,
     CountingMeasure,
     CountingObject,
     CountingObjectType,
@@ -18,12 +17,13 @@ from ..models import (
 )
 
 
-ACTIVITY_CODES = {
-    "walking": "hiking",
+# OutdoorVision activity -> commons practice code (any level of the hierarchy).
+PRACTICE_CODES = {
+    "walking": "walking",
     "hiking": "hiking",
     "running": "running",
-    "cycling": "biking",
-    "biking": "biking",
+    "cycling": "cycling",
+    "biking": "cycling",
     "skiing": "skiing",
 }
 REQUIRED_COLUMNS = {
@@ -75,11 +75,11 @@ class OutdoorVisionParser:
     def _aggregate_tracks(self, tracks: gpd.GeoDataFrame) -> list[dict]:
         aggregated_tracks = []
         for track_id, rows in tracks.groupby("track_id", sort=False):
-            activity_codes = {
-                ACTIVITY_CODES.get(value, value)
+            practice_codes = {
+                PRACTICE_CODES.get(value, value)
                 for value in rows["activity"].astype(str).str.strip().str.lower()
             }
-            if len(activity_codes) != 1:
+            if len(practice_codes) != 1:
                 raise ValueError(
                     f"Plusieurs activités sont associées au track_id {track_id}."
                 )
@@ -97,7 +97,7 @@ class OutdoorVisionParser:
                     "geometry": rows.geometry.union_all(),
                     "start_datetime": start_datetime,
                     "end_datetime": end_datetime,
-                    "activity_code": activity_codes.pop(),
+                    "practice_code": practice_codes.pop(),
                 }
             )
         return aggregated_tracks
@@ -107,16 +107,14 @@ class OutdoorVisionParser:
         tracks = self._read_tracks()
         aggregated_tracks = self._aggregate_tracks(tracks)
 
-        activity_codes = {track["activity_code"] for track in aggregated_tracks}
-        activities = Activity.objects.in_bulk(
-            activity_codes, field_name="code_activity"
-        )
-        unknown_activities = activity_codes.difference(activities)
-        if unknown_activities:
-            unknown = ", ".join(sorted(unknown_activities))
+        practice_codes = {track["practice_code"] for track in aggregated_tracks}
+        practices = Practice.objects.in_bulk(practice_codes, field_name="code")
+        unknown_practices = practice_codes.difference(practices)
+        if unknown_practices:
+            unknown = ", ".join(sorted(unknown_practices))
             raise ValueError(f"Activités Outdoorvision inconnues : {unknown}")
-        object_type = CountingObjectType.objects.get(code_type="segment")
-        unit = Unit.objects.get(code_unit="person")
+        object_type = CountingObjectType.objects.get(code="segment")
+        unit = Unit.objects.get(code="person")
 
         imported_tracks = 0
         with transaction.atomic():
@@ -136,7 +134,7 @@ class OutdoorVisionParser:
                     counting_object=counting_object,
                     start_datetime=track["start_datetime"],
                     end_datetime=track["end_datetime"],
-                    activity=activities[track["activity_code"]],
+                    practice=practices[track["practice_code"]],
                     defaults={"count": 1, "unit": unit},
                 )
                 imported_tracks += 1

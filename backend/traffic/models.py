@@ -1,7 +1,7 @@
 """App and schema "traffic": visitor counting objects and the measures they record.
 
 Follows the TRAFFIC part of the "BDD" page of the workshop document. Units are
-a reference table; sources and practice categories (the activity of a measure)
+a reference table; sources and practices (the practice of a measure)
 live in the "commons" app. Geometries are stored in WGS84 (EPSG:4326).
 
 Naming: primary keys are Django's default "id"; reference tables have "code"
@@ -17,7 +17,7 @@ import uuid
 from django.contrib.gis.db import models
 from django.db.models import F, Max, Min, Q
 
-from commons.models import DataSource, PracticeCategory
+from commons.models import DataSource, Practice
 
 DB_SCHEMA = "traffic"
 
@@ -142,8 +142,8 @@ class CountingMeasure(models.Model):
         on_delete=models.PROTECT,
         related_name="measures",
     )
-    activity = models.ForeignKey(
-        PracticeCategory,
+    practice = models.ForeignKey(
+        Practice,
         on_delete=models.PROTECT,
         related_name="measures",
         null=True,

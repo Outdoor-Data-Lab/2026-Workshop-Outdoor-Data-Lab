@@ -221,3 +221,5 @@ __marimo__/
 
 # Custom
 /data
+# Uploaded files (Django MEDIA_ROOT outside Docker)
+backend/media/

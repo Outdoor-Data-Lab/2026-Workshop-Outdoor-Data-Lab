@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import DataImport, DataSource, PracticeCategory
+from .models import DataImport, DataSource, Practice
 
 
 @admin.register(DataSource)
@@ -9,9 +9,11 @@ class DataSourceAdmin(admin.ModelAdmin):
     search_fields = ("code", "label")
 
 
-@admin.register(PracticeCategory)
-class PracticeCategoryAdmin(admin.ModelAdmin):
-    list_display = ("code", "label")
+@admin.register(Practice)
+class PracticeAdmin(admin.ModelAdmin):
+    list_display = ("code", "label", "parent")
+    list_filter = ("parent",)
+    list_select_related = ("parent",)
     search_fields = ("code", "label")
 
 
