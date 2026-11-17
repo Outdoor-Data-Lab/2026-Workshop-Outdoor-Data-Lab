@@ -5,9 +5,9 @@ from django.db import IntegrityError, connection, transaction
 from django.db.models import ProtectedError
 from django.test import TestCase
 
-from commons.models import DataSource
+from commons.models import DataSource, PracticeCategory
 
-from .models import Activity, CountingMeasure, CountingObject, CountingObjectType, Unit
+from .models import CountingMeasure, CountingObject, CountingObjectType, Unit
 
 
 def dt(day, hour=0):
@@ -17,12 +17,10 @@ def dt(day, hour=0):
 class TrafficTestCase(TestCase):
     @classmethod
     def setUpTestData(cls):
-        cls.source = DataSource.objects.create(
-            code_source="outdoorvision", source="Outdoorvision"
-        )
-        # Seeded by migrations 0002 and 0003.
-        cls.type = CountingObjectType.objects.get(code_type="counter")
-        cls.person = Unit.objects.get(code_unit="person")
+        cls.source = DataSource.objects.create(code="outdoorvision", label="Outdoorvision")
+        # Seeded by migration 0002.
+        cls.type = CountingObjectType.objects.get(code="counter")
+        cls.person = Unit.objects.get(code="person")
 
     def make_object(self, **kwargs):
         return CountingObject.objects.create(
@@ -47,7 +45,6 @@ class SchemaTests(TrafficTestCase):
                 "counting_objects",
                 "counting_measures",
                 "units",
-                "activities",
             },
         )
 
@@ -72,6 +69,19 @@ class CountingObjectTests(TrafficTestCase):
         self.make_object(external_id="42")
         with self.assertRaises(IntegrityError):
             self.make_object(external_id="42")
+
+    def test_same_segment_from_several_origins(self):
+        garmin = DataSource.objects.create(code="garmin", label="Garmin")
+        komoot = DataSource.objects.create(code="komoot", label="Komoot")
+        self.make_object(external_id="segment-1", origin=garmin)
+        self.make_object(external_id="segment-1", origin=komoot)
+        with self.assertRaises(IntegrityError):
+            self.make_object(external_id="segment-1", origin=garmin)
+
+    def test_empty_origin_counts_for_uniqueness(self):
+        self.make_object(external_id="42", origin=None)
+        with self.assertRaises(IntegrityError):
+            self.make_object(external_id="42", origin=None)
 
     def test_objects_without_external_id_are_not_unique(self):
         self.make_object()
@@ -102,26 +112,22 @@ class CountingMeasureTests(TrafficTestCase):
         self.assertIsNone(self.measure().activity)
 
     def test_unit_and_activity_in_use_are_protected(self):
-        self.measure(activity=Activity.objects.get(code_activity="hiking"))
+        self.measure(activity=PracticeCategory.objects.get(code="hiking"))
         with self.assertRaises(ProtectedError):
             self.person.delete()
         with self.assertRaises(ProtectedError):
-            Activity.objects.get(code_activity="hiking").delete()
+            PracticeCategory.objects.get(code="hiking").delete()
 
 
 class ReferenceDataTests(TestCase):
-    def test_initial_units_and_activities(self):
+    def test_initial_units(self):
         self.assertEqual(
-            set(Unit.objects.values_list("code_unit", flat=True)),
+            set(Unit.objects.values_list("code", flat=True)),
             {"person", "tent", "bike", "vehicle", "animal"},
-        )
-        self.assertEqual(
-            set(Activity.objects.values_list("code_activity", flat=True)),
-            {"running", "hiking", "biking", "skiing"},
         )
 
     def test_initial_counting_object_types(self):
         self.assertEqual(
-            set(CountingObjectType.objects.values_list("code_type", flat=True)),
+            set(CountingObjectType.objects.values_list("code", flat=True)),
             {"counter", "segment"},
         )
