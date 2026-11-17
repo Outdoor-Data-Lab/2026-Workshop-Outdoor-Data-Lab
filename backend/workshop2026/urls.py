@@ -20,7 +20,14 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
 
+api_patterns = [
+    path("traffic/", include("traffic.api.urls")),
+    path("commons/", include("commons.api.urls")),
+]
+
 urlpatterns = [
+    path("admin/", admin.site.urls),
+    path("api/", include(api_patterns)),
     path("admin/", admin.site.urls),
     path("ref_geo/", include("ref_geo.urls")),
 ]
