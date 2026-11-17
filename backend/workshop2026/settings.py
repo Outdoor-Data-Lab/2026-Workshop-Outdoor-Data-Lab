@@ -60,6 +60,9 @@ INSTALLED_APPS = [
     "traffic",
     "outdoor",
     "biodiversity",
+    "ref_geo",
+    "django_filters",
+    "rest_framework_gis",
     "rest_framework",
 ]
 
@@ -150,4 +153,9 @@ MAILERS = {
     "default": {
         "BACKEND": "django.core.mail.backends.console.EmailBackend",
     },
+}
+
+REST_FRAMEWORK = {
+    "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.LimitOffsetPagination",
+    "PAGE_SIZE": 50,
 }
