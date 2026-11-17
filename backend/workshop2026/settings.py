@@ -165,3 +165,5 @@ SPECTACULAR_SETTINGS = {
     "VERSION": "0.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
 }
+
+MIGRATION_MODULES = {"ref_geo": None}
