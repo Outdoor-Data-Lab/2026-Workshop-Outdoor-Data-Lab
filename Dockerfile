@@ -9,6 +9,11 @@ ENV PYTHONDONTWRITEBYTECODE=1
 # Prevent Python from buffering stdout/stderr so logs appear immediately.
 ENV PYTHONUNBUFFERED=1
 
+# No musl wheels exist for pyogrio (and possibly others) on Alpine, so they are
+# compiled from source: this needs a toolchain plus the GDAL/GEOS/PROJ headers
+# (gdal-config must be on PATH).
+RUN apk add --no-cache build-base gdal-dev geos-dev proj-dev
+
 RUN pip install --quiet --root-user-action=ignore uv
 # Use copy mode since the cache and build filesystem are on different volumes.
 ENV UV_LINK_MODE=copy
