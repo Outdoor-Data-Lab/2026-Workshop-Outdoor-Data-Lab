@@ -57,6 +57,7 @@ INSTALLED_APPS = [
     "django.contrib.gis",
     "accounts",
     "commons",
+    "traffic",
     "rest_framework",
 ]
 
