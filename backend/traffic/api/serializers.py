@@ -1,4 +1,5 @@
 from rest_framework import serializers
+from rest_framework_gis.fields import GeometryField
 from rest_framework_gis.serializers import GeoFeatureModelSerializer
 
 from ..models import (
@@ -73,3 +74,9 @@ class CountingMeasureSerializer(serializers.ModelSerializer):
             "date_update",
             "processed",
         ]
+
+class GeometrySearchSerializer(serializers.Serializer):
+    PREDICATES = ("within", "intersects")
+
+    geometry = GeometryField()
+    predicate = serializers.ChoiceField(choices=PREDICATES, default="intersects")
