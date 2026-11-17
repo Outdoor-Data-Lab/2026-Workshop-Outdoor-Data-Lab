@@ -16,7 +16,6 @@ import os
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.1/howto/deployment/checklist/
 
@@ -44,7 +43,6 @@ DATABASES = {
 }
 ALLOWED_HOSTS = []
 
-
 # Application definition
 
 INSTALLED_APPS = [
@@ -64,8 +62,8 @@ INSTALLED_APPS = [
     "django_filters",
     "rest_framework_gis",
     "rest_framework",
+    "drf_spectacular",
 ]
-
 
 AUTH_USER_MODEL = "accounts.User"
 LOGIN_URL = "login"
@@ -100,7 +98,6 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "workshop2026.wsgi.application"
 
-
 # Database
 # https://docs.djangoproject.com/en/6.1/ref/settings/#databases
 
@@ -123,7 +120,6 @@ AUTH_PASSWORD_VALIDATORS = [
     },
 ]
 
-
 # Internationalization
 # https://docs.djangoproject.com/en/6.1/topics/i18n/
 
@@ -134,7 +130,6 @@ TIME_ZONE = "UTC"
 USE_I18N = True
 
 USE_TZ = True
-
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.1/howto/static-files/
@@ -158,4 +153,15 @@ MAILERS = {
 REST_FRAMEWORK = {
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.LimitOffsetPagination",
     "PAGE_SIZE": 50,
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.AllowAny",
+    ],
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
+}
+
+SPECTACULAR_SETTINGS = {
+    "TITLE": "Workshop ODL 2026 API",
+    "DESCRIPTION": "Documentation de l'API du Workshop ODL 2026",
+    "VERSION": "0.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
 }

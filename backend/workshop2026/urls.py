@@ -19,10 +19,23 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
+from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
+
+api_patterns = [
+    path("traffic/", include("traffic.api.urls")),
+    path("commons/", include("commons.api.urls")),
+]
 
 urlpatterns = [
     path("admin/", admin.site.urls),
+    path("api/", include(api_patterns)),
     path("ref_geo/", include("ref_geo.urls")),
+    path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
+    path(
+        "api/docs/",
+        SpectacularSwaggerView.as_view(url_name="schema"),
+        name="swagger-ui",
+    ),
 ]
 
 # Serve uploaded files in development (does nothing when DEBUG is off).
