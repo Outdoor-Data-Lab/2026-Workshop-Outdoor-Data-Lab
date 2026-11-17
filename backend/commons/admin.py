@@ -23,6 +23,9 @@ class DataImportAdmin(admin.ModelAdmin):
     list_filter = ("source",)
     readonly_fields = ("date_import",)
 
+    class Media:
+        js = ("commons/import_loading.js",)
+
     def save_model(self, request, obj, form, change):
         super().save_model(request, obj, form, change)
         if not change:
