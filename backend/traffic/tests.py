@@ -1,13 +1,20 @@
+import tempfile
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
+
+import geopandas as gpd
+from shapely import LineString
 
 from django.contrib.gis.geos import Point
+from django.core.files.base import ContentFile
 from django.db import IntegrityError, connection, transaction
 from django.db.models import ProtectedError
-from django.test import TestCase
+from django.test import TestCase, override_settings
 
-from commons.models import DataSource, Practice
+from commons.models import DataImport, DataSource, Practice
 
 from .models import CountingMeasure, CountingObject, CountingObjectType, Unit
+from .parsers.outdoorvision import OutdoorVisionParser
 
 
 def dt(day, hour=0):
@@ -136,3 +143,54 @@ class ReferenceDataTests(TestCase):
             set(CountingObjectType.objects.values_list("code", flat=True)),
             {"counter", "segment"},
         )
+
+
+class OutdoorVisionParserTests(TrafficTestCase):
+    ROWS = [  # track 1 is split in two pieces, as in real exports.
+        (1, "t1", "walking", "2025-07-01T08:00", "2025-07-01T09:00", [(6.40, 44.90), (6.41, 44.90)]),
+        (2, "t1", "walking", "2025-07-01T09:30", "2025-07-01T11:00", [(6.42, 44.90), (6.43, 44.91)]),
+        (3, "t2", "cycling", "2025-07-02T10:00", "2025-07-02T12:00", [(6.50, 44.80), (6.52, 44.81)]),
+    ]
+
+    def setUp(self):
+        self.tmp = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self.enterContext(override_settings(MEDIA_ROOT=self.tmp / "media"))
+
+    def run_import(self, rows=ROWS, drop=()):
+        frame = gpd.GeoDataFrame(
+            [
+                dict(id=i, track_id=t, activity=a, date_start=f"{s}+02:00", date_end=f"{e}+02:00")
+                for i, t, a, s, e, _ in rows
+            ],
+            geometry=[LineString(c) for *_, c in rows],
+            crs=4326,
+        ).drop(columns=list(drop))
+        path = self.tmp / "export.gpkg"
+        frame.to_file(path)
+        data_import = DataImport(source=self.source)
+        data_import.file.save("export.gpkg", ContentFile(path.read_bytes()))
+        return data_import, OutdoorVisionParser(data_import).import_data()
+
+    def test_one_object_and_one_passage_per_track(self):
+        data_import, count = self.run_import()
+        self.assertEqual((count, data_import.line_numbers), (2, 3))
+        measure = CountingMeasure.objects.get(counting_object__external_id="t1")
+        self.assertEqual((measure.count, measure.unit.code, measure.practice.code), (1, "person", "walking"))
+        self.assertEqual(measure.start_datetime, datetime(2025, 7, 1, 6, tzinfo=timezone.utc))
+        self.assertEqual(measure.end_datetime, datetime(2025, 7, 1, 9, tzinfo=timezone.utc))
+        self.assertEqual(measure.counting_object.geom.num_geom, 2)  # both pieces kept
+        self.assertEqual(CountingMeasure.objects.get(counting_object__external_id="t2").practice.code, "cycling")
+
+    def test_reimport_does_not_duplicate(self):
+        self.run_import()
+        self.run_import()
+        self.assertEqual((CountingObject.objects.count(), CountingMeasure.objects.count()), (2, 2))
+
+    def test_unknown_activity_imports_nothing(self):
+        with self.assertRaisesMessage(ValueError, "inconnues : swimming"):
+            self.run_import([(1, "t1", "swimming", *self.ROWS[0][3:])])
+        self.assertFalse(CountingObject.objects.exists())
+
+    def test_missing_column_is_rejected(self):
+        with self.assertRaisesMessage(ValueError, "manquantes : track_id"):
+            self.run_import(drop=["track_id"])
