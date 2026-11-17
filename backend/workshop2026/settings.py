@@ -56,6 +56,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "django.contrib.gis",
     "accounts",
+    "commons",
     "rest_framework",
 ]
 
