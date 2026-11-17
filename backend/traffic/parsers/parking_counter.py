@@ -1,7 +1,7 @@
 """Parser for hourly parking counter 
 
 Try : 
-uv run python backend/workshop2026/parsers/parking_counter.py backend/workshop2026/data/rapportT6_01_June_2025_0050204011-0_PMC.csv \
+uv run python backend/traffic/parsers/parking_counter.py backend/workshop2026/data/rapportT6_01_June_2025_0050204011-0_PMC.csv \
   --id-object 0050204011-0 --name "Parking PMC" --geom "POINT(6.12 45.89)" -o out.csv
 """
 
