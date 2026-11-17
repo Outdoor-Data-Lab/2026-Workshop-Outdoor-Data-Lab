@@ -70,6 +70,19 @@ class CountingObjectTests(TrafficTestCase):
         with self.assertRaises(IntegrityError):
             self.make_object(external_id="42")
 
+    def test_same_segment_from_several_origins(self):
+        garmin = DataSource.objects.create(code="garmin", label="Garmin")
+        komoot = DataSource.objects.create(code="komoot", label="Komoot")
+        self.make_object(external_id="segment-1", origin=garmin)
+        self.make_object(external_id="segment-1", origin=komoot)
+        with self.assertRaises(IntegrityError):
+            self.make_object(external_id="segment-1", origin=garmin)
+
+    def test_empty_origin_counts_for_uniqueness(self):
+        self.make_object(external_id="42", origin=None)
+        with self.assertRaises(IntegrityError):
+            self.make_object(external_id="42", origin=None)
+
     def test_objects_without_external_id_are_not_unique(self):
         self.make_object()
         self.make_object()

@@ -71,10 +71,21 @@ class CountingObject(models.Model):
         on_delete=models.PROTECT,
         related_name="counting_objects",
     )
+    # Provider: the application that supplied the data to us (e.g. OutdoorVision).
     source = models.ForeignKey(
         DataSource,
         on_delete=models.PROTECT,
         related_name="counting_objects",
+    )
+    # Origin: the application that produced the data in the first place, when
+    # the provider aggregates others (e.g. Garmin, Komoot behind OutdoorVision).
+    # Empty when the provider is the producer, or when the origin is unknown.
+    origin = models.ForeignKey(
+        DataSource,
+        on_delete=models.PROTECT,
+        related_name="originated_counting_objects",
+        null=True,
+        blank=True,
     )
     geom = models.GeometryField(srid=4326)
     date_create = models.DateTimeField(auto_now_add=True)
@@ -90,11 +101,14 @@ class CountingObject(models.Model):
     class Meta:
         db_table = table("counting_objects")
         constraints = [
-            # An imported object is identified by its id in its source, so a
-            # re-import updates it instead of creating a duplicate.
+            # An imported object is identified by its id in its provider and its
+            # origin, so a re-import updates it instead of creating a duplicate.
+            # The same segment seen through Garmin and through Komoot gives two
+            # objects. An empty origin counts as a value (nulls_distinct=False).
             models.UniqueConstraint(
-                fields=["source", "external_id"],
+                fields=["source", "origin", "external_id"],
                 condition=~Q(external_id=""),
+                nulls_distinct=False,
                 name="counting_object_unique_external_id",
             ),
             models.CheckConstraint(
