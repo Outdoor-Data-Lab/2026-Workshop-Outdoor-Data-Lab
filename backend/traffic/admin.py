@@ -1,25 +1,19 @@
 from django.contrib import admin
 from django.contrib.gis.admin import GISModelAdmin
 
-from .models import Activity, CountingMeasure, CountingObject, CountingObjectType, Unit
+from .models import CountingMeasure, CountingObject, CountingObjectType, Unit
 
 
 @admin.register(Unit)
 class UnitAdmin(admin.ModelAdmin):
-    list_display = ("code_unit", "unit")
-    search_fields = ("code_unit", "unit")
-
-
-@admin.register(Activity)
-class ActivityAdmin(admin.ModelAdmin):
-    list_display = ("code_activity", "activity")
-    search_fields = ("code_activity", "activity")
+    list_display = ("code", "label")
+    search_fields = ("code", "label")
 
 
 @admin.register(CountingObjectType)
 class CountingObjectTypeAdmin(admin.ModelAdmin):
-    list_display = ("code_type", "type")
-    search_fields = ("code_type", "type")
+    list_display = ("code", "label")
+    search_fields = ("code", "label")
 
 
 @admin.register(CountingObject)
