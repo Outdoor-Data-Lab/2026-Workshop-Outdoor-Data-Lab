@@ -62,8 +62,6 @@ INSTALLED_APPS = [
     "django_filters",
     "rest_framework_gis",
     "rest_framework",
-    "rest_framework_gis",
-    "django_filters",
     "drf_spectacular",
 ]
 
