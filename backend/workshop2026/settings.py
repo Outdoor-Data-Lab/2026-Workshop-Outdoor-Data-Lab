@@ -58,6 +58,7 @@ INSTALLED_APPS = [
     "accounts",
     "commons",
     "traffic",
+    "outdoor",
     "rest_framework",
 ]
 
