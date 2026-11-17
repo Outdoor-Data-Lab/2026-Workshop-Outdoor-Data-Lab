@@ -59,6 +59,7 @@ INSTALLED_APPS = [
     "commons",
     "traffic",
     "outdoor",
+    "biodiversity",
     "rest_framework",
 ]
 
