@@ -15,6 +15,9 @@ ENV UV_LINK_MODE=copy
 
 WORKDIR /app
 
+# GDAL before uv sync: pyogrio is compiled on Alpine and needs it.
+RUN apk add --no-cache build-base gdal-dev geos-dev proj-dev
+
 # Install dependencies into a virtual environment using cache and bind mounts
 # so neither uv nor the lock files need to be copied into the image.
 RUN --mount=type=cache,target=/root/.cache/uv \
@@ -27,9 +30,6 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # when Compose Watch syncs files.
 FROM builder AS development
 
-# GeoDjango system libraries (GDAL, GEOS, PROJ); -dev packages provide the
-# unversioned libgdal.so / libgeos_c.so symlinks Django looks for.
-RUN apk add --no-cache gdal-dev geos-dev proj-dev
 ENV GDAL_LIBRARY_PATH=/usr/lib/libgdal.so \
     GEOS_LIBRARY_PATH=/usr/lib/libgeos_c.so
 
