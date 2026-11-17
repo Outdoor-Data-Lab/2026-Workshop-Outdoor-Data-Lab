@@ -1,4 +1,25 @@
 services:
+  taxhub:
+    restart: "no"
+    command:
+      - /bin/sh
+      - -ec
+      - |
+        flask db upgrade taxhub-standalone@head -x local-srid=2154
+        flask db upgrade taxhub-standalone-sample@head
+        flask db upgrade ref_geo_fr_departments@head
+        flask db autoupgrade
+    environment:
+      FLASK_APP: apptax.app:create_app
+      FLASK_DEBUG: "1"
+      TAXHUB_SQLALCHEMY_DATABASE_URI: postgresql://postgres:password@db:5432/myapp
+      TAXHUB_CONFIG_FILE: ""
+      TAXHUB_SECRET_KEY: dev-only-secret-key-for-migrations
+    image: lpoaura/taxhub:dev
+    depends_on:
+      db:
+        condition: service_healthy
+        required: true
   web:
     build:
       context: .
@@ -67,6 +88,7 @@ services:
     volumes:
       # Persist database data across container restarts.
       - db-data:/var/lib/postgresql
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/10-taxhub-extensions.sql:ro
     environment:
       - POSTGRES_DB=myapp
       - POSTGRES_USER=postgres
