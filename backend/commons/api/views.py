@@ -1,17 +1,22 @@
 from rest_framework import viewsets
 
 from ..models import (
-DataSource,
-DataImport
+    DataSource,
+    DataImport, PracticeCategory
 )
 from .serializers import (
-DataImportSerializer,
-DataSourceSerializer
+    DataImportSerializer,
+    DataSourceSerializer, PracticeCategorySerializer
 )
+
+class PracticeCategoryViewSet(viewsets.ReadOnlyModelViewSet):
+
+    queryset = PracticeCategory.objects.order_by("id")
+    serializer_class = PracticeCategorySerializer
 
 class DataSourceViewSet(viewsets.ReadOnlyModelViewSet):
 
-    queryset = DataSource.objects.order_by("id_source")
+    queryset = DataSource.objects.order_by("id")
     serializer_class = DataSourceSerializer
 
 class DataImportViewSet(viewsets.ReadOnlyModelViewSet):

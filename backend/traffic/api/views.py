@@ -7,14 +7,12 @@ from rest_framework.response import Response
 from rest_framework_gis.pagination import GeoJsonPagination
 
 from ..models import (
-    Activity,
     CountingMeasure,
     CountingObject,
     CountingObjectType,
     Unit,
 )
 from .serializers import (
-    ActivitySerializer,
     CountingMeasureSerializer,
     CountingObjectSerializer,
     CountingObjectTypeSerializer,
@@ -23,19 +21,12 @@ from .serializers import (
 
 class UnitViewSet(viewsets.ReadOnlyModelViewSet):
 
-    queryset = Unit.objects.order_by("id_unit")
+    queryset = Unit.objects.order_by("id")
     serializer_class = UnitSerializer
-
-
-class ActivityViewSet(viewsets.ReadOnlyModelViewSet):
-
-    queryset = Activity.objects.order_by("id_activity")
-    serializer_class = ActivitySerializer
-
 
 class CountingObjectTypeViewSet(viewsets.ReadOnlyModelViewSet):
 
-    queryset = CountingObjectType.objects.order_by("id_type")
+    queryset = CountingObjectType.objects.order_by("id")
     serializer_class = CountingObjectTypeSerializer
 
 

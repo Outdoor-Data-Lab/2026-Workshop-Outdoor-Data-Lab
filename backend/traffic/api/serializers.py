@@ -3,7 +3,6 @@ from rest_framework_gis.fields import GeometryField
 from rest_framework_gis.serializers import GeoFeatureModelSerializer
 
 from ..models import (
-    Activity,
     CountingMeasure,
     CountingObject,
     CountingObjectType,
@@ -14,19 +13,13 @@ from ..models import (
 class UnitSerializer(serializers.ModelSerializer):
     class Meta:
         model = Unit
-        fields = ["id_unit", "code_unit", "unit"]
-
-
-class ActivitySerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Activity
-        fields = ["id_activity", "code_activity", "activity"]
+        fields = ["id", "code", "label"]
 
 
 class CountingObjectTypeSerializer(serializers.ModelSerializer):
     class Meta:
         model = CountingObjectType
-        fields = ["id_type", "code_type", "type"]
+        fields = ["id", "code", "label"]
 
 
 class CountingObjectSerializer(GeoFeatureModelSerializer):
@@ -38,9 +31,8 @@ class CountingObjectSerializer(GeoFeatureModelSerializer):
     class Meta:
         model = CountingObject
         geo_field = "geom"
-        id_field = "id_counting_object"
         fields = [
-            "id_counting_object",
+            "id",
             "uuid",
             "external_id",
             "type",
@@ -62,7 +54,7 @@ class CountingMeasureSerializer(serializers.ModelSerializer):
     class Meta:
         model = CountingMeasure
         fields = [
-            "id_measure",
+            "id",
             "counting_object",
             "external_id",
             "start_datetime",

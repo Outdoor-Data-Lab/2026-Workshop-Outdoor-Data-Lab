@@ -4,7 +4,6 @@ from . import views
 
 router = SimpleRouter(trailing_slash=False)
 router.register("unit", views.UnitViewSet, basename="unit")
-router.register("activity", views.ActivityViewSet, basename="activity")
 router.register(
     "counting-object-type", views.CountingObjectTypeViewSet, basename="counting-object-type"
 )
