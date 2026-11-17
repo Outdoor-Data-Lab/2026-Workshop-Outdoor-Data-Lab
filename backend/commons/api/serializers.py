@@ -2,14 +2,14 @@ from rest_framework import serializers
 
 from ..models import (
     DataImport,
-    DataSource, PracticeCategory
+    DataSource, Practice
 )
 
 
-class PracticeCategorySerializer(serializers.ModelSerializer):
+class PracticeSerializer(serializers.ModelSerializer):
     class Meta:
-        model = PracticeCategory
-        fields = ["code", "label"]
+        model = Practice
+        fields = ["id","code", "label", "parent"]
 
 
 class DataSourceSerializer(serializers.ModelSerializer):

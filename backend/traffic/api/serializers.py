@@ -61,7 +61,7 @@ class CountingMeasureSerializer(serializers.ModelSerializer):
             "end_datetime",
             "count",
             "unit",
-            "activity",
+            "practice",
             "date_create",
             "date_update",
             "processed",
