@@ -6,7 +6,7 @@ UNITS = [
     ("person", "Personne"),
     ("tent", "Tente"),
     ("bike", "Vélo"),
-    ("vehicule", "Véhicule"),
+    ("vehicle", "Véhicule"),
     ("animal", "Animal"),
 ]
 
@@ -24,11 +24,15 @@ def add_values(apps, schema_editor):
     for code, label in UNITS:
         Unit.objects.update_or_create(code_unit=code, defaults={"unit": label})
     for code, label in ACTIVITIES:
-        Activity.objects.update_or_create(code_activity=code, defaults={"activity": label})
+        Activity.objects.update_or_create(
+            code_activity=code, defaults={"activity": label}
+        )
 
 
 def remove_values(apps, schema_editor):
-    apps.get_model("traffic", "Unit").objects.filter(code_unit__in=[c for c, _ in UNITS]).delete()
+    apps.get_model("traffic", "Unit").objects.filter(
+        code_unit__in=[c for c, _ in UNITS]
+    ).delete()
     apps.get_model("traffic", "Activity").objects.filter(
         code_activity__in=[c for c, _ in ACTIVITIES]
     ).delete()

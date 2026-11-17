@@ -17,27 +17,37 @@ def dt(day, hour=0):
 class TrafficTestCase(TestCase):
     @classmethod
     def setUpTestData(cls):
-        cls.source = DataSource.objects.create(code_source="outdoorvision", source="Outdoorvision")
-        cls.type = CountingObjectType.objects.create(code_type="eco_counter", type="Éco-compteur")
-        # Seeded by migration 0002.
+        cls.source = DataSource.objects.create(
+            code_source="outdoorvision", source="Outdoorvision"
+        )
+        # Seeded by migrations 0002 and 0003.
+        cls.type = CountingObjectType.objects.get(code_type="counter")
         cls.person = Unit.objects.get(code_unit="person")
 
     def make_object(self, **kwargs):
         return CountingObject.objects.create(
-            type=self.type, source=self.source, geom=Point(6.4, 44.9, srid=4326), **kwargs
+            type=self.type,
+            source=self.source,
+            geom=Point(6.4, 44.9, srid=4326),
+            **kwargs,
         )
 
 
 class SchemaTests(TrafficTestCase):
     def test_tables_are_in_traffic_schema(self):
         with connection.cursor() as cursor:
-            cursor.execute("select tablename from pg_tables where schemaname = 'traffic'")
+            cursor.execute(
+                "select tablename from pg_tables where schemaname = 'traffic'"
+            )
             tables = {row[0] for row in cursor.fetchall()}
         self.assertEqual(
             tables,
             {
-                "counting_object_types", "counting_objects", "counting_measures",
-                "units", "activities",
+                "counting_object_types",
+                "counting_objects",
+                "counting_measures",
+                "units",
+                "activities",
             },
         )
 
@@ -48,8 +58,11 @@ class CountingObjectTests(TrafficTestCase):
         self.assertIsNone(CountingObject.objects.with_data_range().get().first_data)
         for day in (15, 16, 17):
             CountingMeasure.objects.create(
-                counting_object=obj, start_datetime=dt(day), end_datetime=dt(day) + timedelta(days=1),
-                count=10, unit=self.person,
+                counting_object=obj,
+                start_datetime=dt(day),
+                end_datetime=dt(day) + timedelta(days=1),
+                count=10,
+                unit=self.person,
             )
         obj = CountingObject.objects.with_data_range().get()
         self.assertEqual(obj.first_data, dt(15))
@@ -71,8 +84,15 @@ class CountingMeasureTests(TrafficTestCase):
         self.obj = self.make_object()
 
     def measure(self, **kwargs):
-        values = {"start_datetime": dt(15, 10), "end_datetime": dt(15, 11), "count": 1, "unit": self.person}
-        return CountingMeasure.objects.create(counting_object=self.obj, **(values | kwargs))
+        values = {
+            "start_datetime": dt(15, 10),
+            "end_datetime": dt(15, 11),
+            "count": 1,
+            "unit": self.person,
+        }
+        return CountingMeasure.objects.create(
+            counting_object=self.obj, **(values | kwargs)
+        )
 
     def test_end_must_follow_start(self):
         with self.assertRaises(IntegrityError), transaction.atomic():
@@ -93,9 +113,15 @@ class ReferenceDataTests(TestCase):
     def test_initial_units_and_activities(self):
         self.assertEqual(
             set(Unit.objects.values_list("code_unit", flat=True)),
-            {"person", "tent", "bike", "vehicule", "animal"},
+            {"person", "tent", "bike", "vehicle", "animal"},
         )
         self.assertEqual(
             set(Activity.objects.values_list("code_activity", flat=True)),
             {"running", "hiking", "biking", "skiing"},
+        )
+
+    def test_initial_counting_object_types(self):
+        self.assertEqual(
+            set(CountingObjectType.objects.values_list("code_type", flat=True)),
+            {"counter", "segment"},
         )

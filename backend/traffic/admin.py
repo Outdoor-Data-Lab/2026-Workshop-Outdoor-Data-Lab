@@ -47,7 +47,12 @@ class CountingMeasureAdmin(admin.ModelAdmin):
     list_display = ("counting_object", "start_datetime", "end_datetime", "count", "unit", "activity", "processed")
     list_filter = ("unit", "activity", "processed")
     list_select_related = ("counting_object", "unit", "activity")
-    autocomplete_fields = ("counting_object",)
-    readonly_fields = ("date_create", "date_update")
     date_hierarchy = "start_datetime"
+
+    # Measures come from CSV imports: the admin only displays them.
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
 
