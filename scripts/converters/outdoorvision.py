@@ -1,27 +1,28 @@
 # /// script
 # dependencies = ["geopandas", "pyogrio"]
 # ///
-"""Exports Outdoorvision (GPKG) -> CSV pivot. T = passages, U = pratiquants (en extra).
+"""Exports Outdoorvision (GPKG) -> CSV with the same columns as the parking and Strava parsers.
+T (passages) -> count. Period and activity come from the file name, end date is exclusive.
 Usage : uv run outdoorvision.py <dossier_gpkg> <sortie.csv>"""
-import json, re, sys
+import re, sys
 from pathlib import Path
 import geopandas as gpd, pandas as pd
 
-PRATIQUES = {"walking": "hiking", "running": "running", "cycling": "biking", "skiing": "skiing"}
-NOM = re.compile(r"_(AA_)?[A-Za-z]+_(\d{8})_(\d{8})_([a-z]+)\.gpkg$")
-iso = lambda d: f"{d[4:]}-{d[2:4]}-{d[:2]}"
+ACTIVITIES = {"walking": "hiking", "running": "running", "cycling": "biking", "skiing": "skiing"}
+NOM = re.compile(r"_[A-Za-z]+_(\d{8})_(\d{8})_([a-z]+)\.gpkg$")
 
 def convert(f):
-    aa, debut, fin, act = NOM.search(f.name).groups()
+    debut, fin, act = NOM.search(f.name).groups()
     g = gpd.read_file(f).to_crs(4326)
+    obj = g["id segment"].astype(str)
     return pd.DataFrame({
-        "identifiant_source": "outdoorvision", "identifiant_objet": g["id segment"].astype(str),
-        "nom_objet": "", "type_objet": "segment", "geom_wkt": g.geometry.to_wkt(rounding_precision=6),
-        "date_debut": iso(debut), "date_fin": iso(fin), "denombrement": g["T"],
-        "entite_comptee": "person", "pratique": PRATIQUES[act],
-        "extra": [json.dumps({"U": int(u), "zone": "aire_adhesion" if aa else "coeur"}) for u in g["U"]],
+        "id_source": obj + f"_{act}_{debut}", "start_date": pd.to_datetime(debut, format="%d%m%Y"),
+        "end_date": pd.to_datetime(fin, format="%d%m%Y") + pd.Timedelta(days=1),
+        "count": g["T"], "object_name": None, "id_source_object": obj,
+        "geom": g.geometry.to_wkt(rounding_precision=6), "type_geom": "linear", "activity": ACTIVITIES[act],
     })
 
 src, out = map(Path, sys.argv[1:3])
 df = pd.concat(convert(f) for f in sorted(src.glob("*.gpkg")) if NOM.search(f.name))
-df.drop_duplicates(["identifiant_objet", "pratique", "date_debut"]).to_csv(out, sep=";", index=False)
+# Segments shared by the core and the adhesion area appear in both files.
+df.drop_duplicates("id_source").to_csv(out, index=False)
