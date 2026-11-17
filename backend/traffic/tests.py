@@ -1,8 +1,10 @@
 import tempfile
+import zipfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import geopandas as gpd
+import pandas as pd
 from shapely import LineString
 
 from django.contrib.gis.geos import Point
@@ -15,6 +17,7 @@ from commons.models import DataImport, DataSource, Practice
 
 from .models import CountingMeasure, CountingObject, CountingObjectType, Unit
 from .parsers.outdoorvision import OutdoorVisionParser
+from .parsers.strava import StravaParser
 
 
 def dt(day, hour=0):
@@ -194,3 +197,56 @@ class OutdoorVisionParserTests(TrafficTestCase):
     def test_missing_column_is_rejected(self):
         with self.assertRaisesMessage(ValueError, "manquantes : track_id"):
             self.run_import(drop=["track_id"])
+
+
+class StravaParserTests(TrafficTestCase):
+    # Network of 3 edges; edge 30 is never used, like most of the Strava network.
+    EDGES = {10: [(6.40, 44.90), (6.41, 44.90)], 20: [(6.41, 44.90), (6.42, 44.91)], 30: [(6.5, 44.8), (6.6, 44.8)]}
+
+    def setUp(self):
+        self.tmp = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self.enterContext(override_settings(MEDIA_ROOT=self.tmp / "media"))
+
+    def run_import(self, year=2024, counts=((10, 80), (20, 15)), activity="Run,Walk,Hike"):
+        folder = Path(tempfile.mkdtemp(dir=self.tmp))
+        gpd.GeoDataFrame(
+            {"edgeUID": list(self.EDGES), "osmId": [1, 1, 2]},
+            geometry=[LineString(c) for c in self.EDGES.values()],
+            crs=4326,
+        ).to_file(folder / "edges.shp")
+        rows = [dict(edge_uid=e, activity_type=activity, year=year, total_trip_count=n) for e, n in counts]
+        pd.DataFrame(rows).to_csv(folder / "edges.csv", index=False)
+        archive = folder.with_suffix(".zip")
+        with zipfile.ZipFile(archive, "w") as zip_file:
+            for file in folder.iterdir():
+                zip_file.write(file, file.name)
+        data_import = DataImport(source=DataSource.objects.get(code="strava"))
+        data_import.file.save(archive.name, ContentFile(archive.read_bytes()))
+        return data_import, StravaParser(data_import).import_data()
+
+    def test_one_object_per_used_edge_and_one_yearly_measure(self):
+        data_import, count = self.run_import()
+        self.assertEqual((count, data_import.line_numbers), (2, 2))
+        self.assertEqual(set(CountingObject.objects.values_list("external_id", flat=True)), {"10", "20"})
+        measure = CountingMeasure.objects.get(counting_object__external_id="10")
+        self.assertEqual((measure.count, measure.unit.code, measure.practice.code), (80, "person", "walking"))
+        self.assertEqual(measure.start_datetime, datetime(2024, 1, 1, tzinfo=timezone.utc))
+        self.assertEqual(measure.end_datetime, datetime(2025, 1, 1, tzinfo=timezone.utc))
+        self.assertEqual(measure.counting_object.type.code, "segment")
+
+    def test_reimport_replaces_the_year(self):
+        self.run_import()
+        self.run_import(counts=((10, 90), (20, 20)))
+        self.assertEqual(CountingObject.objects.count(), 2)
+        self.assertEqual(sorted(CountingMeasure.objects.values_list("count", flat=True)), [20, 90])
+
+    def test_new_year_reuses_edges(self):
+        self.run_import(2024)
+        self.run_import(2025, counts=((10, 100), (30, 5)))
+        self.assertEqual(CountingObject.objects.count(), 3)
+        self.assertEqual(CountingMeasure.objects.count(), 4)
+
+    def test_unknown_activity_imports_nothing(self):
+        with self.assertRaisesMessage(ValueError, "inconnues : Ride"):
+            self.run_import(activity="Ride")
+        self.assertFalse(CountingObject.objects.exists())
