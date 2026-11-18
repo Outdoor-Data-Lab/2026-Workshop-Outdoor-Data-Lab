@@ -185,9 +185,14 @@ export const TRAFFIC_AREA_LAYER: LayerId = 'traffic/area'
 /** Score utilisé pour colorer les mailles. */
 const MAP_AREA_SCORE: TrafficAreaScore = 'cazalis'
 
+/** Valeur d'un score : un nombre, ou `{ score, …détails }` quand l'API joint ses détails (cazalis). */
+function scoreValue(score?: TrafficAreaProperties['score'][string]): number | undefined {
+  return typeof score === 'object' ? (score.score as number | undefined) : score
+}
+
 export function trafficAreaToMapObject(feature: TrafficAreaFeature): MapObject {
   if (feature.id === undefined) throw new Error('Maille sans identifiant dans la réponse API')
-  const score = feature.properties.score[MAP_AREA_SCORE]
+  const score = scoreValue(feature.properties.score[MAP_AREA_SCORE])
   return {
     key: mapObjectKey(TRAFFIC_AREA_LAYER, feature.id),
     id: feature.id,
