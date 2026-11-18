@@ -26,6 +26,7 @@ def table(name):
 PARSERS = {
     "outdoorvision": "traffic.parsers.outdoorvision.OutdoorVisionParser",
     "strava": "traffic.parsers.strava.StravaParser",
+    "inpn": "biodiversity.parsers.inpn.INPNParser",
 }
 
 
