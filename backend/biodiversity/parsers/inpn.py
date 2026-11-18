@@ -48,7 +48,8 @@ class INPNParser(BiodiversityRecordParser):
                 dtype=str,
                 keep_default_na=False,
                 na_values=[""],
-                usecols=COLUMNS,
+                # Columns filtered, not required here: a missing one is reported just below.
+                usecols=lambda column: column in COLUMNS,
             )
 
         missing = set(COLUMNS).difference(data.columns)
