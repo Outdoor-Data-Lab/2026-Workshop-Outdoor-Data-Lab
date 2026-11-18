@@ -91,6 +91,9 @@ class OfferImportAdmin(admin.ModelAdmin):
 
     def get_form(self, request, obj=None, **kwargs):
         form = super().get_form(request, obj, **kwargs)
+        if obj is not None:
+            # View page of an import: read-only, the form has no field.
+            return form
         form.base_fields["file"].help_text = format_html(
             "GeoPackage (.gpkg) with a single layer and a coordinate reference system. "
             "Columns: <code>id</code> (the offer's id in its source), <code>name</code>, "

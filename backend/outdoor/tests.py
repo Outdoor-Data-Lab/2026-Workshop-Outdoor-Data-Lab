@@ -323,6 +323,11 @@ class OfferImportAdminTests(OfferImportTestCase):
         self.assertEqual(OfferImport.objects.get().error_numbers, 1)
         self.assertEqual(len(self.stored_files()), 1)
 
+    def test_view_page_of_an_import(self):
+        data_import = self.run_import(gpkg([line("a")]))
+        response = self.client.get(reverse("admin:outdoor_offerimport_change", args=[data_import.pk]))
+        self.assertEqual(response.status_code, 200)
+
     def test_traffic_sources_are_left_out(self):
         sources = self.client.get(self.url).context["adminform"].form.fields["source"].queryset
         self.assertIn(self.source, sources)
