@@ -4,7 +4,10 @@ A parser only reads its file (see commons.parsers.ImportParser): `read()` return
 the number of lines read and one row per measure, with the columns of
 MEASURE_COLUMNS. A row may gather several lines (the pieces of a track), so the
 lines deliberately skipped are counted in `skipped_lines`, saved as the
-import's error_numbers.
+import's error_numbers. An optional `origin` column names the application that
+produced the row (OutdoorVision's provider): it becomes the origin of the
+object it creates, a DataSource found by code or label, or created with no
+domain (an origin only).
 
 Saving is the same for every source: missing objects are created in bulk, and
 the measures the file gives again are replaced: those of an already known object
@@ -23,8 +26,10 @@ from itertools import batched
 import pandas as pd
 from django.contrib.gis.geos import GEOSGeometry
 from django.db import connection
+from django.db.models import Q
+from django.utils.text import slugify
 
-from commons.models import DataImport, Practice
+from commons.models import DataImport, DataSource, Practice
 from commons.parsers import ImportParser
 
 from ..models import CountingMeasure, CountingObject, CountingObjectType, Unit
@@ -55,7 +60,7 @@ class TrafficParser(ImportParser):
         object_type = CountingObjectType.objects.get(code=self.OBJECT_TYPE)
         unit = Unit.objects.get(code=self.UNIT)
 
-        object_ids, known = self._save_objects(rows, object_type)
+        object_ids, known = self._save_objects(rows, object_type, self._origins(rows))
         self._delete_given_measures(rows[rows.external_id.isin(known)], object_ids, practices, unit)
         measures = (
             CountingMeasure(
@@ -94,7 +99,19 @@ class TrafficParser(ImportParser):
                 f"e.g. {first.external_id} from {first.start_datetime}."
             )
 
-    def _save_objects(self, rows, object_type) -> tuple[dict[str, int], set[str]]:
+    def _origins(self, rows: pd.DataFrame) -> dict[str, DataSource]:
+        """The DataSource of each name of the `origin` column, created if missing."""
+        if "origin" not in rows:
+            return {}
+        origins = {}
+        for name in rows["origin"].dropna().unique():
+            code = slugify(name).replace("-", "_")
+            origins[name] = DataSource.objects.filter(Q(code=code) | Q(label__iexact=name)).first()
+            if origins[name] is None:
+                origins[name] = DataSource.objects.create(code=code, label=name)
+        return origins
+
+    def _save_objects(self, rows, object_type, origins) -> tuple[dict[str, int], set[str]]:
         """Create the objects not imported yet; return the ids of all objects by
         external id, and the external ids of the objects that already existed."""
         objects = CountingObject.objects.filter(source=self.source)
@@ -105,6 +122,7 @@ class TrafficParser(ImportParser):
                 source=self.source,
                 type=object_type,
                 external_id=row.external_id,
+                origin=origins.get(getattr(row, "origin", None)),
                 geom=GEOSGeometry(memoryview(row.geometry.wkb), srid=4326),
                 data_import=self.data_import,
             )

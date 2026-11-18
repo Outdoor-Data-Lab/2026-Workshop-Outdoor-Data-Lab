@@ -273,7 +273,7 @@ class OutdoorVisionParserTests(TrafficTestCase):
         self.tmp = Path(self.enterContext(tempfile.TemporaryDirectory()))
         self.enterContext(override_settings(MEDIA_ROOT=self.tmp / "media"))
 
-    def run_import(self, rows=ROWS, drop=()):
+    def run_import(self, rows=ROWS, drop=(), providers=None):
         frame = gpd.GeoDataFrame(
             [
                 dict(id=i, track_id=t, activity=a, date_start=f"{s}+02:00", date_end=f"{e}+02:00")
@@ -282,6 +282,8 @@ class OutdoorVisionParserTests(TrafficTestCase):
             geometry=[shapely.LineString(c) for *_, c in rows],
             crs=4326,
         ).drop(columns=list(drop))
+        if providers is not None:
+            frame["provider"] = providers
         path = self.tmp / "export.gpkg"
         frame.to_file(path)
         data_import = DataImport(source=self.source)
@@ -302,6 +304,21 @@ class OutdoorVisionParserTests(TrafficTestCase):
         self.run_import()
         self.run_import()
         self.assertEqual((CountingObject.objects.count(), CountingMeasure.objects.count()), (2, 2))
+
+    def test_provider_becomes_the_origin(self):
+        self.run_import(providers=["Garmin", "Garmin", " Openrunner "])
+        origins = dict(CountingObject.objects.values_list("external_id", "origin__code"))
+        self.assertEqual(origins, {"t1": "garmin", "t2": "openrunner"})  # Garmin: existing source
+        openrunner = DataSource.objects.get(code="openrunner")
+        self.assertEqual((openrunner.label, openrunner.domains), ("Openrunner", []))  # an origin only
+
+    def test_without_provider_there_is_no_origin(self):
+        for providers in (None, [None, None, None], ["", " ", ""]):  # no column, or no value
+            with self.subTest(providers):
+                CountingObject.objects.all().delete()  # an existing object keeps its origin
+                self.run_import(providers=providers)
+                self.assertEqual(CountingObject.objects.count(), 2)
+                self.assertFalse(CountingObject.objects.filter(origin__isnull=False).exists())
 
     def test_unknown_activity_imports_nothing(self):
         with self.assertRaisesMessage(ValueError, "activities: swimming"):

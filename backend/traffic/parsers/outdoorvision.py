@@ -22,7 +22,8 @@ class OutdoorVisionParser(TrafficParser):
     )
     EXAMPLE = (
         "GPKG of raw tracks, one file at a time. E.g. Export_Traces_PNR_Vercors_12.gpkg "
-        "(columns id, track_id, activity, date_start, date_end). The .hdf delivered with it is not needed."
+        "(columns id, track_id, activity, date_start, date_end, and provider if any: Openrunner, "
+        "IGN..., kept as the origin of each track). The .hdf delivered with it is not needed."
     )
     # Outdoorvision activity -> commons practice code (any level of the hierarchy).
     PRACTICE_CODES = {
@@ -65,9 +66,12 @@ class OutdoorVisionParser(TrafficParser):
         if not several.empty:
             raise ValueError(f"Several activities are given for track_id {several.index[0]}.")
 
-        outings = tracks.to_crs(4326).dissolve(
-            by="track_id", aggfunc={"date_start": "min", "date_end": "max", "activity": "first"}
-        )
+        aggregates = {"date_start": "min", "date_end": "max", "activity": "first"}
+        if "provider" in tracks:  # the application that recorded the track: its origin
+            # As text: a column with no value at all is read as numbers.
+            tracks["provider"] = tracks["provider"].astype("string").str.strip().replace("", None)
+            aggregates["provider"] = "first"
+        outings = tracks.to_crs(4326).dissolve(by="track_id", aggfunc=aggregates)
         backwards = outings.index[outings.date_end <= outings.date_start]
         if len(backwards):
             raise ValueError(f"The end date of track_id {backwards[0]} must follow its start date.")
@@ -83,4 +87,6 @@ class OutdoorVisionParser(TrafficParser):
                 "activity": outings.activity,
             }
         )
+        if "provider" in outings:
+            rows["origin"] = outings.provider
         return len(tracks), rows
