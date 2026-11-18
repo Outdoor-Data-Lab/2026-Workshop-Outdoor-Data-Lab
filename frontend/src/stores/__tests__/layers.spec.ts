@@ -52,4 +52,14 @@ describe('layers store', () => {
     layers.setConcept('biodiversity')
     expect(layers.visible).toEqual({ 'traffic/counter': false, 'biodiversity/taxon': true })
   })
+
+  it('leaves external layers to the user, whatever the concept', () => {
+    const layers = useLayersStore()
+    layers.addDefinitions([definition('external/1')])
+    expect(layers.visible['external/1']).toBe(false)
+
+    layers.setVisible('external/1', true)
+    layers.setConcept('traffic')
+    expect(layers.visible['external/1']).toBe(true)
+  })
 })

@@ -68,6 +68,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/commons/external-layers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["commons_external_layers_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/commons/external-layers/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["commons_external_layers_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/commons/practices": {
         parameters: {
             query?: never;
@@ -713,6 +745,25 @@ export interface components {
             code: string;
             label: string;
         };
+        ExternalLayer: {
+            readonly id: number;
+            readonly label: string;
+            /**
+             * Format: uri
+             * @description FeatureCollection GeoJSON, en WGS84.
+             */
+            readonly url: string;
+            /** @description Affichée au survol du nom de la couche (contenu, producteur…). */
+            readonly description: string;
+            /** @description Attributs affichés au clic, séparés par des virgules ; vide : tous. */
+            readonly properties: string[];
+            readonly color: string;
+            /** @description Attribut dont la valeur choisit la couleur (facultatif). */
+            readonly color_property: string;
+            readonly colors: {
+                [key: string]: string;
+            };
+        };
         /** @enum {string} */
         GisFeatureCollectionEnum: "FeatureCollection";
         /** @enum {string} */
@@ -930,6 +981,21 @@ export interface components {
              */
             previous?: string | null;
             results: components["schemas"]["DataSource"][];
+        };
+        PaginatedExternalLayerList: {
+            /** @example 123 */
+            count: number;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?offset=400&limit=100
+             */
+            next?: string | null;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?offset=200&limit=100
+             */
+            previous?: string | null;
+            results: components["schemas"]["ExternalLayer"][];
         };
         PaginatedLAreaList: {
             /** @example 123 */
@@ -1170,6 +1236,54 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DataSource"];
+                };
+            };
+        };
+    };
+    commons_external_layers_list: {
+        parameters: {
+            query?: {
+                /** @description Number of results to return per page. */
+                limit?: number;
+                /** @description The initial index from which to return the results. */
+                offset?: number;
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedExternalLayerList"];
+                };
+            };
+        };
+    };
+    commons_external_layers_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description A unique integer value identifying this external layer. */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExternalLayer"];
                 };
             };
         };

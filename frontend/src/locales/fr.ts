@@ -9,6 +9,7 @@ export default {
   },
   layerGroups: {
     traffic: 'Fréquentation',
+    external: 'Couches externes',
   },
   countingObjectTypes: {
     counter: 'Compteur',

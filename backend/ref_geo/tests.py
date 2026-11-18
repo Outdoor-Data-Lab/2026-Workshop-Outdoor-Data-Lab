@@ -143,6 +143,17 @@ class ReferenceTablesTests(RefGeoTestCase):
         response = self.client.post(reverse("ref_geo:area-list"), {})
         self.assertEqual(response.status_code, 405)
 
+    def test_dynamic_fields_filtering(self):
+        """Test DynamicFieldsMixin filters fields correctly for all serializers in ref_geo.serializers."""
+        # Test BibAreasTypeSerializer via API endpoint
+        response = self.client.get(reverse("ref_geo:area-type-list"), {"fields": "id_type,type_code"})
+        self.assertEqual(response.status_code, 200)
+        result = response.json()["results"][0]
+        self.assertIn("id_type", result)
+        self.assertIn("type_code", result)
+        self.assertNotIn("type_name", result)
+        self.assertNotIn("ref_name", result)
+        self.assertEqual(set(result.keys()), {"id_type", "type_code"})
 
 class AreaFilterTests(RefGeoTestCase):
     def test_json_has_no_geometry(self):

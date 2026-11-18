@@ -1,4 +1,5 @@
 /** Couches proposées, construites depuis les tables de référence de l'API. */
+import { getExternalLayers, getFeatures } from '@/api/externalLayers'
 import {
   TRAFFIC_AREA_LAYER,
   getCountingObjectTypes,
@@ -7,7 +8,7 @@ import {
 } from '@/api/traffic'
 import { i18n, referenceLabel } from '@/i18n'
 import type { LayerDefinition } from '@/stores/layers'
-import { mapObjectKey, type LayerId } from '@/types/mapObject'
+import { mapObjectKey, type LayerId, type MapObject } from '@/types/mapObject'
 
 /** Une couche par type de compteur, puis la fréquentation par maille. */
 export async function trafficLayers(): Promise<LayerDefinition[]> {
@@ -36,4 +37,37 @@ export async function trafficLayers(): Promise<LayerDefinition[]> {
       load: () => getTrafficAreasForMap(),
     },
   ]
+}
+
+/** Une couche par couche externe déclarée dans l'admin, colorée selon un attribut si demandé. */
+export async function externalLayers(): Promise<LayerDefinition[]> {
+  const { results } = await getExternalLayers()
+  return results.map((layer) => {
+    const id: LayerId = `external/${layer.id}`
+    return {
+      id,
+      label: layer.label,
+      group: 'external',
+      description: layer.description,
+      load: async () =>
+        (await getFeatures(layer.url)).map((feature, i): MapObject => {
+          const properties = feature.properties ?? {}
+          return {
+            key: mapObjectKey(id, i),
+            id: feature.id ?? i,
+            domain: 'external',
+            layer: id,
+            label: layer.label,
+            geometry: feature.geometry,
+            color:
+              (layer.color_property && layer.colors[String(properties[layer.color_property])]) ||
+              layer.color,
+            // Sans attribut choisi : tous.
+            attributes: layer.properties.length
+              ? Object.fromEntries(layer.properties.map((name) => [name, properties[name]]))
+              : properties,
+          }
+        }),
+    }
+  })
 }

@@ -3,7 +3,7 @@ import type { Feature, FeatureCollection, Geometry, MultiPolygon } from 'geojson
 
 import { mapObjectKey, type LayerId, type MapObject } from '@/types/mapObject'
 
-import { apiFetch, withQuery } from './client'
+import { apiFetch, withQuery, type LimitOffset, type Paginated } from './client'
 import type { components } from './schema'
 
 type Schemas = components['schemas']
@@ -23,16 +23,6 @@ export type CountingObjectPage = CountingObjectCollection & {
   next: string | null
   previous: string | null
 }
-export type Paginated<T> = {
-  count: number
-  next?: string | null
-  previous?: string | null
-  results: T[]
-}
-
-/** Pagination limit/offset ; le backend renvoie 50 éléments si `limit` est absent. */
-export type LimitOffset = { limit?: number; offset?: number }
-
 export type CountingObjectFilters = {
   typeCode?: string
   sourceCode?: string

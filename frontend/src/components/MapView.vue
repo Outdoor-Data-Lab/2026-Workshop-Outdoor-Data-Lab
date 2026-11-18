@@ -25,8 +25,9 @@ const store = useLayersStore()
 const container = useTemplateRef<HTMLDivElement>('container')
 const map = shallowRef<MlMap | null>(null)
 
-/** Couches MapLibre créées, par couche du store. */
+/** Couches MapLibre créées, et dernière collection envoyée, par couche du store. */
 const rendered = new Map<LayerId, string[]>()
+const sent = new Map<LayerId, object>()
 
 /** `on` si l'objet est sélectionné, sinon `off`. */
 function whenSelected<T>(on: T, off: T): ExpressionSpecification {
@@ -58,7 +59,12 @@ function selectionPaint(): Record<string, Record<string, ExpressionSpecification
   }
 }
 
-/** Remplissage : dégradé de 0 au maximum de la couche si l'objet a une `value`, sinon couleur du domaine. */
+/** Couleur de l'objet, sinon celle du domaine. */
+function baseColor(source: LayerId): ExpressionSpecification {
+  return ['coalesce', ['get', 'color'], DOMAIN_COLORS[layerDomain(source)]]
+}
+
+/** Remplissage : dégradé de 0 au maximum de la couche si l'objet a une `value`, sinon `baseColor`. */
 function fillColor(
   source: LayerId,
   collection?: FeatureCollection<Geometry, MapFeatureProperties>,
@@ -70,12 +76,12 @@ function fillColor(
     'case',
     ['has', 'value'],
     ['interpolate', ['linear'], ['get', 'value'], ...stops],
-    DOMAIN_COLORS[layerDomain(source)],
+    baseColor(source),
   ] as ExpressionSpecification
 }
 
 function layerSpecs(source: LayerId): LayerSpecification[] {
-  const color = DOMAIN_COLORS[layerDomain(source)]
+  const color = baseColor(source)
   const sel = selectionPaint()
   const isPolygon: ExpressionSpecification = ['==', ['geometry-type'], 'Polygon']
   // Points en dernier, au-dessus du reste.
@@ -125,6 +131,7 @@ function removeSource(m: MlMap, source: LayerId) {
   for (const id of rendered.get(source) ?? []) m.removeLayer(id)
   m.removeSource(source)
   rendered.delete(source)
+  sent.delete(source)
 }
 
 /** Aligne les sources de la carte sur le store. */
@@ -134,7 +141,9 @@ function sync(m: MlMap, collections: typeof store.featureCollections) {
     NonNullable<(typeof collections)[LayerId]>,
   ][]) {
     if (!rendered.has(source)) addSource(m, source)
+    if (sent.get(source) === collection) continue
     ;(m.getSource(source) as GeoJSONSource).setData(collection)
+    sent.set(source, collection)
     // Le maximum dépend des données : on recale le dégradé à chaque mise à jour.
     m.setPaintProperty(`${source}/fill`, 'fill-color', fillColor(source, collection))
   }
@@ -200,6 +209,7 @@ watch(
 onUnmounted(() => {
   map.value?.remove()
   rendered.clear()
+  sent.clear()
 })
 </script>
 

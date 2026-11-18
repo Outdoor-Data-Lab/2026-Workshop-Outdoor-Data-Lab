@@ -1,10 +1,11 @@
 from rest_framework import serializers
 
-from ..models import DataImport, DataSource, Practice
+from workshop2026.api.mixins import DynamicFieldsMixin
+from ..models import DataImport, DataSource, ExternalLayer, Practice
 from .geo import code_field
 
 
-class PracticeSerializer(serializers.ModelSerializer):
+class PracticeSerializer(DynamicFieldsMixin, serializers.ModelSerializer):
     parent_code = code_field("parent")
 
     class Meta:
@@ -12,15 +13,27 @@ class PracticeSerializer(serializers.ModelSerializer):
         fields = ["id", "code", "label", "parent_code"]
 
 
-class DataSourceSerializer(serializers.ModelSerializer):
+class DataSourceSerializer(DynamicFieldsMixin, serializers.ModelSerializer):
     class Meta:
         model = DataSource
         fields = ["id", "code", "label"]
 
 
-class DataImportSerializer(serializers.ModelSerializer):
+class DataImportSerializer(DynamicFieldsMixin, serializers.ModelSerializer):
     source_code = code_field("source")
 
     class Meta:
         model = DataImport
         fields = ["id", "date_import", "source_code", "line_numbers", "error_numbers"]
+
+
+class ExternalLayerSerializer(DynamicFieldsMixin, serializers.ModelSerializer):
+    colors = serializers.DictField(child=serializers.CharField(), read_only=True)
+
+    class Meta:
+        model = ExternalLayer
+        fields = [
+            "id", "label", "url", "description",
+            "properties", "color", "color_property", "colors",
+        ]
+        read_only_fields = fields  # all always present in the schema

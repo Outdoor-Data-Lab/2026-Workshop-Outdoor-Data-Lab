@@ -24,8 +24,11 @@ from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 api_patterns = [
     path("traffic/", include("traffic.api.urls")),
     path("commons/", include("commons.api.urls")),
+    path("biodiversity/", include("biodiversity.urls")),
+    path("outdoor/", include("outdoor.api.urls")),
     path("ref-geo/", include("ref_geo.urls")),
 ]
+
 
 urlpatterns = [
     path("admin/", admin.site.urls),
@@ -36,6 +39,7 @@ urlpatterns = [
         SpectacularSwaggerView.as_view(url_name="schema"),
         name="swagger-ui",
     ),
+    path("traffic/", include("traffic.urls")),
 ]
 
 if settings.DEBUG:

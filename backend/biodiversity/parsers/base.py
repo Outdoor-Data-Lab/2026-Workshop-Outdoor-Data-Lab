@@ -37,28 +37,32 @@ class BiodiversityRecordParser(ImportParser):
     """
 
     def save(self, rows: pd.DataFrame) -> None:
-        """Upsert the records on their uuid."""
-        referentials = self._referentials(rows["referential"])
-        # Missing values (NaN, pd.NA) become None, i.e. NULL.
-        records = rows.astype(object).where(rows.notna(), None).to_dict("records")
+        """Upsert the records on their uuid, by batch.
 
-        TaxonRecord.objects.bulk_create(
-            (
-                TaxonRecord(
-                    **record
-                    | {
-                        "source": self.source,
-                        "referential": referentials[record["referential"]],
-                        "geom": GEOSGeometry(record["geom"], srid=4326),
-                    }
-                )
-                for record in records
-            ),
-            batch_size=BATCH_SIZE,
-            update_conflicts=True,
-            unique_fields=["uuid"],
-            update_fields=UPDATED_FIELDS,
-        )
+        bulk_create() builds all its objects before writing them: one call per
+        batch keeps large files (hundreds of thousands of rows) in memory.
+        """
+        referentials = self._referentials(rows["referential"])
+        for start in range(0, len(rows), BATCH_SIZE):
+            batch = rows.iloc[start : start + BATCH_SIZE]
+            # Missing values (NaN, pd.NA) become None, i.e. NULL.
+            records = batch.astype(object).where(batch.notna(), None).to_dict("records")
+            TaxonRecord.objects.bulk_create(
+                [
+                    TaxonRecord(
+                        **record
+                        | {
+                            "source": self.source,
+                            "referential": referentials[record["referential"]],
+                            "geom": GEOSGeometry(record["geom"], srid=4326),
+                        }
+                    )
+                    for record in records
+                ],
+                update_conflicts=True,
+                unique_fields=["uuid"],
+                update_fields=UPDATED_FIELDS,
+            )
 
     def _referentials(self, codes: pd.Series) -> dict[str, TaxonomicReferential]:
         by_code = TaxonomicReferential.objects.in_bulk(set(codes), field_name="code")

@@ -20,7 +20,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/6.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = "django-insecure-*khvq8@n3)g@ri25)tp@(9xbj21y7ytn8y&em5w^+74c0s*hr_"
+SECRET_KEY = os.environ.get(
+    "DJANGO_SECRET_KEY",
+    "django-insecure-*khvq8@n3)g@ri25)tp@(9xbj21y7ytn8y&em5w^+74c0s*hr_",
+)
 
 DEBUG = os.environ.get("DEBUG", "0") == "1"
 
@@ -41,7 +44,20 @@ DATABASES = {
         "PORT": os.environ.get("POSTGRES_PORT", "5432"),
     }
 }
-ALLOWED_HOSTS = []
+
+# Comma-separated lists, set in production (see docker-compose-prod.yaml).
+ALLOWED_HOSTS = [
+    h for h in os.environ.get("DJANGO_ALLOWED_HOSTS", "").split(",") if h
+]
+CSRF_TRUSTED_ORIGINS = [
+    o for o in os.environ.get("DJANGO_CSRF_TRUSTED_ORIGINS", "").split(",") if o
+]
+
+# Behind Traefik, which terminates HTTPS and sets X-Forwarded-Proto.
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
+if not DEBUG:
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
 
 # Application definition
 
@@ -53,12 +69,14 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "django.contrib.gis",
+    "django.contrib.postgres",
     "accounts",
     "commons",
     "traffic",
     "outdoor",
     "biodiversity",
     "ref_geo",
+    "taxhub",
     "django_filters",
     "rest_framework_gis",
     "rest_framework",
@@ -71,6 +89,8 @@ LOGIN_REDIRECT_URL = "/"
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    # Serves collected static files (admin, API docs) under Gunicorn.
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
@@ -142,6 +162,8 @@ USE_TZ = True
 # https://docs.djangoproject.com/en/6.1/howto/static-files/
 
 STATIC_URL = "static/"
+# Filled by `collectstatic` when building the production image.
+STATIC_ROOT = BASE_DIR / "staticfiles"
 
 # Uploaded files (imported data files). In Docker, MEDIA_ROOT is a volume.
 MEDIA_URL = "media/"
@@ -175,4 +197,6 @@ SPECTACULAR_SETTINGS = {
     "SERVE_INCLUDE_SCHEMA": False,
 }
 
-MIGRATION_MODULES = {"ref_geo": None}
+MIGRATION_MODULES = {"ref_geo": None, "taxhub": None}
+
+DEFAULT_AREA_TYPE = os.environ.get("DEFAULT_AREA_TYPE", "M1")

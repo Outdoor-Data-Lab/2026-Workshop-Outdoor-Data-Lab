@@ -100,7 +100,6 @@ class ReferenceDataTests(TestCase):
             {"taxref", "gbif", "col", "worms"},
         )
 
-
 class SINPParserTests(BiodiversityTestCase):
     HEADER = "id_perm_sinp;cd_ref;cd_nom;nom_valide;nom_cite;date_debut;date_fin;wkt_4326;precision;jdd_uuid"
     LYNX = str(uuid.uuid4())

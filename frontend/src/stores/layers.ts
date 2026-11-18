@@ -17,6 +17,7 @@ export interface LayerStatus {
 export interface MapFeatureProperties {
   key: string
   label: string
+  color?: string
   value?: number
 }
 
@@ -26,6 +27,8 @@ export interface LayerDefinition {
   label: string
   /** Clé `layerGroups.<group>` des traductions. */
   group: string
+  /** Affichée au survol du nom. */
+  description?: string
   load: () => Promise<MapObject[]>
 }
 
@@ -53,6 +56,30 @@ export const useLayersStore = defineStore('layers', () => {
     selectedKey.value ? (byKey.value.get(selectedKey.value) ?? null) : null,
   )
 
+  // Une collection par tableau d'objets : une couche inchangée garde la sienne, et la carte ne la renvoie pas.
+  const collectionOf = new WeakMap<MapObject[], FeatureCollection<Geometry, MapFeatureProperties>>()
+
+  function toCollection(objects: MapObject[]) {
+    let collection = collectionOf.get(objects)
+    if (!collection) {
+      collection = {
+        type: 'FeatureCollection',
+        features: objects.map((o) => ({
+          type: 'Feature',
+          geometry: o.geometry,
+          properties: {
+            key: o.key,
+            label: o.label,
+            color: o.color,
+            ...(o.value !== undefined && { value: o.value }),
+          },
+        })),
+      }
+      collectionOf.set(objects, collection)
+    }
+    return collection
+  }
+
   const featureCollections = computed(() => {
     const collections: Partial<Record<LayerId, FeatureCollection<Geometry, MapFeatureProperties>>> =
       {}
@@ -60,18 +87,7 @@ export const useLayersStore = defineStore('layers', () => {
       LayerId,
       MapObject[],
     ][]) {
-      if (!visible.value[layer]) continue
-      collections[layer] = {
-        type: 'FeatureCollection',
-        features: objects.map((o) => ({
-          type: 'Feature',
-          geometry: o.geometry,
-          properties:
-            o.value === undefined
-              ? { key: o.key, label: o.label }
-              : { key: o.key, label: o.label, value: o.value },
-        })),
-      }
+      if (visible.value[layer]) collections[layer] = toCollection(objects)
     }
     return collections
   })
@@ -115,17 +131,19 @@ export const useLayersStore = defineStore('layers', () => {
     return CONCEPTS.find((c) => c.id === concept.value)!.domains.includes(layerDomain(layer))
   }
 
-  /** Les couches ajoutées sont affichées si elles relèvent du concept actif. */
+  /** Les couches ajoutées sont affichées si elles relèvent du concept actif (jamais les externes). */
   function addDefinitions(added: LayerDefinition[]) {
     definitions.value = [...definitions.value, ...added]
     for (const definition of added) setVisible(definition.id, inConcept(definition.id))
   }
 
-  /** Change de concept et réinitialise la visibilité de toutes les couches. */
+  /** Change de concept et réinitialise la visibilité des couches, sauf des externes. */
   function setConcept(value: Concept) {
     concept.value = value
     for (const definition of definitions.value) {
-      setVisible(definition.id, inConcept(definition.id))
+      if (layerDomain(definition.id) !== 'external') {
+        setVisible(definition.id, inConcept(definition.id))
+      }
     }
   }
 
