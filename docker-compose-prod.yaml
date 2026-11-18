@@ -55,6 +55,11 @@ services:
       DJANGO_CSRF_TRUSTED_ORIGINS: https://${DOMAIN}
       # Number of Gunicorn workers (read natively by Gunicorn).
       WEB_CONCURRENCY: ${WEB_CONCURRENCY:-3}
+      # Additional Gunicorn settings. Explicit options here override native
+      # defaults such as WEB_CONCURRENCY when the same setting is specified.
+      GUNICORN_CMD_ARGS: >-
+        ${GUNICORN_CMD_ARGS:---threads 2 --timeout 120 --graceful-timeout 30
+        --max-requests 1000 --max-requests-jitter 100}
     command:
       - /bin/sh
       - -ec
