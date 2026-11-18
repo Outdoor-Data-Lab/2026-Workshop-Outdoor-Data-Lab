@@ -19,7 +19,14 @@ COLUMNS = {
     "precision": "coordinate_uncertainty_in_meters",
     "jdd_uuid": "dataset_uuid",
 }
-REQUIRED = ["uuid", "original_id_taxon", "scientific_name", "record_start_date", "record_end_date", "geom"]
+REQUIRED = [
+    "uuid",
+    "original_id_taxon",
+    "scientific_name",
+    "record_start_date",
+    "record_end_date",
+    "geom",
+]
 
 
 class INPNParser(BiodiversityRecordParser):
@@ -33,7 +40,7 @@ class INPNParser(BiodiversityRecordParser):
                 dtype=str,
                 keep_default_na=False,
                 na_values=[""],
-                usecols=lambda column: column in COLUMNS,
+                usecols=COLUMNS,
             )
 
         missing = set(COLUMNS).difference(data.columns)

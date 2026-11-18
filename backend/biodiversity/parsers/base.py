@@ -22,6 +22,7 @@ class BiodiversityRecordParser:
 
     A subclass only reads its file, in `read()`, which returns:
     - the number of lines read in the file (saved in DataImport.line_numbers);
+      lines read but not returned are counted in DataImport.error_numbers;
     - a DataFrame with one row per observation, whose columns are TaxonRecord
       fields except `id` and `source` (set here), with:
       - `uuid`: required, the key used to find records already imported;
@@ -71,7 +72,7 @@ class BiodiversityRecordParser:
                 update_fields=UPDATED_FIELDS,
             )
             self.data_import.line_numbers = line_count
-            self.data_import.error_numbers = 0
+            self.data_import.error_numbers = line_count - len(rows)
             self.data_import.save(update_fields=["line_numbers", "error_numbers"])
         return len(rows)
 

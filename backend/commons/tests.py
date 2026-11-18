@@ -133,7 +133,7 @@ class DataImportParserTests(SimpleTestCase):
         self.assertEqual(result, 2)
 
     def test_source_without_parser_is_ignored(self):
-        self.assertIsNone(self.make_import("gbif").run_parser())
+        self.assertIsNone(self.make_import("geotrek").run_parser())
 
 
 class DataImportAdminTests(TestCase):
@@ -155,8 +155,8 @@ class DataImportAdminTests(TestCase):
         )
 
     def test_source_without_parser_is_rejected(self):
-        response = self.add_import("gbif")
-        self.assertContains(response, "Aucun parser n&#x27;est disponible pour la source « GBIF ».")
+        response = self.add_import("geotrek")
+        self.assertContains(response, "Aucun parser n&#x27;est disponible pour la source « Geotrek ».")
         self.assertFalse(DataImport.objects.exists())
 
     @patch("biodiversity.parsers.inpn.INPNParser")
