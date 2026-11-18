@@ -313,19 +313,33 @@ class AreasApiTests(AreasTestCase):
         response = self.client.get(self.url, {"scores": "cazalis", "source_weights": "1:2"})
         self.assertEqual(response.status_code, 400)
 
+    def test_spatial_filters_of_ref_geo(self):
+        def ids(**params):
+            return [f["id"] for f in self.client.get(self.url, params).json()["features"]]
+
+        self.assertEqual(ids(in_bbox="6.9,43.9,7.6,44.6"), [13])
+        self.assertEqual(ids(point="6.2,44.2"), [12])
+        self.assertEqual(ids(intersects="POLYGON((6.1 44.1,7.2 44.1,7.2 44.2,6.1 44.2,6.1 44.1))"), [12, 13])
+        self.assertEqual(ids(area_code="B"), [13])
+
     def test_rejects_invalid_parameters(self):
-        response = self.client.get(self.url, {"month": 13, "scores": "foo", "bbox": "x"})
+        response = self.client.get(self.url, {"month": 13, "scores": "foo"})
         self.assertEqual(response.status_code, 400)
-        self.assertEqual(set(response.json()), {"month", "scores", "bbox"})
+        self.assertEqual(set(response.json()), {"month", "scores"})
+        self.assertEqual(self.client.get(self.url, {"bbox": "x"}).status_code, 400)
+        self.assertEqual(self.client.get(self.url, {"in_bbox": "x"}).status_code, 400)
 
     def test_only_cells_with_matching_measures(self):
         response = self.client.get(self.url, {"year": 2024})
         self.assertEqual([f["id"] for f in response.json()["features"]], [13])
 
     def test_paginates_and_scores_the_page(self):
-        response = self.client.get(self.url, {"page_size": 1, "page": 2, "scores": "basic"})
+        response = self.client.get(self.url, {"limit": 1, "offset": 1, "scores": "basic"})
         data = response.json()
+        self.assertEqual(data["type"], "FeatureCollection")
         self.assertEqual(data["count"], 2)
+        self.assertIsNone(data["next"])
+        self.assertIsNotNone(data["previous"])
         self.assertEqual([f["id"] for f in data["features"]], [13])
         self.assertEqual(data["features"][0]["properties"]["score"], {"basic": 7})
 

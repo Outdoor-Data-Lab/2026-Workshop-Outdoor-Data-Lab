@@ -1,12 +1,14 @@
 from functools import cached_property
 
 from django.db.models import OuterRef, Subquery, Sum
+from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework import serializers, viewsets
 from rest_framework.response import Response
-from rest_framework_gis.pagination import GeoJsonPagination
+from rest_framework_gis.filters import InBBoxFilter
 
-from commons.api.geo import GeoViewSet, ReadOnlyViewSet
+from commons.api.geo import GeoJsonLimitOffsetPagination, GeoViewSet, ReadOnlyViewSet
+from ref_geo.filters import LAreaFilter
 from ref_geo.models import LArea
 from workshop2026.processing.score import SCORES, counts_queryset
 
@@ -75,15 +77,25 @@ class CountingMeasureViewSet(ReadOnlyViewSet):
 class AreasViewSet(viewsets.ReadOnlyModelViewSet):
     """Counts and scores per 1 km grid cell (ref_geo "M1"), as GeoJSON.
 
-    Only the cells with measures matching the filters (source, year, month,
-    bbox). Properties: ``counts``, ``count_segment``, ``count_presence`` and
-    ``score`` (``{score name: value}`` for the requested ``scores``).
-    Geometry in WGS84. Scores are computed for the cells of the page only.
+    Only the cells with measures matching ``source``, ``year`` and ``month``.
+    Properties: ``counts``, ``count_segment``, ``count_presence`` and ``score``
+    (``{score name: value}`` for the requested ``scores``). Geometry in WGS84.
+    Scores are computed for the cells of the page only.
+
+    Spatial filters on the cells, as in ref_geo: ``bbox``, ``point``,
+    ``intersects``, ``within``, ``contains`` (LAreaFilter, on the indexed
+    Lambert-93 geometry) and ``in_bbox`` (rest_framework_gis). Pagination:
+    ``limit`` / ``offset``.
     """
 
     serializer_class = AreaCountsSerializer
     lookup_field = "id_area"
-    pagination_class = GeoJsonPagination
+    pagination_class = GeoJsonLimitOffsetPagination
+    filter_backends = [DjangoFilterBackend, InBBoxFilter]
+    filterset_class = LAreaFilter
+    # InBBoxFilter builds its box without an SRID: it must target the WGS84 column.
+    bbox_filter_field = "geom_4326"
+    bbox_filter_include_overlapping = True
 
     @cached_property
     def params(self):
@@ -106,10 +118,6 @@ class AreasViewSet(viewsets.ReadOnlyModelViewSet):
         queryset = LArea.objects.filter(
             type__type_code="M1", id_area__in=self.counts.values("id_area")
         )
-        if "bbox" in self.params:
-            queryset = queryset.filter(
-                geom__intersects=self.params["bbox"].transform(2154, clone=True)
-            )
 
         def total(column):
             return Subquery(

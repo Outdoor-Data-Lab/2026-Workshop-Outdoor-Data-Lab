@@ -1,4 +1,3 @@
-from django.contrib.gis.geos import Polygon
 from rest_framework import serializers
 from rest_framework_gis.serializers import GeoFeatureModelSerializer
 
@@ -107,9 +106,6 @@ class AreasQuerySerializer(serializers.Serializer):
         required=False,
         help_text='Weights of the "cazalis" score, as source_id:weight pairs, e.g. "1:2,3:0.5".',
     )
-    bbox = serializers.CharField(
-        required=False, help_text="minlon,minlat,maxlon,maxlat (WGS84)."
-    )
 
     def validate_source_weights(self, value):
         try:
@@ -119,15 +115,6 @@ class AreasQuerySerializer(serializers.Serializer):
             raise serializers.ValidationError(
                 'Expected "source_id:weight,...", e.g. "1:2,3:0.5".'
             )
-
-    def validate_bbox(self, value):
-        try:
-            xmin, ymin, xmax, ymax = (float(v) for v in value.split(","))
-        except ValueError:
-            raise serializers.ValidationError("Expected minlon,minlat,maxlon,maxlat.")
-        polygon = Polygon.from_bbox((xmin, ymin, xmax, ymax))
-        polygon.srid = 4326
-        return polygon
 
     def validate(self, data):
         if "cazalis" in data.get("scores", ()) and "source_weights" not in data:
