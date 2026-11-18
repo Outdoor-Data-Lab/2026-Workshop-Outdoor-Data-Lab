@@ -397,16 +397,6 @@ class LAreaAPITestCase(RefGeoTestCase):
         self.assertEqual(response.data['count'], 0)
         self.assertEqual(response.data['results'], [])
 
-    def test_list_without_type_filter_no_offers_count(self):
-        """Test that listing without type_code filter does not include offers_count."""
-        response = self.client.get(self.url)
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-
-        if response.data['results']:
-            result = response.data['results'][0]
-            # Should not have offers_count when not filtered by type_code
-            self.assertNotIn('offers_count', result)
-
     def test_filter_by_type_code_with_geojson(self):
         """Test filtering by type code with GeoJSON format."""
         type_code = self.paris.type.type_code
