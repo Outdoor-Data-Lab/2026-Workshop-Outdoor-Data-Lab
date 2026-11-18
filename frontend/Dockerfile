@@ -24,5 +24,5 @@ RUN npm run build-only
 FROM nginx:alpine AS production
 COPY --from=build /app/dist /usr/share/nginx/html
 # SPA fallback so vue-router history mode works on refresh.
-RUN printf 'server {\n  listen 80;\n  root /usr/share/nginx/html;\n  location / { try_files $uri $uri/ /index.html; }\n}\n' > /etc/nginx/conf.d/default.conf
+RUN printf 'server {\n  listen 80;\n  root /usr/share/nginx/html;\n  location /traffic/ {\n    proxy_pass http://web:8000/traffic/;\n    proxy_set_header Host $host;\n    proxy_set_header X-Real-IP $remote_addr;\n  }\n  location / { try_files $uri $uri/ /index.html; }\n}\n' > /etc/nginx/conf.d/default.conf
 EXPOSE 80

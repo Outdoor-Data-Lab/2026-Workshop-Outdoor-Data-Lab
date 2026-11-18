@@ -124,13 +124,19 @@ class AreasViewSet(viewsets.ReadOnlyModelViewSet):
             .order_by("id_area")
         )
 
+    @cached_property
+    def source_weights(self):
+        """Weights of the "cazalis" score: given, or estimated (BTA) when omitted."""
+        weights = self.params.get("source_weights")
+        if weights is None and "cazalis" in self.params.get("scores", ()):
+            weights = SCORES["cazalis"].calculate_source_weights()
+        return weights
+
     def compute_scores(self, measures):
         """``{score name: {id_area: value}}`` for the requested scores."""
         try:
             return {
-                name: SCORES[name].compute_from(
-                    measures, source_weights=self.params.get("source_weights")
-                )
+                name: SCORES[name].compute_from(measures, source_weights=self.source_weights)
                 for name in sorted(self.params.get("scores", ()))
             }
         except ValueError as error:
@@ -146,9 +152,19 @@ class AreasViewSet(viewsets.ReadOnlyModelViewSet):
         }
         return self.get_serializer(areas if many else areas[0], many=many, context=context)
 
+    def with_source_weights(self, response):
+        """Add the weights used by the "cazalis" score to the response."""
+        if "cazalis" in self.params.get("scores", ()):
+            response.data["source_weights"] = self.source_weights
+        return response
+
     def list(self, request, *args, **kwargs):
         page = self.paginate_queryset(self.filter_queryset(self.get_queryset()))
-        return self.get_paginated_response(self.serialize(page, many=True).data)
+        return self.with_source_weights(
+            self.get_paginated_response(self.serialize(page, many=True).data)
+        )
 
     def retrieve(self, request, *args, **kwargs):
-        return Response(self.serialize([self.get_object()], many=False).data)
+        return self.with_source_weights(
+            Response(self.serialize([self.get_object()], many=False).data)
+        )

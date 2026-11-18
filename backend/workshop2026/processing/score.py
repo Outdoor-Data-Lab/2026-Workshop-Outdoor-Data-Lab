@@ -12,14 +12,66 @@ A measure belongs to the period [date_from, date_to] when its ``start_datetime``
 falls in it, both dates included, in the current time zone (TIME_ZONE setting).
 """
 
-from datetime import datetime, time, timedelta
+from calendar import monthrange
+from datetime import date, datetime, time, timedelta
+from math import isfinite, sqrt
 
 from django.contrib.gis.geos import GEOSGeometry
 from django.db.models import F, Q, Sum
+from django.db.models.functions import ExtractMonth, ExtractYear
 from django.utils import timezone
 
+from commons.models import DataSource
 from ref_geo.models import LArea
 from traffic.models import CountingMeasure
+
+BTA_REFERENCE_SOURCE = "ecocompteur"
+BTA_WEIGHTED_SOURCES = {"strava", "inaturalist", "outdoorvision"}
+BTA_SUMMER_MONTHS = (6, 7, 8, 9)
+BTA_FIRST_YEAR = 2021
+BTA_CORRELATION_THRESHOLD = 0.25
+
+
+def cazalis_weights_from_correlations(correlations, source_ids):
+    """Apply the BTA correlation-to-weight rule and apportion 100 integer points."""
+    raw_weights = {}
+    for source_id in source_ids:
+        correlation = correlations.get(source_id)
+        if correlation is None or not isfinite(correlation) or correlation <= BTA_CORRELATION_THRESHOLD:
+            raw_weights[source_id] = 0.0
+        else:
+            raw_weights[source_id] = 1 / (1 - min(correlation, 0.99))
+
+    total = sum(raw_weights.values())
+    if total == 0:
+        return {source_id: 0 for source_id in source_ids}
+
+    percentages = {source_id: weight / total * 100 for source_id, weight in raw_weights.items()}
+    weights = {source_id: int(percentages[source_id]) for source_id in source_ids}
+    remainder = 100 - sum(weights.values())
+    order = sorted(
+        source_ids,
+        key=lambda source_id: (-(percentages[source_id] - weights[source_id]), source_id),
+    )
+    for source_id in order[:remainder]:
+        weights[source_id] += 1
+    return weights
+
+
+def _pearson_correlation(reference_values, source_values):
+    if len(reference_values) < 2:
+        return None
+    reference_mean = sum(reference_values) / len(reference_values)
+    source_mean = sum(source_values) / len(source_values)
+    reference_delta = [value - reference_mean for value in reference_values]
+    source_delta = [value - source_mean for value in source_values]
+    denominator = sqrt(
+        sum(value**2 for value in reference_delta)
+        * sum(value**2 for value in source_delta)
+    )
+    if denominator == 0:
+        return None
+    return sum(x_value * y_value for x_value, y_value in zip(reference_delta, source_delta)) / denominator
 
 
 def _to_lambert93(geom):
@@ -118,9 +170,62 @@ class CazalisFrequentationScore(Score):
     name = "cazalis"
 
     @classmethod
+    def calculate_source_weights(cls):
+        """Estimate BTA weights from summer source counts paired with ecocompteur data.
+
+        The original BTA method compares counts per station; here correlations
+        use paired (M1 cell, month) observations from June to September,
+        starting in 2021, as daily averages.
+        """
+        source_rows = list(DataSource.objects.order_by("id").values_list("id", "code"))
+        source_ids = [source_id for source_id, _ in source_rows]
+        reference_id = next(
+            (source_id for source_id, code in source_rows if code == BTA_REFERENCE_SOURCE),
+            None,
+        )
+        candidate_ids = {
+            source_id for source_id, code in source_rows if code in BTA_WEIGHTED_SOURCES
+        }
+        correlations = {}
+        if reference_id is None or not candidate_ids:
+            return cazalis_weights_from_correlations(correlations, source_ids)
+
+        monthly = (
+            measures_queryset(
+                sources=[reference_id, *candidate_ids], date_from=date(BTA_FIRST_YEAR, 1, 1)
+            )
+            .annotate(
+                year=ExtractYear("start_datetime"), month=ExtractMonth("start_datetime")
+            )
+            .filter(month__in=BTA_SUMMER_MONTHS)
+            .values("id_area", "id_source", "year", "month")
+            .annotate(total=Sum("count"))
+        )
+        counts = {
+            (row["id_area"], row["year"], row["month"], row["id_source"]): row["total"]
+            for row in monthly
+        }
+        reference_keys = sorted(
+            key[:3] for key in counts if key[3] == reference_id
+        )
+        if not reference_keys:
+            return cazalis_weights_from_correlations(correlations, source_ids)
+
+        for source_id in candidate_ids:
+            reference_values = []
+            source_values = []
+            for key in reference_keys:
+                days_in_month = monthrange(key[1], key[2])[1]
+                reference_values.append(counts[(*key, reference_id)] / days_in_month)
+                source_values.append(counts.get((*key, source_id), 0) / days_in_month)
+            correlations[source_id] = _pearson_correlation(reference_values, source_values)
+
+        return cazalis_weights_from_correlations(correlations, source_ids)
+
+    @classmethod
     def compute_from(cls, queryset, source_weights=None, **params):
         if source_weights is None:
-            raise ValueError("source_weights must map each source ID to its weight")
+            source_weights = cls.calculate_source_weights()
 
         rows = queryset.values("id_area", "id_source").annotate(total=Sum("count"))
         score_grid = {}
