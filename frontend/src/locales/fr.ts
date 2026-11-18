@@ -9,6 +9,7 @@ export default {
   },
   layerGroups: {
     traffic: 'Fréquentation',
+    biodiversity: 'Biodiversité',
     outdoor: 'Outdoor',
     external: 'Couches externes',
   },
@@ -22,6 +23,8 @@ export default {
     trafficAreas: 'Fréquentation par maille',
     trafficArea: 'Maille {id} : score {score}',
     outdoorOffers: 'Offres outdoor',
+    biodivAreas: 'Taxons protégés ou menacés par maille',
+    biodivArea: 'Maille {name} : {count} taxons protégés ou menacés',
     loadError: 'Impossible de charger {label}',
   },
   areaFilter: {

@@ -8,7 +8,7 @@ import LayerSwitcher from '@/components/LayerSwitcher.vue'
 import MapLegend, { type LegendItem } from '@/components/MapLegend.vue'
 import MapView from '@/components/MapView.vue'
 import { TRAFFIC_AREA_LAYER } from '@/api/traffic'
-import { externalLayers, outdoorLayers, trafficLayers } from '@/catalog'
+import { biodiversityLayers, externalLayers, outdoorLayers, trafficLayers } from '@/catalog'
 import { useLayersStore } from '@/stores/layers'
 import { DOMAIN_COLORS, VALUE_COLORS, valueMax, type LayerId } from '@/types/mapObject'
 
@@ -18,6 +18,7 @@ const { t } = useI18n()
 // Un échec est notifié par le gestionnaire global des promesses rejetées (main.ts).
 trafficLayers().then(layers.addDefinitions)
 outdoorLayers().then(layers.addDefinitions)
+biodiversityLayers().then(layers.addDefinitions)
 externalLayers().then(layers.addDefinitions)
 
 /** Entrées des couches trafic visibles : compteurs, puis dégradé des mailles. */

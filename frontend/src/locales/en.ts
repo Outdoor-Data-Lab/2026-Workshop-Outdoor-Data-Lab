@@ -8,6 +8,7 @@ export default {
   },
   layerGroups: {
     traffic: 'Traffic',
+    biodiversity: 'Biodiversity',
     outdoor: 'Outdoor',
     external: 'External layers',
   },
@@ -22,6 +23,8 @@ export default {
     trafficAreas: 'Traffic per grid cell',
     trafficArea: 'Cell {id}: score {score}',
     outdoorOffers: 'Outdoor offers',
+    biodivAreas: 'Protected or threatened taxa per grid cell',
+    biodivArea: 'Cell {name}: {count} protected or threatened taxa',
     loadError: 'Could not load {label}',
   },
   areaFilter: {
