@@ -270,7 +270,7 @@ class LAreaAPITestCase(RefGeoTestCase):
     @classmethod
     def setUpTestData(cls):
         super().setUpTestData()
-        practice = Practice.objects.get(code='hiking')
+        cls.practice = Practice.objects.get(code='hiking')
         source = DataSource.objects.get(code='outdoorvision')
 
         # 2 offres dans Paris, 1 dans Chamonix
@@ -281,7 +281,7 @@ class LAreaAPITestCase(RefGeoTestCase):
         ]:
             Offer.objects.create(
                 uuid=uuid.uuid4(), external_id=ext_id, geom=wkt,
-                practice=practice, source=source,
+                practice=cls.practice, source=source,
             )
 
     def setUp(self):
@@ -376,3 +376,37 @@ class LAreaAPITestCase(RefGeoTestCase):
             properties = data['features'][0]['properties']
             self.assertIn('type_code', properties)
             self.assertIn('offers_count', properties)
+
+    def test_filter_by_type_code_with_practice_count(self):
+        """Test filtering areas by type code with practice count breakdown."""
+        type_code = self.paris.type.type_code
+        response = self.client.get(self.url, {
+            'type_code': type_code,
+            'practice_count': 'true'
+        })
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        paris_result = next(r for r in response.data['results'] if r['id_area'] == self.paris.id_area)
+        self.assertEqual(paris_result['offers_count'], 2)
+        self.assertEqual(len(paris_result['offers_count_by_practice']), 1)
+        self.assertEqual(paris_result['offers_count_by_practice'],
+                         [{'practice_code': self.practice.code, 'practice_label': self.practice.label, 'count': 2}])
+
+    def test_practice_count_without_practice_count_param(self):
+        """Test that offers_count_by_practice is not included without practice_count=true."""
+        type_code = self.paris.type.type_code
+        response = self.client.get(self.url, {'type_code': type_code})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        paris_result = next(r for r in response.data['results'] if r['id_area'] == self.paris.id_area)
+        self.assertNotIn('offers_count_by_practice', paris_result)
+
+    def test_practice_count_with_geojson(self):
+        """Test practice count with GeoJSON format."""
+        type_code = self.paris.type.type_code
+        response = self.client.get(self.url, {
+            'type_code': type_code,
+            'practice_count': 'true',
+            'format': 'geojson'
+        })
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+        self.assertIn('offers_count_by_practice', data['features'][0]['properties'])

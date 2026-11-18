@@ -11,7 +11,8 @@ from ref_geo.serializers import LAreaSerializer, LAreaGeoSerializer
 from ref_geo.views import GeoViewSet
 from ..models import Offer
 from .serializers import OfferSerializer, OfferGeoSerializer, LAreaWithOffersCountSerializer, \
-    LAreaGeoWithOffersCountSerializer
+    LAreaGeoWithOffersCountSerializer, LAreaGeoWithOffersCountAndByPracticeSerializer, \
+    LAreaWithOffersCountAndByPracticeSerializer
 from .filters import OfferFilter
 from ref_geo.renderers import FormatFirstNegotiation, GeoJSONRenderer
 from ref_geo.pagination import GeoJsonLimitOffsetPagination
@@ -61,14 +62,18 @@ class OfferViewSet(viewsets.ReadOnlyModelViewSet):
         return super().paginator
 
 
+# ... existing code ...
+
 class LAreaCountViewSet(GeoViewSet):
     """API endpoint for listing areas with optional offers count.
 
     When type_code parameter is provided, areas are filtered by type and include offers count.
+    When practice_count=true parameter is provided, also includes offers count by practice type.
 
     Example requests:
     - GET /api/areas/ -> List all areas
     - GET /api/areas/?type_code=COM -> List areas of type COM with offers count
+    - GET /api/areas/?type_code=COM&practice_count=true -> With practice breakdown
     - GET /api/areas/?type_code=COM&format=geojson -> Same in GeoJSON format
     """
 
@@ -95,10 +100,19 @@ class LAreaCountViewSet(GeoViewSet):
         return qs
 
     def get_serializer_class(self):
-        """Retourner le serializer avec comptage des offres si type_code est fourni."""
+        """Retourner le serializer approprié basé sur les paramètres de requête."""
         type_code = self.request.query_params.get('type_code')
+        practice_count = self.request.query_params.get('practice_count', '').lower() == 'true'
+
         if type_code:
-            if self.is_geojson():
-                return LAreaGeoWithOffersCountSerializer
-            return LAreaWithOffersCountSerializer
+            if practice_count:
+                # Avec comptage par practice
+                if self.is_geojson():
+                    return LAreaGeoWithOffersCountAndByPracticeSerializer
+                return LAreaWithOffersCountAndByPracticeSerializer
+            else:
+                # Comptage global uniquement
+                if self.is_geojson():
+                    return LAreaGeoWithOffersCountSerializer
+                return LAreaWithOffersCountSerializer
         return super().get_serializer_class()
