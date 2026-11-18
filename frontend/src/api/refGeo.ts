@@ -13,8 +13,8 @@ export type AreaMatch = {
   type_code: string
 }
 
-/** Mailles exclues : elles ne se cherchent pas par nom. */
-const EXCLUDED_TYPES = ['M1']
+/** Grilles (M0.5, M1, M5, M10…) exclues : leurs mailles ne se cherchent pas par nom. Les massifs (MAS) restent. */
+const GRID_TYPE = /^M\d/
 
 /** Nom exact d'abord, puis ceux qui commencent par `name`, puis les autres, chacun par ordre alphabétique. */
 export async function searchAreas(name: string, limit = 10): Promise<AreaMatch[]> {
@@ -26,7 +26,7 @@ export async function searchAreas(name: string, limit = 10): Promise<AreaMatch[]
     return areaName === query ? 0 : areaName.startsWith(query) ? 1 : 2
   }
   return results
-    .filter((area) => !EXCLUDED_TYPES.includes(area.type_code))
+    .filter((area) => !GRID_TYPE.test(area.type_code))
     .sort((a, b) => rank(a) - rank(b))
     .slice(0, limit)
 }
