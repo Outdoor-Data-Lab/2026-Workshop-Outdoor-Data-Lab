@@ -550,7 +550,9 @@ class OfferImportTestCase(OutdoorTestCase):
         self.enterContext(override_settings(MEDIA_ROOT=media.name))
 
     def make_import(self, content):
-        return DataImport.objects.create(source=self.source, file=SimpleUploadedFile("offres.gpkg", content))
+        return DataImport.objects.create(
+            format="offers", source=self.source, file=SimpleUploadedFile("offres.gpkg", content)
+        )
 
     def run_import(self, content):
         data_import = self.make_import(content)
@@ -718,7 +720,7 @@ class OfferImportAdminTests(OfferImportTestCase):
 
     def upload(self, content):
         return self.client.post(
-            self.url, {"source": self.source.pk, "file": SimpleUploadedFile("offres.gpkg", content)}
+            self.url, {"format": "offers", "source": self.source.pk, "file": SimpleUploadedFile("offres.gpkg", content)}
         )
 
     def confirm(self, preview, *button):
@@ -768,10 +770,12 @@ class OfferImportAdminTests(OfferImportTestCase):
 
     def test_rejected_file_keeps_nothing(self):
         response = self.client.post(
-            self.url, {"source": self.source.pk, "file": SimpleUploadedFile("offres.gpkg", b"not a file")}, follow=True
+            self.url,
+            {"format": "offers", "source": self.source.pk, "file": SimpleUploadedFile("offres.gpkg", b"not a file")},
+            follow=True,
         )
-        # Back to the form with the same source, and the reason.
-        self.assertEqual(response.redirect_chain, [(f"{self.url}?source={self.source.pk}", 302)])
+        # Back to the form with the same format and source, and the reason.
+        self.assertEqual(response.redirect_chain, [(f"{self.url}?format=offers&source={self.source.pk}", 302)])
         self.assertEqual(
             self.messages(response), ["Import refused, nothing was saved: The file is not a readable GeoPackage."]
         )
