@@ -15,7 +15,9 @@ schema itself is created by migration 0001.
 import uuid
 
 from django.contrib.gis.db import models
-from django.db.models import F, Max, Min, Q
+from django.contrib.gis.db.models.functions import Transform
+from django.contrib.postgres.indexes import GistIndex
+from django.db.models import F, Func, Max, Min, Q, Value
 
 from commons.models import DataImport, DataSource, Practice
 from ref_geo.models import LArea
@@ -89,6 +91,18 @@ class CountingObject(models.Model):
         blank=True,
     )
     geom = models.GeometryField(srid=4326)
+    # For the vector tiles (traffic/tiles): web mercator, simplified to 10 m
+    # (Outdoorvision tracks: 40 million points, 8 once simplified).
+    geom_tiles = models.GeneratedField(
+        expression=Func(
+            Transform("geom", 3857),
+            Value(10),
+            function="ST_SimplifyPreserveTopology",
+            output_field=models.GeometryField(srid=3857),
+        ),
+        output_field=models.GeometryField(srid=3857, spatial_index=False),
+        db_persist=True,
+    )
     # The import that created the object. Deleting it deletes the object when no
     # measure of another import is left on it (see signals.py); otherwise the
     # object stays, unlinked.
@@ -111,6 +125,7 @@ class CountingObject(models.Model):
 
     class Meta:
         db_table = table("counting_objects")
+        indexes = [GistIndex(fields=["geom_tiles"], name="counting_object_geom_tiles")]
         constraints = [
             # An imported object is identified by its id in its provider and its
             # origin, so a re-import updates it instead of creating a duplicate.
