@@ -247,7 +247,6 @@ class OfferGeoFilterTests(RefGeoTestCase):
         if data['results']:
             self.assertIn('geom', data['results'][0])
 
-
     def test_geojson_feature_properties(self):
         """Test that GeoJSON features include correct properties."""
         response = self.client.get(self.url, {
@@ -263,6 +262,7 @@ class OfferGeoFilterTests(RefGeoTestCase):
         fields = ['uuid', 'external_id', 'practice', 'practice_label', 'source', 'source_label']
         for field in fields:
             self.assertIn(field, properties)
+
 
 class LAreaAPITestCase(RefGeoTestCase):
     """Tests de l'endpoint LAreaViewSet (réutilise les zones paris / chamonix de RefGeoTestCase)."""
@@ -287,7 +287,6 @@ class LAreaAPITestCase(RefGeoTestCase):
     def setUp(self):
         self.client = APIClient()
         self.url = reverse('offer_area-list')
-        self.by_type_url = reverse('offer_area-by-type-with-offers')
 
     def test_list_areas(self):
         response = self.client.get(self.url)
@@ -318,23 +317,62 @@ class LAreaAPITestCase(RefGeoTestCase):
         self.assertTrue(data['features'])
         self.assertIn('geometry', data['features'][0])
 
-    def test_by_type_with_offers_requires_type_code(self):
-        response = self.client.get(self.by_type_url)
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('error', response.data)
-
-    def test_by_type_with_offers_counts(self):
+    def test_filter_by_type_code_with_offers_count(self):
+        """Test filtering areas by type code returns offers count in each area."""
         type_code = self.paris.type.type_code
-        response = self.client.get(self.by_type_url, {'type_code': type_code})
+        response = self.client.get(self.url, {'type_code': type_code})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertEqual(response.data['type_code'], type_code)
-        self.assertEqual(response.data['count'], len(response.data['results']))
+        self.assertIn('results', response.data)
 
-        counts = {r['id_area']: r['offers_count'] for r in response.data['results']}
-        self.assertEqual(counts[self.paris.id_area], 2)
+        # Check that the response includes offers_count for areas of the specified type
+        paris_result = next(
+            (r for r in response.data['results'] if r['id_area'] == self.paris.id_area),
+            None
+        )
+        self.assertIsNotNone(paris_result)
+        self.assertIn('offers_count', paris_result)
+        self.assertEqual(paris_result['offers_count'], 2)
 
-    def test_by_type_with_offers_unknown_type(self):
-        response = self.client.get(self.by_type_url, {'type_code': 'UNKNOWN'})
+    def test_filter_by_type_code_includes_type_code_in_response(self):
+        """Test that response includes type_code when filtering by type."""
+        type_code = self.paris.type.type_code
+        response = self.client.get(self.url, {'type_code': type_code})
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        # All results should have the type_code field
+        for result in response.data['results']:
+            self.assertIn('type_code', result)
+            self.assertEqual(result['type_code'], type_code)
+
+    def test_filter_by_type_code_unknown_type(self):
+        """Test filtering by unknown type code returns empty results."""
+        response = self.client.get(self.url, {'type_code': 'UNKNOWN'})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['count'], 0)
         self.assertEqual(response.data['results'], [])
+
+    def test_list_without_type_filter_no_offers_count(self):
+        """Test that listing without type_code filter does not include offers_count."""
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+
+        if response.data['results']:
+            result = response.data['results'][0]
+            # Should not have offers_count when not filtered by type_code
+            self.assertNotIn('offers_count', result)
+
+    def test_filter_by_type_code_with_geojson(self):
+        """Test filtering by type code with GeoJSON format."""
+        type_code = self.paris.type.type_code
+        response = self.client.get(self.url, {
+            'type_code': type_code,
+            'format': 'geojson'
+        })
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        data = response.json()
+        self.assertEqual(data['type'], 'FeatureCollection')
+
+        if data['features']:
+            properties = data['features'][0]['properties']
+            self.assertIn('type_code', properties)
+            self.assertIn('offers_count', properties)
