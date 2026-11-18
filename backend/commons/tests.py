@@ -10,7 +10,17 @@ from django.db.models import ProtectedError
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 
-from .models import PARSERS, DataImport, DataSource, ExternalLayer, Practice, register_parsers
+from ref_geo.models import BibAreasType, LArea
+
+from .models import (
+    PARSERS,
+    DataImport,
+    DataSource,
+    ExternalLayer,
+    InstanceSettings,
+    Practice,
+    register_parsers,
+)
 from .tasks import run_import
 
 
@@ -19,7 +29,7 @@ class CommonsTests(TestCase):
         with connection.cursor() as cursor:
             cursor.execute("select tablename from pg_tables where schemaname = 'commons'")
             tables = {row[0] for row in cursor.fetchall()}
-        self.assertEqual(tables, {"data_sources", "data_imports", "practices", "external_layers"})
+        self.assertEqual(tables, {"data_sources", "data_imports", "practices", "external_layers", "instance_settings"})
 
     def test_initial_data_sources(self):
         self.assertEqual(
@@ -340,3 +350,28 @@ class ParserExamplesTests(SimpleTestCase):
             with self.subTest(code):
                 parser = import_string(path)
                 self.assertTrue(parser.LABEL and parser.EXAMPLE)
+
+
+class InstanceSettingsApiTests(TestCase):
+    url = "/api/commons/instance-settings"
+
+    def test_no_default_area(self):
+        self.assertEqual(self.client.get(self.url).json(), {"default_area": None})
+
+    def test_default_area(self):
+        # ref_geo is not created by the migrations of the test database.
+        with connection.cursor() as cursor:
+            cursor.execute("CREATE SCHEMA IF NOT EXISTS ref_geo")
+        with connection.schema_editor() as editor:
+            for model in (BibAreasType, LArea):
+                editor.create_model(model)
+        park = BibAreasType.objects.create(type_name="Parcs nationaux", type_code="PN")
+        area = LArea.objects.create(id_area=7, type=park, area_name="Écrins", area_code="PNE")
+        settings = InstanceSettings.load()
+        settings.default_area = area
+        settings.save()
+
+        self.assertEqual(self.client.get(self.url).json(), {
+            "default_area": {"id_area": 7, "area_name": "Écrins", "area_code": "PNE", "type_code": "PN"},
+        })
+        self.assertEqual(InstanceSettings.objects.count(), 1)

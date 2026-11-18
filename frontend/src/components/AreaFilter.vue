@@ -1,8 +1,12 @@
 <script setup lang="ts">
-/** Choix d'une zone `ref_geo` par son nom ; elle filtre toutes les couches. */
-import { ref, watch } from 'vue'
+/**
+ * Choix d'une zone `ref_geo` par son nom ; elle filtre toutes les couches.
+ * À l'ouverture : la zone par défaut de l'instance, si l'admin en a choisi une.
+ */
+import { onMounted, ref, watch } from 'vue'
 
 import { getAreaGeometry, searchAreas, type AreaMatch } from '@/api/refGeo'
+import { getInstanceSettings } from '@/api/settings'
 import { referenceLabel } from '@/i18n'
 import { useLayersStore } from '@/stores/layers'
 import { useNotificationsStore } from '@/stores/notifications'
@@ -37,6 +41,16 @@ watch(query, (value) => {
 function typeLabel(typeCode: string) {
   return referenceLabel('areaTypes', typeCode, typeCode)
 }
+
+onMounted(async () => {
+  try {
+    const { default_area } = await getInstanceSettings()
+    // L'utilisateur a pu choisir une zone pendant le chargement.
+    if (default_area && !layers.area) await choose(default_area)
+  } catch (error) {
+    notifications.notifyError(error)
+  }
+})
 
 async function choose(area: AreaMatch) {
   try {
