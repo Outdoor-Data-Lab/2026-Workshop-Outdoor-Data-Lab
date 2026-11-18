@@ -37,15 +37,19 @@ class DataImportAdmin(admin.ModelAdmin):
         js = ("commons/import_loading.js", "commons/import_example.js")
 
     def render_change_form(self, request, context, *args, **kwargs):
-        """Show the expected file of the selected source under the source field.
+        """Show what the file of the selected source holds, and an example, under the source field.
 
         Done when the form is displayed only: a POST that imports does not need it.
         """
         form = context["adminform"].form
         if "source" in form.fields:
-            examples = {
-                source.pk: getattr(import_string(PARSERS[source.code]), "EXAMPLE", "")
+            parsers = {
+                source.pk: import_string(PARSERS[source.code])
                 for source in DataSource.objects.filter(code__in=PARSERS)
+            }
+            examples = {
+                pk: {"content": getattr(parser, "CONTENT", ""), "example": getattr(parser, "EXAMPLE", "")}
+                for pk, parser in parsers.items()
             }
             form.fields["source"].help_text = format_html(
                 '<span id="import-example" data-examples="{}"></span>', json.dumps(examples)

@@ -13,7 +13,7 @@ from django.contrib.gis.geos import Point
 from django.core.files.base import ContentFile
 from django.db import IntegrityError, connection, transaction
 from django.db.models import ProtectedError
-from django.test import Client, TestCase, override_settings
+from django.test import Client, SimpleTestCase, TestCase, override_settings
 
 from commons.models import DataImport, DataSource, Practice
 
@@ -348,3 +348,10 @@ class CompteurParserTests(TrafficTestCase):
         self.run_import(counts=(("A", 9), ("A", 1), ("B", 3), ("B", 2)))
         self.assertEqual(CountingMeasure.objects.count(), 4)
         self.assertEqual(sorted(CountingMeasure.objects.filter(counting_object__external_id="A").values_list("count", flat=True)), [1, 9])
+
+
+class ParserDescriptionTests(SimpleTestCase):
+    def test_every_parser_says_what_its_file_holds(self):
+        for parser in (OutdoorVisionParser, StravaParser, CompteurParser):
+            with self.subTest(parser.__name__):
+                self.assertTrue(parser.CONTENT.startswith("Contient des "))

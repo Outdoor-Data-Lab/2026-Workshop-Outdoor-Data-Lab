@@ -26,6 +26,7 @@ REQUIRED_COLUMNS = ["date_debut", "object_name", "count", "geom"]
 
 class CompteurParser(TrafficParser):
     NAME = "compteurs"
+    CONTENT = "Contient des points : un compteur automatique par position, avec son nombre de passages par heure."
     EXAMPLE = (
         "CSV long horaire, seul ou zippé (colonnes date_debut, object_name, count, geom). Ex. : "
         "compteurs_cleaned.zip. Ce n'est pas l'export brut : il est produit à partir des fichiers bruts "

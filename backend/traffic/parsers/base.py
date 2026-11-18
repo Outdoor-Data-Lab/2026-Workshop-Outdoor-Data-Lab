@@ -32,6 +32,7 @@ BATCH_SIZE = 5000
 
 class TrafficParser(ABC):
     NAME = ""  # used in error messages
+    CONTENT = ""  # what the file holds (traces, points...), shown in the admin above EXAMPLE
     EXAMPLE = ""  # expected file, shown in the admin when the source is selected
     PRACTICE_CODES: dict[str, str] = {}  # source activity -> Practice code
     OBJECT_TYPE = "segment"

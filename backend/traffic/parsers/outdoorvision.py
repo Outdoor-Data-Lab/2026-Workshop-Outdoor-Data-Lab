@@ -15,6 +15,10 @@ REQUIRED_COLUMNS = {"id", "track_id", "date_start", "date_end", "activity", "geo
 
 class OutdoorVisionParser(TrafficParser):
     NAME = "Outdoorvision"
+    CONTENT = (
+        "Contient des traces GPS de sorties (lignes) : les morceaux d'une même sortie (track_id) "
+        "sont réunis, et chaque sortie compte comme un passage."
+    )
     EXAMPLE = (
         "GPKG de traces brutes, un fichier à la fois. Ex. : Export_Traces_PNR_Vercors_12.gpkg "
         "(colonnes id, track_id, activity, date_start, date_end). Le .hdf livré à côté est inutile."

@@ -121,7 +121,8 @@ class DataImportAddPageTests(TestCase):
         response = self.client.get(self.url)
         strava = DataSource.objects.get(code="strava")
         self.assertContains(response, 'id="import-example"')
-        self.assertContains(response, f"&quot;{strava.pk}&quot;: &quot;Zip Strava Metro")
+        self.assertContains(response, f"&quot;{strava.pk}&quot;: {{&quot;content&quot;: &quot;Contient des tron")
+        self.assertContains(response, "&quot;example&quot;: &quot;Zip Strava Metro")
 
     def test_refused_file_shows_the_error_and_keeps_nothing(self):
         strava = DataSource.objects.get(code="strava")
