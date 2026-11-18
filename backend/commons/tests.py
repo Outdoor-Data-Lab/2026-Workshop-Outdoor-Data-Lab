@@ -2,6 +2,7 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
+from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import IntegrityError, connection, transaction
 from django.db.models import ProtectedError
@@ -110,6 +111,27 @@ class DataImportFileTests(TestCase):
                 self.assertEqual(stored.read(), b"content")
 
 
+class DataImportAdminTests(TestCase):
+    url = "/admin/commons/dataimport/add/"
+
+    def test_refused_file_shows_the_error_and_keeps_nothing(self):
+        strava = DataSource.objects.get(code="strava")
+        self.client.force_login(get_user_model().objects.create_superuser("admin@example.org", "x"))
+        with tempfile.TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
+            response = self.client.post(
+                self.url,
+                {"source": strava.pk, "file": SimpleUploadedFile("export.zip", b"not a zip"),
+                 "line_numbers": 0, "error_numbers": 0},
+                follow=True,
+            )
+            self.assertEqual(list(Path(media_root).rglob("*.*")), [])
+        # Back to the form with the same source, and the parser's message.
+        self.assertEqual(response.redirect_chain, [(f"{self.url}?source={strava.pk}", 302)])
+        self.assertContains(response, "Import refusé")
+        self.assertContains(response, "Le fichier Strava doit être un zip")
+        self.assertFalse(DataImport.objects.exists())
+
+
 class DataImportParserTests(SimpleTestCase):
     def make_import(self, source_code="outdoorvision"):
         data_import = DataImport(
@@ -132,3 +154,14 @@ class DataImportParserTests(SimpleTestCase):
 
     def test_source_without_parser_is_ignored(self):
         self.assertIsNone(self.make_import("gbif").run_parser())
+
+
+class ParserExamplesTests(SimpleTestCase):
+    def test_every_parser_describes_its_file(self):
+        from django.utils.module_loading import import_string
+
+        from .models import PARSERS
+
+        for code, path in PARSERS.items():
+            with self.subTest(code):
+                self.assertTrue(import_string(path).EXAMPLE)

@@ -26,6 +26,11 @@ REQUIRED_COLUMNS = ["date_debut", "object_name", "count", "geom"]
 
 class CompteurParser(TrafficParser):
     NAME = "compteurs"
+    EXAMPLE = (
+        "CSV long horaire, seul ou zippé (colonnes date_debut, object_name, count, geom). Ex. : "
+        "compteurs_cleaned.zip. Ce n'est pas l'export brut : il est produit à partir des fichiers bruts "
+        "par le script backend/traffic/parsers/compteurs_to_csv.py."
+    )
     PRACTICE_CODES = {"hiking": "hiking"}
     OBJECT_TYPE = "counter"
 

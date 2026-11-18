@@ -27,6 +27,11 @@ PERIODS = {"year": pd.DateOffset(years=1), "date": pd.DateOffset(days=1)}
 
 class StravaParser(TrafficParser):
     NAME = "Strava"
+    EXAMPLE = (
+        "Zip Strava Metro annuel ou journalier (shapefile + CSV). Ex. : all_edges_yearly_2020_ped_savoie.zip, "
+        "all_edges_daily_2021-07-01-2021-09-30_ped_HA.zip. Un zip = un seul export (un .shp et un .csv). "
+        "Un zip de zips (strava_isere.zip) est à décompresser avant."
+    )
     PRACTICE_CODES = {
         # TODO: inexact, "Run,Walk,Hike" mixes walking and running. Replace by a
         # practice grouping both (e.g. "pédestre") once it exists.

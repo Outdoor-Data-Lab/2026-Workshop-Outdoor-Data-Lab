@@ -15,6 +15,10 @@ REQUIRED_COLUMNS = {"id", "track_id", "date_start", "date_end", "activity", "geo
 
 class OutdoorVisionParser(TrafficParser):
     NAME = "Outdoorvision"
+    EXAMPLE = (
+        "GPKG de traces brutes, un fichier à la fois. Ex. : Export_Traces_PNR_Vercors_12.gpkg "
+        "(colonnes id, track_id, activity, date_start, date_end). Le .hdf livré à côté est inutile."
+    )
     # Outdoorvision activity -> commons practice code (any level of the hierarchy).
     PRACTICE_CODES = {
         "walking": "walking",
