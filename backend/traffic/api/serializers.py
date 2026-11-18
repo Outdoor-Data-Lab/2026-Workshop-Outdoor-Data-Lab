@@ -1,6 +1,7 @@
 from rest_framework import serializers
-from rest_framework_gis.fields import GeometryField
 from rest_framework_gis.serializers import GeoFeatureModelSerializer
+
+from commons.api.geo import code_field
 
 from ..models import (
     CountingMeasure,
@@ -22,35 +23,50 @@ class CountingObjectTypeSerializer(serializers.ModelSerializer):
         fields = ["id", "code", "label"]
 
 
-class CountingObjectSerializer(GeoFeatureModelSerializer):
-    """GeoJSON Feature : `geom` devient la géométrie, le reste va dans `properties`."""
+COUNTING_OBJECT_FIELDS = [
+    "id",
+    "uuid",
+    "external_id",
+    "type_code",
+    "source_code",
+    "origin_code",
+    "date_create",
+    "date_update",
+    "installation_date",
+    "uninstallation_date",
+    "processed",
+    "manager",
+    "image_url",
+    "first_data",
+    "latest_data",
+]
 
+
+class CountingObjectSerializer(serializers.ModelSerializer):
+    type_code = code_field("type")
+    source_code = code_field("source")
+    origin_code = code_field("origin")
     first_data = serializers.DateTimeField(read_only=True)
     latest_data = serializers.DateTimeField(read_only=True)
 
     class Meta:
         model = CountingObject
+        fields = COUNTING_OBJECT_FIELDS
+
+
+class CountingObjectGeoSerializer(GeoFeatureModelSerializer, CountingObjectSerializer):
+    """``?format=geojson``: ``geom`` becomes the geometry, the rest the properties."""
+
+    class Meta:
+        model = CountingObject
         geo_field = "geom"
-        fields = [
-            "id",
-            "uuid",
-            "external_id",
-            "type",
-            "source",
-            "geom",
-            "date_create",
-            "date_update",
-            "installation_date",
-            "uninstallation_date",
-            "processed",
-            "manager",
-            "image_url",
-            "first_data",
-            "latest_data",
-        ]
+        fields = [*COUNTING_OBJECT_FIELDS, "geom"]
 
 
 class CountingMeasureSerializer(serializers.ModelSerializer):
+    unit_code = code_field("unit")
+    practice_code = code_field("practice")
+
     class Meta:
         model = CountingMeasure
         fields = [
@@ -60,15 +76,9 @@ class CountingMeasureSerializer(serializers.ModelSerializer):
             "start_datetime",
             "end_datetime",
             "count",
-            "unit",
-            "practice",
+            "unit_code",
+            "practice_code",
             "date_create",
             "date_update",
             "processed",
         ]
-
-class GeometrySearchSerializer(serializers.Serializer):
-    PREDICATES = ("within", "intersects")
-
-    geometry = GeometryField()
-    predicate = serializers.ChoiceField(choices=PREDICATES, default="intersects")
