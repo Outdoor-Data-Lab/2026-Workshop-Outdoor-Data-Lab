@@ -11,14 +11,31 @@ Django has no schema option, so db_table uses the quoted form
 schema itself is created by migration 0001.
 """
 
+from django.core.exceptions import ImproperlyConfigured
 from django.db import models
 from django.db.models import F, Q
+from django.utils.module_loading import import_string
 
 DB_SCHEMA = "commons"
 
 
 def table(name):
     return f'{DB_SCHEMA}"."{name}'
+
+
+# Source code -> parser class, run when a file is imported for that source.
+# Each domain app registers its own parsers when it starts (register_parsers in
+# its AppConfig.ready()): commons does not know them. Updated in place, never
+# rebound, so the modules that imported it see every parser.
+PARSERS: dict[str, str] = {}
+
+
+def register_parsers(parsers: dict[str, str]) -> None:
+    """Add the parsers of a domain app: a source has a single parser."""
+    taken = {code for code, path in parsers.items() if PARSERS.get(code, path) != path}
+    if taken:
+        raise ImproperlyConfigured(f"Sources already having a parser: {', '.join(sorted(taken))}")
+    PARSERS.update(parsers)
 
 
 class DataSource(models.Model):
@@ -86,17 +103,16 @@ class DataImport(models.Model):
 
     def run_parser(self):
         """Run the parser associated with this import's source, if available."""
-        if self.source.code != "outdoorvision":
+        parser = PARSERS.get(self.source.code)
+        if parser is None:
             return None
         if not self.pk:
             raise ValueError("Le DataImport doit être enregistré avant son traitement.")
         if not self.file:
             raise ValueError("Aucun fichier n'est associé au DataImport.")
 
-        # Local import: the traffic parser itself imports DataImport.
-        from traffic.parsers.outdoorvision import OutdoorVisionParser
-
-        return OutdoorVisionParser(self).import_data()
+        # Imported by path: the parsers themselves import DataImport.
+        return import_string(parser)(self).import_data()
 
     def __str__(self):
         return f"{self.source} {self.date_import:%Y-%m-%d %H:%M}"

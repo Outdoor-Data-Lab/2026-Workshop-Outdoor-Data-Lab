@@ -1,7 +1,10 @@
 from django.contrib import admin
 from django.contrib.gis.admin import GISModelAdmin
 
-from .models import HabitatRecord, HabitatStation, TaxonomicReferential, TaxonRecord
+from commons.admin import ImportAdmin
+
+from .models import HabitatRecord, HabitatStation, ObservationImport, TaxonomicReferential, TaxonRecord
+from .parsers import PARSERS
 
 
 @admin.register(TaxonomicReferential)
@@ -49,3 +52,8 @@ class HabitatRecordAdmin(admin.ModelAdmin):
     list_select_related = ("station",)
     search_fields = ("=cd_hab", "=uuid")
     readonly_fields = ("uuid",)
+
+
+@admin.register(ObservationImport)
+class ObservationImportAdmin(ImportAdmin):
+    parsers = PARSERS

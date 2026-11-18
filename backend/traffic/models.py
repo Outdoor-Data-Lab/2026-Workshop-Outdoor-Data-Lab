@@ -17,7 +17,7 @@ import uuid
 from django.contrib.gis.db import models
 from django.db.models import F, Max, Min, Q
 
-from commons.models import DataSource, Practice
+from commons.models import DataImport, DataSource, Practice
 from ref_geo.models import LArea
 
 DB_SCHEMA = "traffic"
@@ -63,7 +63,7 @@ class CountingObjectQuerySet(models.QuerySet):
 
 
 class CountingObject(models.Model):
-    """A counter (eco-counter, camera, ticketing...) installed somewhere."""
+    """A counter (automatic counter, camera, ticketing...) installed somewhere."""
 
     uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     external_id = models.CharField(max_length=255, blank=True)
@@ -125,7 +125,12 @@ class CountingObject(models.Model):
 
 
 class CountingMeasure(models.Model):
-    """A count recorded by a counting object over a time interval."""
+    """A count recorded by a counting object over a time interval.
+
+    An object may have measures of different lengths over the same period (a
+    Strava edge gets a yearly measure and daily ones): do not add up its
+    measures without choosing one length.
+    """
 
     # No standalone index: the (counting_object, start_datetime) index covers it.
     counting_object = models.ForeignKey(
@@ -203,3 +208,11 @@ class CountingObjectArea(models.Model):
 
     class Meta:
         db_table = table("counting_object_areas")
+
+
+class TrafficImport(DataImport):
+    """An import of counting objects and measures (see traffic.parsers): the admin page
+    of the traffic imports, which lists the sources of the traffic parsers only."""
+
+    class Meta:
+        proxy = True
