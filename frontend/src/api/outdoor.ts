@@ -1,6 +1,7 @@
 /** API outdoor (offres d'activités). Types générés par `npm run gen:api`. */
 import type { Feature, Geometry, MultiPolygon } from 'geojson'
 
+import { i18n } from '@/i18n'
 import { mapObjectKey, type LayerId, type MapObject } from '@/types/mapObject'
 
 import { apiFetch, withQuery, type GeoJsonPage, type LimitOffset, type Paginated } from './client'
@@ -59,6 +60,18 @@ export function getOffers(
     offset,
   })
   return apiFetch<OfferPage>(url)
+}
+
+export type AreaOffer = Pick<Offer, 'id' | 'name' | 'practice_label' | 'source_label'>
+
+/** Offres qui intersectent la zone `ref_geo` `areaId`, sans géométrie. */
+export function getAreaOffers(areaId: number) {
+  const url = withQuery(`${BASE}/offers/`, {
+    area_id: areaId,
+    fields: 'id,name,practice_label,source_label',
+    limit: OFFERS_LIMIT,
+  })
+  return apiFetch<Paginated<AreaOffer>>(url)
 }
 
 /** Détail d'une offre, en JSON. */
@@ -133,8 +146,10 @@ export function offerToMapObject(feature: OfferFeature): MapObject {
     id: feature.id,
     domain: 'outdoor',
     layer: OFFER_LAYER,
-    label: `${feature.properties.practice_label} ${feature.properties.external_id}`.trim(),
+    // Sans nom (certaines sources n'en donnent pas) : l'identifiant de la source.
+    label: feature.properties.name || feature.properties.external_id,
     geometry: feature.geometry,
+    attributes: { [i18n.global.t('offer.practice')]: feature.properties.practice_label },
   }
 }
 

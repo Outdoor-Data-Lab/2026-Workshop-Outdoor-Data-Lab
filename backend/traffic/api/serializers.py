@@ -1,7 +1,7 @@
 from math import isfinite
 
 from django.conf import settings
-
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 from rest_framework_gis.serializers import GeoFeatureModelSerializer
 
@@ -137,9 +137,18 @@ class AreasQuerySerializer(DynamicFieldsMixin, serializers.Serializer):
         return data
 
 
+class SourceCountSerializer(serializers.Serializer):
+    code = serializers.CharField()
+    label = serializers.CharField()
+    absolute = serializers.BooleanField(help_text="Counts every passage, not a sample of users.")
+    count = serializers.IntegerField()
+    first_data = serializers.DateTimeField(help_text="Start of the first measure.")
+    latest_data = serializers.DateTimeField(help_text="Start of the last measure.")
+
+
 class AreaCountsSerializer(DynamicFieldsMixin, GeoFeatureModelSerializer):
     """A grid cell with its counts (``context["counts"]``:
-    ``{id_area: {"counts", "count_segment", "count_presence"}}``) and its scores
+    ``{id_area: {"counts", "count_segment", "count_presence", "sources"}}``) and its scores
     (``context["scores"]``: ``{score name: {id_area: value}}``), both computed
     by AreasViewSet.
 
@@ -151,13 +160,16 @@ class AreaCountsSerializer(DynamicFieldsMixin, GeoFeatureModelSerializer):
     counts = serializers.SerializerMethodField()
     count_segment = serializers.SerializerMethodField()
     count_presence = serializers.SerializerMethodField()
+    sources = serializers.SerializerMethodField()
     score = serializers.SerializerMethodField()
 
     class Meta:
         model = LArea
         geo_field = "geom_4326"
         id_field = "id_area"
-        fields = ["id_area", "geom_4326", "counts", "count_segment", "count_presence", "score"]
+        fields = [
+            "id_area", "geom_4326", "counts", "count_segment", "count_presence", "sources", "score"
+        ]
 
     def _count(self, area, column):
         return self.context.get("counts", {}).get(area.id_area, {}).get(column, 0)
@@ -170,6 +182,10 @@ class AreaCountsSerializer(DynamicFieldsMixin, GeoFeatureModelSerializer):
 
     def get_count_presence(self, area) -> int:
         return self._count(area, "count_presence")
+
+    @extend_schema_field(SourceCountSerializer(many=True))
+    def get_sources(self, area):
+        return self._count(area, "sources") or []
 
     def get_score(self, area) -> dict[str, float | dict]:
         details = self.context.get("score_details", {})

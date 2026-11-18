@@ -3,7 +3,9 @@ import { BIODIV_AREA_LAYER, getBiodivAreasForMap } from '@/api/biodiv'
 import { getExternalLayers, getFeatures } from '@/api/externalLayers'
 import { OFFER_LAYER, getOffersForMap } from '@/api/outdoor'
 import {
+  TILE_MIN_ZOOM,
   TRAFFIC_AREA_LAYER,
+  countingObjectTileUrl,
   getCountingObjectTypes,
   getCountingObjectsForMap,
   getTrafficAreasForMap,
@@ -12,14 +14,30 @@ import { i18n, referenceLabel } from '@/i18n'
 import type { LayerDefinition } from '@/stores/layers'
 import { mapObjectKey, type LayerId, type MapObject } from '@/types/mapObject'
 
+/** Types trop nombreux pour être chargés en entier (traces Outdoorvision) : servis en tuiles. */
+const TILED_TYPES = ['segment']
+
 /** Une couche par type de compteur, puis la fréquentation par maille. */
 export async function trafficLayers(): Promise<LayerDefinition[]> {
   const { results } = await getCountingObjectTypes()
   const byType = results.map((type): LayerDefinition => {
     const id: LayerId = `traffic/${type.code}`
+    const label = referenceLabel('countingObjectTypes', type.code, type.label)
+    if (TILED_TYPES.includes(type.code)) {
+      return {
+        id,
+        label,
+        group: 'traffic',
+        description: i18n.global.t('layers.fromZoom', { zoom: TILE_MIN_ZOOM }),
+        tiles: {
+          url: ({ areaId }) => countingObjectTileUrl({ typeCode: type.code, areaId }),
+          minzoom: TILE_MIN_ZOOM,
+        },
+      }
+    }
     return {
       id,
-      label: referenceLabel('countingObjectTypes', type.code, type.label),
+      label,
       group: 'traffic',
       // L'adaptateur range tous les compteurs dans une même couche : on les rattache à celle du type.
       load: async ({ areaId }) =>

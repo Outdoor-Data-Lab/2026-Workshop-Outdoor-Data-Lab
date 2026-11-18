@@ -78,6 +78,20 @@ describe('layers store', () => {
     expect(counters).toHaveBeenLastCalledWith({ areaId: undefined })
   })
 
+  it('never loads a tiled layer: the map draws its tiles', () => {
+    const layers = useLayersStore()
+    const url = vi.fn(() => '/tiles/{z}/{x}/{y}.pbf')
+    layers.addDefinitions([
+      { id: 'traffic/segment', label: 'Segment', group: 'traffic', tiles: { url, minzoom: 11 } },
+    ])
+
+    layers.setVisible('traffic/segment', true)
+    layers.setArea({ id: 39, name: 'Isère', typeCode: 'DEP', geometry: point.geometry })
+
+    expect(layers.status['traffic/segment']).toBeUndefined()
+    expect(layers.objectsByLayer['traffic/segment']).toBeUndefined()
+  })
+
   it('leaves external layers to the user, whatever the concept', () => {
     const layers = useLayersStore()
     layers.addDefinitions([definition('external/1')])

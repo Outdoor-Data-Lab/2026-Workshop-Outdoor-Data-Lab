@@ -1,6 +1,6 @@
 <script setup lang="ts">
 /** Carte MapLibre pilotée par le store layers. */
-import { onMounted, onUnmounted, shallowRef, useTemplateRef, watch } from 'vue'
+import { computed, onMounted, onUnmounted, shallowRef, useTemplateRef, watch } from 'vue'
 import {
   LngLatBounds,
   Map as MlMap,
@@ -9,8 +9,11 @@ import {
   type GeoJSONSource,
   type LayerSpecification,
   type PointLike,
+  setWorkerUrl,
+  type VectorTileSource,
 } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
+import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
 
 import { useLayersStore, type MapFeatureProperties, type SelectedArea } from '@/stores/layers'
 import { DOMAIN_COLORS, VALUE_COLORS, layerDomain, valueMax, type LayerId } from '@/types/mapObject'
@@ -20,6 +23,8 @@ const props = defineProps<{
   center?: [number, number]
   zoom?: number
 }>()
+
+setWorkerUrl(workerUrl)
 
 const store = useLayersStore()
 
@@ -237,6 +242,59 @@ watch(
   { immediate: true },
 )
 
+/** Couche des tuiles vectorielles de compteurs (backend : traffic/api/tiles.py). */
+const TILE_SOURCE_LAYER = 'counting_objects'
+
+/** URL des couches en tuiles visibles, d'après les filtres. */
+const tileUrls = computed(() => {
+  const urls = new Map<LayerId, { url: string; minzoom: number }>()
+  for (const d of store.definitions) {
+    if (d.tiles && store.visible[d.id]) {
+      urls.set(d.id, { url: d.tiles.url(store.filters), minzoom: d.tiles.minzoom })
+    }
+  }
+  return urls
+})
+
+/** URL envoyée, par couche en tuiles affichée. */
+const tiled = new Map<LayerId, string>()
+
+/** Aligne les sources de tuiles sur les couches visibles ; un filtre changé change l'URL. */
+function syncTiles(m: MlMap, urls: typeof tileUrls.value) {
+  for (const [source, { url, minzoom }] of urls) {
+    if (!tiled.has(source)) {
+      // maxzoom 14 : au-delà, la carte agrandit les tuiles du zoom 14.
+      m.addSource(source, { type: 'vector', tiles: [url], minzoom, maxzoom: 14 })
+      m.addLayer({
+        id: `${source}/tiles`,
+        type: 'line',
+        source,
+        'source-layer': TILE_SOURCE_LAYER,
+        minzoom,
+        paint: {
+          'line-color': DOMAIN_COLORS[layerDomain(source)],
+          'line-width': 1.5,
+          'line-opacity': 0.5,
+        },
+      })
+      if (m.getLayer(AREA_SOURCE)) m.moveLayer(AREA_SOURCE)
+    } else if (tiled.get(source) !== url) {
+      ;(m.getSource(source) as VectorTileSource).setTiles([url])
+    }
+    tiled.set(source, url)
+  }
+  for (const source of [...tiled.keys()]) {
+    if (urls.has(source)) continue
+    m.removeLayer(`${source}/tiles`)
+    m.removeSource(source)
+    tiled.delete(source)
+  }
+}
+
+watch([map, tileUrls], ([m, urls]) => {
+  if (m) syncTiles(m, urls)
+})
+
 watch([map, () => store.area], ([m, area]) => {
   if (m) showArea(m, area)
 })
@@ -262,6 +320,7 @@ onUnmounted(() => {
   map.value?.remove()
   rendered.clear()
   sent.clear()
+  tiled.clear()
 })
 </script>
 

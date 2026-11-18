@@ -117,6 +117,7 @@ export function getCountingObjectTypes({ limit, offset }: LimitOffset = {}) {
 // Synthèse de fréquentation par maille de 1 km
 
 export type TrafficAreaScore = 'basic' | 'cazalis'
+export type SourceCount = Schemas['SourceCount']
 export type TrafficAreaProperties = Required<NonNullable<Schemas['AreaCounts']['properties']>>
 export type TrafficAreaFeature = Feature<MultiPolygon, TrafficAreaProperties>
 export type TrafficAreaPage = GeoJsonPage<MultiPolygon, TrafficAreaProperties>
@@ -158,6 +159,11 @@ export function getTrafficByArea(filters: TrafficAreaFilters = {}, page: LimitOf
   return apiFetch<TrafficAreaPage>(trafficAreasUrl(filters, page))
 }
 
+/** Une maille, avec ses comptages par source (404 si elle n'a pas de mesure). */
+export function getTrafficArea(id: number) {
+  return apiFetch<TrafficAreaFeature>(`${BASE}/areas/${id}`)
+}
+
 // Adaptateur vers MapObject
 
 export const COUNTING_OBJECT_LAYER: LayerId = 'traffic/counting-object'
@@ -181,6 +187,18 @@ export async function getCountingObjectsForMap(filters: CountingObjectFilters = 
 }
 
 export const TRAFFIC_AREA_LAYER: LayerId = 'traffic/area'
+
+/** Zoom minimal des tuiles de compteurs (en dessous, le backend ne renvoie rien : les mailles résument). */
+export const TILE_MIN_ZOOM = 10
+
+/** Gabarit d'URL des tuiles vectorielles de compteurs, absolu comme MapLibre l'attend. */
+export function countingObjectTileUrl(filters: { typeCode?: string; areaId?: number } = {}) {
+  const path = withQuery(`${BASE}/tiles/{z}/{x}/{y}.pbf`, {
+    type_code: filters.typeCode,
+    area_id: filters.areaId,
+  })
+  return `${window.location.origin}${path}`
+}
 
 /** Score utilisé pour colorer les mailles. */
 const MAP_AREA_SCORE: TrafficAreaScore = 'cazalis'
