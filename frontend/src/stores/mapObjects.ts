@@ -15,6 +15,7 @@ export interface LayerStatus {
 export interface MapFeatureProperties {
   key: string
   label: string
+  value?: number
 }
 
 /** Objets de la carte, rangés par couche. */
@@ -47,7 +48,10 @@ export const useMapObjectsStore = defineStore('mapObjects', () => {
         features: objects.map((o) => ({
           type: 'Feature',
           geometry: o.geometry,
-          properties: { key: o.key, label: o.label },
+          properties:
+            o.value === undefined
+              ? { key: o.key, label: o.label }
+              : { key: o.key, label: o.label, value: o.value },
         })),
       }
     }
