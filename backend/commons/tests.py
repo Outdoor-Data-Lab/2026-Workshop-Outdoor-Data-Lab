@@ -215,6 +215,13 @@ class ImportAdminTests(TestCase):
         self.assertContains(response, "The Strava file must be a zip")
         self.assertFalse(DataImport.objects.exists())
 
+    def test_form_asks_only_for_the_source_and_the_file(self):
+        # The parser fills line_numbers and error_numbers: the user must not set them.
+        for url in (self.traffic_url, self.biodiversity_url, reverse("admin:outdoor_offerimport_add")):
+            with self.subTest(url):
+                form = self.client.get(url).context["adminform"].form
+                self.assertEqual(list(form.fields), ["source", "file"])
+
     def test_source_of_another_domain_is_rejected(self):
         response = self.add_import(self.biodiversity_url, "strava")
         self.assertContains(response, "Select a valid choice")
