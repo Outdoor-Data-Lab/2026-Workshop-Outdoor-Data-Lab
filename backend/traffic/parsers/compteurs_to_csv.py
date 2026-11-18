@@ -1,3 +1,6 @@
+"""Standalone script, not an import parser: merges the raw hourly counter CSVs
+(wide format) into one long CSV."""
+
 import argparse
 from pathlib import Path
 
@@ -18,7 +21,7 @@ def parse_file(path: Path) -> pd.DataFrame:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Fusionne des CSV horaires d'éco-compteurs en un seul fichier au format long."
+        description="Fusionne des CSV horaires de compteurs en un seul fichier au format long."
     )
     parser.add_argument(
         "files",
@@ -29,15 +32,15 @@ def main() -> None:
     parser.add_argument(
         "--gps",
         type=Path,
-        default=Path("eco_compteurs_gps.csv"),
-        help="CSV des coordonnées (object_name, lat, lon). Défaut : eco_compteurs_gps.csv",
+        default=Path("compteurs_gps.csv"),
+        help="CSV des coordonnées (object_name, lat, lon). Défaut : compteurs_gps.csv",
     )
     parser.add_argument(
         "-o",
         "--output",
         type=Path,
-        default=Path("eco_compteurs_long.csv"),
-        help="CSV de sortie. Défaut : eco_compteurs_long.csv",
+        default=Path("compteurs_long.csv"),
+        help="CSV de sortie. Défaut : compteurs_long.csv",
     )
     args = parser.parse_args()
 
