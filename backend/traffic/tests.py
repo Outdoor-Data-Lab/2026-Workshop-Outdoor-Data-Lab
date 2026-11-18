@@ -1,4 +1,5 @@
 import io
+import math
 import re
 import tempfile
 import zipfile
@@ -1036,3 +1037,34 @@ class ScoreApiTests(SimpleTestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data[0]["id"], 3)
+
+
+def tile_of(lon, lat, z):
+    """Web mercator tile ``(z, x, y)`` holding the point."""
+    n = 2**z
+    lat = math.radians(lat)
+    return z, int((lon + 180) / 360 * n), int((1 - math.asinh(math.tan(lat)) / math.pi) / 2 * n)
+
+
+class CountingObjectTileTests(AreasTestCase):
+    """Objects of cell 12 around (6.2, 44.2): a counter and two segments."""
+
+    def get(self, z, x, y, **params):
+        return self.client.get(f"/api/traffic/tiles/{z}/{x}/{y}.pbf", params)
+
+    def test_tile_of_the_objects(self):
+        response = self.get(*tile_of(6.2, 44.2, 12))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response["Content-Type"], "application/vnd.mapbox-vector-tile")
+        self.assertGreater(len(response.content), 0)
+
+    def test_empty_below_the_minimum_zoom(self):
+        self.assertEqual(self.get(*tile_of(6.2, 44.2, 9)).status_code, 204)
+
+    def test_filters(self):
+        tile = tile_of(6.2, 44.2, 12)
+        self.assertGreater(len(self.get(*tile, type_code="segment").content), 0)
+        self.assertEqual(len(self.get(*tile, type_code="unknown").content), 0)
+        self.assertGreater(len(self.get(*tile, area_id=12).content), 0)
+        self.assertEqual(len(self.get(*tile, area_id=13).content), 0)
+        self.assertEqual(self.get(*tile, area_id="x").status_code, 400)

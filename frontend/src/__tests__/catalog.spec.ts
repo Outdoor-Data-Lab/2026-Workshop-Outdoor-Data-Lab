@@ -41,7 +41,7 @@ describe('externalLayers', () => {
       vi.fn(async (url: string) => new Response(JSON.stringify(responses[url]))),
     )
     const [definition] = await externalLayers()
-    const objects = await definition!.load({})
+    const objects = await definition!.load!({})
 
     expect(definition!.description).toBe('Données : Parc national des Écrins')
     expect(objects.map((o) => o.color)).toEqual(['#c0392b', '#3388ff'])

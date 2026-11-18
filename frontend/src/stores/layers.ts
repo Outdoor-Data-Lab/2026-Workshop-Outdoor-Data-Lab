@@ -43,7 +43,10 @@ export interface LayerDefinition {
   group: string
   /** Affichée au survol du nom. */
   description?: string
-  load: (filters: LayerFilters) => Promise<MapObject[]>
+  /** Objets chargés en entier. Sans `load`, la couche est servie en `tiles`. */
+  load?: (filters: LayerFilters) => Promise<MapObject[]>
+  /** Tuiles vectorielles, dessinées par la carte à partir de `minzoom`. */
+  tiles?: { url: (filters: LayerFilters) => string; minzoom: number }
 }
 
 /** Couches de la carte : définitions, visibilité et objets chargés. */
@@ -167,7 +170,12 @@ export const useLayersStore = defineStore('layers', () => {
   function setVisible(layer: LayerId, on: boolean) {
     visible.value[layer] = on
     const definition = definitions.value.find((d) => d.id === layer)
-    if (on && definition && !(layer in objectsByLayer.value) && !status.value[layer]?.loading) {
+    if (
+      on &&
+      definition?.load &&
+      !(layer in objectsByLayer.value) &&
+      !status.value[layer]?.loading
+    ) {
       loadLayer(layer, definition.load, { label: definition.label })
     }
   }
@@ -179,6 +187,7 @@ export const useLayersStore = defineStore('layers', () => {
     status.value = {}
     selectedKey.value = null
     for (const definition of definitions.value) {
+      if (!definition.load) continue // tuiles : la carte suit les filtres
       if (visible.value[definition.id]) {
         loadLayer(definition.id, definition.load, { label: definition.label })
       } else {

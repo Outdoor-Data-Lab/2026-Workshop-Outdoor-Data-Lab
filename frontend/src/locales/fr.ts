@@ -20,6 +20,7 @@ export default {
     loading: '(chargement)',
     failed: '(échec)',
     trafficAreas: 'Fréquentation par maille',
+    fromZoom: 'Visible à partir du zoom {zoom} : zoomez sur la carte.',
     trafficArea: 'Maille {id} : score {score}',
     outdoorOffers: 'Offres outdoor',
     loadError: 'Impossible de charger {label}',
@@ -37,6 +38,7 @@ export default {
   legend: {
     title: 'Légende',
     counters: 'Compteurs',
+    tracks: 'Sorties (traces)',
     trafficAreas: 'Fréquentation par maille (score)',
   },
   detail: {
