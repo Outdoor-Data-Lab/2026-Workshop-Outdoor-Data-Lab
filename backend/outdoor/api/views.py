@@ -1,10 +1,9 @@
 from rest_framework import viewsets
-from rest_framework.decorators import action
 from rest_framework.filters import OrderingFilter
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework.response import Response
 from rest_framework.settings import api_settings
 
+from commons.api.geo import FormatFirstNegotiation, GeoJSONRenderer, GeoJsonLimitOffsetPagination
 from ref_geo.filters import LAreaFilter
 from ref_geo.models import LArea
 from ref_geo.serializers import LAreaSerializer, LAreaGeoSerializer
@@ -14,21 +13,18 @@ from .serializers import OfferSerializer, OfferGeoSerializer, LAreaWithOffersCou
     LAreaGeoWithOffersCountSerializer, LAreaGeoWithOffersCountAndByPracticeSerializer, \
     LAreaWithOffersCountAndByPracticeSerializer
 from .filters import OfferFilter
-from ref_geo.renderers import FormatFirstNegotiation, GeoJSONRenderer
-from ref_geo.pagination import GeoJsonLimitOffsetPagination
-
 
 class OfferViewSet(viewsets.ReadOnlyModelViewSet):
     """API endpoint for listing and retrieving outdoor offers.
 
     Supports both JSON and GeoJSON output formats via ?format=geojson
-    Spatial filters: area (filter by l_area id)
+    Spatial filters: area (filter by l_area code)
 
     Example requests:
     - GET /api/offers/ -> JSON format
     - GET /api/offers/?format=geojson -> GeoJSON format
-    - GET /api/offers/?area=123 -> Filter by area id (JSON)
-    - GET /api/offers/?area=123&format=geojson -> Filter by area id (GeoJSON)
+    - GET /api/offers/?area=26 -> Filter by area Drôme (JSON)
+    - GET /api/offers/?area=26&format=geojson -> Filter by area code (GeoJSON)
     """
 
     queryset = Offer.objects.select_related('practice', 'source')

@@ -15,7 +15,7 @@ class OfferFilter(filters.FilterSet):
     date_from = filters.DateTimeFilter(field_name='date_create', lookup_expr='gte')
     date_to = filters.DateTimeFilter(field_name='date_create', lookup_expr='lte')
 
-    area = filters.NumberFilter(method="filter_by_area")
+    area = filters.CharFilter(method="filter_by_area")
 
     class Meta:
         model = Offer
@@ -23,7 +23,7 @@ class OfferFilter(filters.FilterSet):
 
     def filter_by_area(self, queryset, name, value):
         try:
-            area = LArea.objects.get(id_area=value)
+            area = LArea.objects.get(area_code=value)
             return queryset.filter(geom__intersects=area.geom_4326)
         except LArea.DoesNotExist:
-            raise ValidationError({"area": f"Area with id {value} does not exist."})
+            raise ValidationError({"area": f"Area with code {value} does not exist."})
