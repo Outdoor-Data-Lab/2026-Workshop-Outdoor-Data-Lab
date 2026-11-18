@@ -25,12 +25,13 @@ REQUIRED_COLUMNS = ["date_debut", "object_name", "count", "geom"]
 
 
 class CompteurParser(TrafficParser):
-    NAME = "compteurs"
-    CONTENT = "Contient des points : un compteur automatique par position, avec son nombre de passages par heure."
+    LABEL = "Hourly counter CSV"
+    NAME = "counter"
+    CONTENT = "Holds points: one automatic counter per position, with its number of passages per hour."
     EXAMPLE = (
-        "CSV long horaire, seul ou zippé (colonnes date_debut, object_name, count, geom). Ex. : "
-        "compteurs_cleaned.zip. Ce n'est pas l'export brut : il est produit à partir des fichiers bruts "
-        "par le script backend/traffic/parsers/compteurs_to_csv.py."
+        "Hourly long CSV, alone or zipped (columns date_debut, object_name, count, geom). E.g. "
+        "compteurs_cleaned.zip. Not the raw export: it is produced from the raw files "
+        "by the script backend/traffic/parsers/compteurs_to_csv.py."
     )
     PRACTICE_CODES = {"hiking": "hiking"}
     OBJECT_TYPE = "counter"
@@ -41,7 +42,7 @@ class CompteurParser(TrafficParser):
             with zipfile.ZipFile(path) as archive:
                 csv_names = [n for n in archive.namelist() if n.lower().endswith(".csv")]
                 if len(csv_names) != 1:
-                    raise ValueError("L'archive de compteurs doit contenir un seul .csv.")
+                    raise ValueError("The counter archive must hold a single .csv.")
                 with archive.open(csv_names[0]) as csv_file:
                     lines = pd.read_csv(csv_file)
         else:
@@ -49,9 +50,9 @@ class CompteurParser(TrafficParser):
 
         missing = set(REQUIRED_COLUMNS).difference(lines.columns)
         if missing:
-            raise ValueError(f"Colonnes manquantes dans le fichier de compteurs : {', '.join(sorted(missing))}")
+            raise ValueError(f"Missing columns in the counter file: {', '.join(sorted(missing))}")
         if lines.empty:
-            raise ValueError("Le fichier de compteurs ne contient aucune donnée.")
+            raise ValueError("The counter file holds no data.")
         if "activity" not in lines:
             lines["activity"] = "hiking"
 
@@ -61,7 +62,7 @@ class CompteurParser(TrafficParser):
         # as summer time (ambiguous=True); the missing March hour cannot exist.
         start = pd.to_datetime(lines["date_debut"], errors="coerce")
         if start.isna().any():
-            raise ValueError("Certaines valeurs de date_debut ne sont pas des dates valides.")
+            raise ValueError("Some date_debut values are not valid dates.")
         start = start.dt.tz_localize("Europe/Paris", ambiguous=True, nonexistent="NaT")
 
         # Counters without position cannot be stored (geometry is required): skipped.

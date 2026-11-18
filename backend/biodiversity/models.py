@@ -69,6 +69,15 @@ class TaxonRecord(models.Model):
         null=True, blank=True
     )
     dataset_uuid = models.UUIDField(null=True, blank=True)
+    # The last import that wrote the record, created or updated: deleting that
+    # import deletes the record.
+    data_import = models.ForeignKey(
+        DataImport,
+        on_delete=models.CASCADE,
+        related_name="taxon_records",
+        null=True,
+        blank=True,
+    )
 
     class Meta:
         db_table = table("taxon_records")
@@ -123,7 +132,7 @@ class HabitatRecord(models.Model):
 
 class ObservationImport(DataImport):
     """An import of taxon records (see biodiversity.parsers): the admin page of the
-    biodiversity imports, which lists the sources of the biodiversity parsers only."""
+    biodiversity imports, which offers the biodiversity formats and sources only."""
 
     class Meta:
         proxy = True

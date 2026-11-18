@@ -192,7 +192,7 @@ REST_FRAMEWORK = {
 
 SPECTACULAR_SETTINGS = {
     "TITLE": "Workshop ODL 2026 API",
-    "DESCRIPTION": "Documentation de l'API du Workshop ODL 2026",
+    "DESCRIPTION": "Documentation of the Workshop ODL 2026 API",
     "VERSION": "0.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
 }
