@@ -4,14 +4,14 @@
  */
 
 export interface paths {
-    "/api/commons/data-import": {
+    "/api/commons/data-imports": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get: operations["api_commons_data_import_list"];
+        get: operations["commons_data_imports_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -20,14 +20,14 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/commons/data-import/{id}": {
+    "/api/commons/data-imports/{id}": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get: operations["api_commons_data_import_retrieve"];
+        get: operations["commons_data_imports_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -36,14 +36,14 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/commons/data-source": {
+    "/api/commons/data-sources": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get: operations["api_commons_data_source_list"];
+        get: operations["commons_data_sources_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -52,14 +52,14 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/commons/data-source/{id}": {
+    "/api/commons/data-sources/{id}": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get: operations["api_commons_data_source_retrieve"];
+        get: operations["commons_data_sources_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -68,26 +68,14 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/commons/practice": {
+    "/api/commons/practices": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /**
-         * Lister les pratiques
-         * @description Permet de filtrer les pratiques selon plusieurs critères :
-         *
-         *             - has_parent : filtrer les pratiques ayant ou non un parent.
-         *             - code : rechercher une pratique par son code.
-         *             - parent_id : récupérer les enfants d'un parent.
-         *             - parent_code : récupérer les enfants d'un parent identifié par son code.
-         *             - recursive : inclure tous les descendants du parent.
-         *
-         *             Le paramètre recursive fonctionne avec parent_id ou parent_code.
-         */
-        get: operations["api_commons_practice_list"];
+        get: operations["commons_practices_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -96,14 +84,14 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/commons/practice/{id}": {
+    "/api/commons/practices/{id}": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get: operations["api_commons_practice_retrieve"];
+        get: operations["commons_practices_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -112,151 +100,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/traffic/counting-measure": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["api_traffic_counting_measure_list"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/traffic/counting-measure/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["api_traffic_counting_measure_retrieve"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/traffic/counting-object": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["api_traffic_counting_object_list"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/traffic/counting-object-type": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["api_traffic_counting_object_type_list"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/traffic/counting-object-type/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["api_traffic_counting_object_type_retrieve"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/traffic/counting-object/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["api_traffic_counting_object_retrieve"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/traffic/counting-object/search": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post: operations["api_traffic_counting_object_search_create"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/traffic/unit": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["api_traffic_unit_list"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/traffic/unit/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get: operations["api_traffic_unit_retrieve"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/ref_geo/area-types/": {
+    "/api/ref-geo/area-types": {
         parameters: {
             query?: never;
             header?: never;
@@ -272,7 +116,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/ref_geo/area-types/{id_type}/": {
+    "/api/ref-geo/area-types/{id_type}": {
         parameters: {
             query?: never;
             header?: never;
@@ -288,20 +132,14 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/ref_geo/areas/": {
+    "/api/ref-geo/areas": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /**
-         * @description Areas (communes, grids, zonings...).
-         *
-         *     Filters: ``type_code``, ``area_code``, ``name``, ``enable``,
-         *     ``bbox=minlon,minlat,maxlon,maxlat``. Add ``format=geojson`` for a
-         *     GeoJSON FeatureCollection (WGS84 geometry).
-         */
+        /** @description Areas (communes, grids, zonings...). */
         get: operations["ref_geo_areas_list"];
         put?: never;
         post?: never;
@@ -311,20 +149,14 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/ref_geo/areas/{id_area}/": {
+    "/api/ref-geo/areas/{id_area}": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /**
-         * @description Areas (communes, grids, zonings...).
-         *
-         *     Filters: ``type_code``, ``area_code``, ``name``, ``enable``,
-         *     ``bbox=minlon,minlat,maxlon,maxlat``. Add ``format=geojson`` for a
-         *     GeoJSON FeatureCollection (WGS84 geometry).
-         */
+        /** @description Areas (communes, grids, zonings...). */
         get: operations["ref_geo_areas_retrieve"];
         put?: never;
         post?: never;
@@ -334,7 +166,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/ref_geo/grids/": {
+    "/api/ref-geo/grids": {
         parameters: {
             query?: never;
             header?: never;
@@ -350,7 +182,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/ref_geo/grids/{id_grid}/": {
+    "/api/ref-geo/grids/{id_grid}": {
         parameters: {
             query?: never;
             header?: never;
@@ -366,7 +198,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/ref_geo/linear-groups/": {
+    "/api/ref-geo/linear-groups": {
         parameters: {
             query?: never;
             header?: never;
@@ -382,7 +214,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/ref_geo/linear-groups/{id_group}/": {
+    "/api/ref-geo/linear-groups/{id_group}": {
         parameters: {
             query?: never;
             header?: never;
@@ -398,7 +230,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/ref_geo/linear-types/": {
+    "/api/ref-geo/linear-types": {
         parameters: {
             query?: never;
             header?: never;
@@ -414,7 +246,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/ref_geo/linear-types/{id_type}/": {
+    "/api/ref-geo/linear-types/{id_type}": {
         parameters: {
             query?: never;
             header?: never;
@@ -430,7 +262,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/ref_geo/linears/": {
+    "/api/ref-geo/linears": {
         parameters: {
             query?: never;
             header?: never;
@@ -447,7 +279,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/ref_geo/linears/{id_linear}/": {
+    "/api/ref-geo/linears/{id_linear}": {
         parameters: {
             query?: never;
             header?: never;
@@ -464,7 +296,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/ref_geo/municipalities/": {
+    "/api/ref-geo/municipalities": {
         parameters: {
             query?: never;
             header?: never;
@@ -480,7 +312,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/ref_geo/municipalities/{id_municipality}/": {
+    "/api/ref-geo/municipalities/{id_municipality}": {
         parameters: {
             query?: never;
             header?: never;
@@ -496,7 +328,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/ref_geo/point-types/": {
+    "/api/ref-geo/point-types": {
         parameters: {
             query?: never;
             header?: never;
@@ -512,7 +344,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/ref_geo/point-types/{id_type}/": {
+    "/api/ref-geo/point-types/{id_type}": {
         parameters: {
             query?: never;
             header?: never;
@@ -528,7 +360,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/ref_geo/points/": {
+    "/api/ref-geo/points": {
         parameters: {
             query?: never;
             header?: never;
@@ -545,7 +377,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/ref_geo/points/{id_point}/": {
+    "/api/ref-geo/points/{id_point}": {
         parameters: {
             query?: never;
             header?: never;
@@ -554,6 +386,136 @@ export interface paths {
         };
         /** @description Plain JSON by default, GeoJSON FeatureCollection with ``?format=geojson``. */
         get: operations["ref_geo_points_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/traffic/counting-measures": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["traffic_counting_measures_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/traffic/counting-measures/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["traffic_counting_measures_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/traffic/counting-object-types": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["traffic_counting_object_types_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/traffic/counting-object-types/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["traffic_counting_object_types_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/traffic/counting-objects": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Plain JSON by default, GeoJSON FeatureCollection with ``?format=geojson``. */
+        get: operations["traffic_counting_objects_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/traffic/counting-objects/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Plain JSON by default, GeoJSON FeatureCollection with ``?format=geojson``. */
+        get: operations["traffic_counting_objects_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/traffic/units": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["traffic_units_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/traffic/units/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["traffic_units_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -611,101 +573,38 @@ export interface components {
             /** Format: date-time */
             end_datetime: string;
             count: number;
-            unit: number;
-            practice?: number | null;
+            readonly unit_code: string;
+            readonly practice_code: string;
             /** Format: date-time */
             readonly date_create: string;
             /** Format: date-time */
             readonly date_update: string;
             processed?: boolean;
         };
-        /** @description GeoJSON Feature : `geom` devient la géométrie, le reste va dans `properties`. */
         CountingObject: {
-            type?: components["schemas"]["GisFeatureEnum"];
-            readonly id?: number;
-            geometry?: {
-                /** @enum {string} */
-                type?: "Point";
-                /**
-                 * @example [
-                 *       12.9721,
-                 *       77.5933
-                 *     ]
-                 */
-                coordinates?: number[];
-            } | {
-                /** @enum {string} */
-                type?: "LineString";
-                /**
-                 * @example [
-                 *       [
-                 *         22.4707,
-                 *         70.0577
-                 *       ],
-                 *       [
-                 *         12.9721,
-                 *         77.5933
-                 *       ]
-                 *     ]
-                 */
-                coordinates?: number[][];
-            } | {
-                /** @enum {string} */
-                type?: "Polygon";
-                /**
-                 * @example [
-                 *       [
-                 *         [
-                 *           0,
-                 *           0
-                 *         ],
-                 *         [
-                 *           0,
-                 *           50
-                 *         ],
-                 *         [
-                 *           50,
-                 *           50
-                 *         ],
-                 *         [
-                 *           50,
-                 *           0
-                 *         ],
-                 *         [
-                 *           0,
-                 *           0
-                 *         ]
-                 *       ]
-                 *     ]
-                 */
-                coordinates?: number[][][];
-            };
-            properties?: {
-                /** Format: uuid */
-                readonly uuid?: string;
-                external_id?: string;
-                type?: number;
-                source?: number;
-                /** Format: date-time */
-                readonly date_create?: string;
-                /** Format: date-time */
-                readonly date_update?: string;
-                /** Format: date */
-                installation_date?: string | null;
-                /** Format: date */
-                uninstallation_date?: string | null;
-                processed?: boolean;
-                manager?: string;
-                image_url?: string;
-                /** Format: date-time */
-                readonly first_data?: string;
-                /** Format: date-time */
-                readonly latest_data?: string;
-            };
-        };
-        CountingObjectList: {
-            type?: components["schemas"]["GisFeatureCollectionEnum"];
-            features?: components["schemas"]["CountingObject"][];
+            readonly id: number;
+            /** Format: uuid */
+            readonly uuid: string;
+            /** @default  */
+            external_id: string;
+            readonly type_code: string;
+            readonly source_code: string;
+            readonly origin_code: string;
+            /** Format: date-time */
+            readonly date_create: string;
+            /** Format: date-time */
+            readonly date_update: string;
+            /** Format: date */
+            installation_date?: string | null;
+            /** Format: date */
+            uninstallation_date?: string | null;
+            processed?: boolean;
+            manager?: string;
+            image_url?: string;
+            /** Format: date-time */
+            readonly first_data: string;
+            /** Format: date-time */
+            readonly latest_data: string;
         };
         CountingObjectType: {
             readonly id: number;
@@ -716,7 +615,7 @@ export interface components {
             readonly id: number;
             /** Format: date-time */
             readonly date_import: string;
-            source: number;
+            readonly source_code: string;
             line_numbers?: number;
             error_numbers?: number;
         };
@@ -725,15 +624,6 @@ export interface components {
             code: string;
             label: string;
         };
-        GeometrySearch: {
-            geometry: unknown;
-            /** @default intersects */
-            predicate: components["schemas"]["PredicateEnum"];
-        };
-        /** @enum {string} */
-        GisFeatureCollectionEnum: "FeatureCollection";
-        /** @enum {string} */
-        GisFeatureEnum: "Feature";
         LArea: {
             readonly id_area: number;
             readonly type_code: string;
@@ -863,31 +753,30 @@ export interface components {
             count: number;
             /**
              * Format: uri
-             * @example http://api.example.org/accounts/?page=4
+             * @example http://api.example.org/accounts/?offset=400&limit=100
              */
             next?: string | null;
             /**
              * Format: uri
-             * @example http://api.example.org/accounts/?page=2
+             * @example http://api.example.org/accounts/?offset=200&limit=100
              */
             previous?: string | null;
             results: components["schemas"]["CountingMeasure"][];
         };
         PaginatedCountingObjectList: {
-            type?: components["schemas"]["GisFeatureCollectionEnum"];
             /** @example 123 */
             count: number;
             /**
              * Format: uri
-             * @example http://api.example.org/accounts/?page=4
+             * @example http://api.example.org/accounts/?offset=400&limit=100
              */
             next?: string | null;
             /**
              * Format: uri
-             * @example http://api.example.org/accounts/?page=2
+             * @example http://api.example.org/accounts/?offset=200&limit=100
              */
             previous?: string | null;
-            features?: components["schemas"]["CountingObjectList"];
+            results: components["schemas"]["CountingObject"][];
         };
         PaginatedCountingObjectTypeList: {
             /** @example 123 */
@@ -1058,14 +947,8 @@ export interface components {
             readonly id: number;
             code: string;
             label: string;
-            parent?: number | null;
+            readonly parent_code: string;
         };
-        /**
-         * @description * `within` - within
-         *     * `intersects` - intersects
-         * @enum {string}
-         */
-        PredicateEnum: "within" | "intersects";
         TLinearGroup: {
             readonly id_group: number;
             name: string;
@@ -1085,13 +968,16 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    api_commons_data_import_list: {
+    commons_data_imports_list: {
         parameters: {
             query?: {
                 /** @description Number of results to return per page. */
                 limit?: number;
                 /** @description The initial index from which to return the results. */
                 offset?: number;
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                source_code?: string;
             };
             header?: never;
             path?: never;
@@ -1109,7 +995,7 @@ export interface operations {
             };
         };
     };
-    api_commons_data_import_retrieve: {
+    commons_data_imports_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -1131,13 +1017,16 @@ export interface operations {
             };
         };
     };
-    api_commons_data_source_list: {
+    commons_data_sources_list: {
         parameters: {
             query?: {
+                code?: string;
                 /** @description Number of results to return per page. */
                 limit?: number;
                 /** @description The initial index from which to return the results. */
                 offset?: number;
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
             };
             header?: never;
             path?: never;
@@ -1155,7 +1044,7 @@ export interface operations {
             };
         };
     };
-    api_commons_data_source_retrieve: {
+    commons_data_sources_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -1177,22 +1066,18 @@ export interface operations {
             };
         };
     };
-    api_commons_practice_list: {
+    commons_practices_list: {
         parameters: {
             query?: {
-                /** @description Recherche par code de la pratique. */
                 code?: string;
-                /** @description true : pratiques avec parent ; false : pratiques sans parent. */
                 has_parent?: boolean;
                 /** @description Number of results to return per page. */
                 limit?: number;
                 /** @description The initial index from which to return the results. */
                 offset?: number;
-                /** @description Code du parent dont on veut récupérer les enfants. */
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
                 parent_code?: string;
-                /** @description ID du parent dont on veut récupérer les enfants. */
-                parent_id?: number;
-                /** @description true : récupérer tous les descendants, y compris les enfants indirects. */
                 recursive?: boolean;
             };
             header?: never;
@@ -1211,7 +1096,7 @@ export interface operations {
             };
         };
     };
-    api_commons_practice_retrieve: {
+    commons_practices_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -1229,221 +1114,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Practice"];
-                };
-            };
-        };
-    };
-    api_traffic_counting_measure_list: {
-        parameters: {
-            query?: {
-                counting_object?: number;
-                /** @description A page number within the paginated result set. */
-                page?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PaginatedCountingMeasureList"];
-                };
-            };
-        };
-    };
-    api_traffic_counting_measure_retrieve: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description A unique integer value identifying this counting measure. */
-                id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CountingMeasure"];
-                };
-            };
-        };
-    };
-    api_traffic_counting_object_list: {
-        parameters: {
-            query?: {
-                /** @description A page number within the paginated result set. */
-                page?: number;
-                /** @description Number of results to return per page. */
-                page_size?: number;
-                type?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PaginatedCountingObjectList"];
-                };
-            };
-        };
-    };
-    api_traffic_counting_object_type_list: {
-        parameters: {
-            query?: {
-                /** @description Number of results to return per page. */
-                limit?: number;
-                /** @description The initial index from which to return the results. */
-                offset?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PaginatedCountingObjectTypeList"];
-                };
-            };
-        };
-    };
-    api_traffic_counting_object_type_retrieve: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description A unique integer value identifying this counting object type. */
-                id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CountingObjectType"];
-                };
-            };
-        };
-    };
-    api_traffic_counting_object_retrieve: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description A unique integer value identifying this counting object. */
-                id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CountingObject"];
-                };
-            };
-        };
-    };
-    api_traffic_counting_object_search_create: {
-        parameters: {
-            query?: {
-                /** @description A page number within the paginated result set. */
-                page?: number;
-                /** @description Number of results to return per page. */
-                page_size?: number;
-                type?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["GeometrySearch"];
-                "application/x-www-form-urlencoded": components["schemas"]["GeometrySearch"];
-                "multipart/form-data": components["schemas"]["GeometrySearch"];
-            };
-        };
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PaginatedCountingObjectList"];
-                };
-            };
-        };
-    };
-    api_traffic_unit_list: {
-        parameters: {
-            query?: {
-                /** @description Number of results to return per page. */
-                limit?: number;
-                /** @description The initial index from which to return the results. */
-                offset?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PaginatedUnitList"];
-                };
-            };
-        };
-    };
-    api_traffic_unit_retrieve: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                /** @description A unique integer value identifying this unit. */
-                id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Unit"];
                 };
             };
         };
@@ -1929,6 +1599,216 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["LPoint"];
                     "application/geo+json": components["schemas"]["LPoint"];
+                };
+            };
+        };
+    };
+    traffic_counting_measures_list: {
+        parameters: {
+            query?: {
+                counting_object?: number;
+                /** @description Number of results to return per page. */
+                limit?: number;
+                /** @description The initial index from which to return the results. */
+                offset?: number;
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                practice_code?: string;
+                unit_code?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedCountingMeasureList"];
+                };
+            };
+        };
+    };
+    traffic_counting_measures_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description A unique integer value identifying this counting measure. */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CountingMeasure"];
+                };
+            };
+        };
+    };
+    traffic_counting_object_types_list: {
+        parameters: {
+            query?: {
+                code?: string;
+                /** @description Number of results to return per page. */
+                limit?: number;
+                /** @description The initial index from which to return the results. */
+                offset?: number;
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedCountingObjectTypeList"];
+                };
+            };
+        };
+    };
+    traffic_counting_object_types_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description A unique integer value identifying this counting object type. */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CountingObjectType"];
+                };
+            };
+        };
+    };
+    traffic_counting_objects_list: {
+        parameters: {
+            query?: {
+                bbox?: string;
+                contains?: string;
+                format?: "geojson" | "json";
+                intersects?: string;
+                /** @description Number of results to return per page. */
+                limit?: number;
+                /** @description The initial index from which to return the results. */
+                offset?: number;
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                origin_code?: string;
+                point?: string;
+                source_code?: string;
+                type_code?: string;
+                within?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedCountingObjectList"];
+                    "application/geo+json": components["schemas"]["PaginatedCountingObjectList"];
+                };
+            };
+        };
+    };
+    traffic_counting_objects_retrieve: {
+        parameters: {
+            query?: {
+                format?: "geojson" | "json";
+            };
+            header?: never;
+            path: {
+                /** @description A unique integer value identifying this counting object. */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CountingObject"];
+                    "application/geo+json": components["schemas"]["CountingObject"];
+                };
+            };
+        };
+    };
+    traffic_units_list: {
+        parameters: {
+            query?: {
+                code?: string;
+                /** @description Number of results to return per page. */
+                limit?: number;
+                /** @description The initial index from which to return the results. */
+                offset?: number;
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedUnitList"];
+                };
+            };
+        };
+    };
+    traffic_units_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description A unique integer value identifying this unit. */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Unit"];
                 };
             };
         };
