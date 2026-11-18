@@ -302,6 +302,12 @@ class OutdoorVisionParserTests(TrafficTestCase):
         self.assertEqual(measure.counting_object.geom.num_geom, 2)  # both pieces kept
         self.assertEqual(CountingMeasure.objects.get(counting_object__external_id="t2").practice.code, "cycling")
 
+    @patch("traffic.parsers.outdoorvision.BATCH_LINES", 1)
+    def test_a_batch_holds_whole_tracks(self):
+        data_import, count = self.run_import()
+        self.assertEqual((count, data_import.line_numbers), (2, 3))
+        self.assertEqual(CountingObject.objects.get(external_id="t1").geom.num_geom, 2)  # both pieces kept
+
     def test_reimport_does_not_duplicate(self):
         self.run_import()
         self.run_import()
@@ -916,6 +922,12 @@ class CountingObjectAreasTests(AreasTestCase):
         CountingObjectArea.objects.all().delete()
         call_command("sync_counting_object_areas", stdout=StringIO())
         self.assertEqual(CountingObjectArea.objects.count(), 5)
+
+    def test_an_object_moved_leaves_the_cells_of_the_others(self):
+        others = set(CountingObjectArea.objects.exclude(counting_object=self.moving).values_list("counting_object", "area"))
+        self.moving.geom = Point(8.0, 44.2, srid=4326)
+        self.moving.save()
+        self.assertEqual(set(CountingObjectArea.objects.values_list("counting_object", "area")), others)
 
     def test_deleting_an_object_deletes_its_cells(self):
         pk = self.moving.pk  # delete() sets self.moving.pk to None

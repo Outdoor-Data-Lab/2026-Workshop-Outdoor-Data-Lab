@@ -199,4 +199,9 @@ SPECTACULAR_SETTINGS = {
 
 MIGRATION_MODULES = {"ref_geo": None, "taxhub": None}
 
+# Celery (imports run by the worker service), Redis as broker. Tests run the
+# tasks at once, in the test process (see TEST_RUNNER).
+CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", "redis://localhost:6379/0")
+TEST_RUNNER = "workshop2026.test_runner.TestRunner"
+
 DEFAULT_AREA_TYPE = os.environ.get("DEFAULT_AREA_TYPE", "M1")

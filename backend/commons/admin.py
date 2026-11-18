@@ -4,7 +4,6 @@ from django import forms
 from django.contrib import admin, messages
 from django.core import signing
 from django.core.exceptions import PermissionDenied
-from django.db import transaction
 from django.http import HttpResponseRedirect
 from django.template.response import TemplateResponse
 from django.urls import reverse
@@ -13,7 +12,7 @@ from django.utils.http import urlencode
 from django.utils.module_loading import import_string
 
 from .models import DOMAINS, DataImport, DataSource, Practice
-from .parsers import describe_errors
+from .tasks import run_import
 
 PREVIEW_ERRORS = 20  # lines in error listed on the preview page
 TOKEN_MAX_AGE = 24 * 3600  # seconds a preview can be applied
@@ -52,8 +51,8 @@ class DataImportAdmin(admin.ModelAdmin):
     """History of every import, whatever its domain. Files are imported from the
     page of their domain: traffic imports, observation imports, offer imports."""
 
-    list_display = ("source", "format", "date_import", "file", "line_numbers", "error_numbers")
-    list_filter = ("format", ("source", admin.RelatedOnlyFieldListFilter))
+    list_display = ("source", "format", "date_import", "file", "status", "line_numbers", "error_numbers", "message")
+    list_filter = ("status", "format", ("source", admin.RelatedOnlyFieldListFilter))
 
     def has_add_permission(self, request):
         return False
@@ -67,17 +66,19 @@ class ImportAdmin(admin.ModelAdmin):
 
     The user chooses the format of the file (which parser reads it, among
     `parsers`) and its source (among the sources whose `domains` include this
-    app). The uploaded file is imported at once. With `with_preview`, it is first
-    previewed (lines read, changes, lines in error) and only applied once
-    confirmed, "Cancel" deleting it: the file is then read twice. A file the
-    parser refuses keeps nothing: the form comes back with the reason, the same
-    format and the same source.
+    app). The uploaded file is imported by the Celery worker (commons.tasks), which
+    records the outcome on the import: done, or failed with the reason (the file is
+    then deleted). With `with_preview`, the file is first previewed in the request
+    (lines read, changes, lines in error) and only sent to the worker once
+    confirmed, "Cancel" deleting it: the file is then read twice. A file refused by
+    the preview keeps nothing: the form comes back with the reason, the same format
+    and the same source.
     """
 
     parsers: dict[str, str] = {}  # format code -> parser class path, of this domain
     with_preview = False
-    list_display = ("source", "format", "date_import", "file", "line_numbers", "error_numbers")
-    list_filter = ("format", ("source", admin.RelatedOnlyFieldListFilter))
+    list_display = ("source", "format", "date_import", "file", "status", "line_numbers", "error_numbers", "message")
+    list_filter = ("status", "format", ("source", admin.RelatedOnlyFieldListFilter))
     fields = ("format", "source", "file")
 
     class Media:
@@ -184,23 +185,14 @@ class ImportAdmin(admin.ModelAdmin):
         return self.apply(request, pending["format"], source, pending["file"])
 
     def apply(self, request, format_code, source, file_name):
-        """Import the stored file; a refused file keeps nothing."""
-        try:
-            with transaction.atomic():
-                data_import = self.model.objects.create(format=format_code, source=source, file=file_name)
-                parser = self.get_parser(format_code)(data_import)
-                count = parser.import_data()
-                self.log_addition(request, data_import, [{"added": {}}])
-        except ValueError as error:
-            DataImport._meta.get_field("file").storage.delete(file_name)
-            return self.refused(request, error, format_code, source.pk)
-        message = f"{count} item(s) imported, {data_import.error_numbers} line(s) in error"
-        if parser.errors:
-            message += f": {describe_errors(parser.errors)}"
-        return self.done(request, f"{message}.", messages.WARNING if data_import.error_numbers else messages.SUCCESS)
+        """Create the import, pending, and send it to the worker."""
+        data_import = self.model.objects.create(format=format_code, source=source, file=file_name)
+        self.log_addition(request, data_import, [{"added": {}}])
+        run_import.delay(data_import.pk)
+        return self.done(request, "Import queued: its status and outcome are shown in the list.", messages.INFO)
 
     def refused(self, request, error, format_code, source_id):
-        """Back to the empty form, with the same format, source and the reason: nothing is kept."""
+        """Back to the empty form after a refused preview, with the same format, source and the reason."""
         self.message_user(request, f"Import refused, nothing was saved: {error}", messages.ERROR)
         url = reverse(f"admin:{self.opts.app_label}_{self.opts.model_name}_add")
         return HttpResponseRedirect(f"{url}?{urlencode({'format': format_code, 'source': source_id})}")

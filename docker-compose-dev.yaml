@@ -33,6 +33,23 @@ services:
         - action: rebuild
           path: uv.lock
 
+  worker:
+    build:
+      target: development
+    develop:
+      watch:
+        # The worker does not reload code: restart it when the backend changes.
+        - action: sync+restart
+          path: ./backend
+          target: /app/backend
+          ignore:
+            - __pycache__/
+            - "*.pyc"
+        - action: rebuild
+          path: pyproject.toml
+        - action: rebuild
+          path: uv.lock
+
   frontend:
     build:
       target: development
