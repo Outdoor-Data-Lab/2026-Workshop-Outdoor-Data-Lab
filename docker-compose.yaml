@@ -12,6 +12,11 @@ services:
   db:
     image: postgis/postgis:18-3.7
     restart: unless-stopped
+    # An init process as PID 1 reaps the processes left by the healthcheck. Without it,
+    # Postgres is PID 1: the psql of a healthcheck timed out under load (big import)
+    # dies as its orphan, is taken for a crashed server process, and every
+    # connection is reset ("untracked child process ... was terminated by signal").
+    init: true
     environment:
       <<: *db-env
     volumes:
