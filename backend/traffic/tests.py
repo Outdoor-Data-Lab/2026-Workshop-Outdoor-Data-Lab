@@ -1,15 +1,24 @@
 from datetime import datetime, timedelta, timezone
+from calendar import monthrange
+from types import SimpleNamespace
+from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
 from django.contrib.gis.geos import MultiPolygon, Point, Polygon
 from django.db import IntegrityError, connection, transaction
 from django.db.models import ProtectedError
-from django.test import Client, TestCase
+from django.test import Client, SimpleTestCase, TestCase
+from rest_framework.test import APIRequestFactory
 
 from commons.models import DataSource, Practice
 from ref_geo.models import BibAreasType, LArea
 from workshop2026.models import MaterializedViewCount
-from workshop2026.processing.score import BasicFrequentationScore, CazalisFrequentationScore
+from workshop2026.processing.score import (
+    BasicFrequentationScore,
+    CazalisFrequentationScore,
+    cazalis_weights_from_correlations,
+)
+from traffic.views import ScoreMapView, ScoreSourcesView
 
 from .models import CountingMeasure, CountingObject, CountingObjectType, Unit
 
@@ -226,9 +235,62 @@ class CazalisFrequentationScoreTests(AreasTestCase):
         with self.assertRaisesRegex(ValueError, "Missing weight for source ID 2"):
             CazalisFrequentationScore.compute(source_weights={1: 1})
 
-    def test_requires_source_weights(self):
-        with self.assertRaises(ValueError):
-            CazalisFrequentationScore.compute()
+    def test_calculates_source_weights_when_not_provided(self):
+        self.assertEqual(CazalisFrequentationScore.compute(), {12: 0, 13: 0})
+
+
+class CazalisWeightFormulaTests(SimpleTestCase):
+    def test_uses_bta_threshold_inverse_correlation_and_percentage_rounding(self):
+        weights = cazalis_weights_from_correlations(
+            {1: 0.5, 2: 0.75, 3: 0.25, 4: -0.2},
+            [1, 2, 3, 4],
+        )
+
+        self.assertEqual(weights, {1: 33, 2: 67, 3: 0, 4: 0})
+        self.assertEqual(sum(weights.values()), 100)
+
+
+class CazalisWeightCalculationTests(AreasTestCase):
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        eco_source = DataSource.objects.get(code="ecocompteur")
+        strava_source = DataSource.objects.get(code="strava")
+        outdoor_source = DataSource.objects.get(code="outdoorvision")
+        source_daily_counts = [
+            (12, 6, 10, 1, 1),
+            (12, 7, 20, 3, 2),
+            (13, 6, 30, 2, 4),
+            (13, 7, 40, 5, 3),
+        ]
+        for area_id, month, eco_daily, strava_daily, outdoor_daily in source_daily_counts:
+            days = monthrange(2021, month)[1]
+            for source, daily_count in (
+                (eco_source, eco_daily),
+                (strava_source, strava_daily),
+                (outdoor_source, outdoor_daily),
+            ):
+                MaterializedViewCount.objects.create(
+                    id_area=area_id,
+                    id_source=source.id,
+                    year=2021,
+                    month=month,
+                    counts=daily_count * days,
+                    count_segment=0,
+                    count_presence=daily_count * days,
+                )
+
+    def test_calculates_weights_from_summer_ecocompteur_correlations(self):
+        weights = CazalisFrequentationScore.calculate_source_weights()
+        strava = DataSource.objects.get(code="strava")
+        outdoor = DataSource.objects.get(code="outdoorvision")
+        inaturalist = DataSource.objects.get(code="inaturalist")
+        ecocompteur = DataSource.objects.get(code="ecocompteur")
+
+        self.assertEqual(sum(weights.values()), 100)
+        self.assertGreater(weights[strava.id], weights[outdoor.id])
+        self.assertEqual(weights[inaturalist.id], 0)
+        self.assertEqual(weights[ecocompteur.id], 0)
 
 
 class AreasApiTests(AreasTestCase):
@@ -261,10 +323,12 @@ class AreasApiTests(AreasTestCase):
         self.assertEqual(features[0]["properties"]["counts"], 3)
         self.assertEqual(features[0]["properties"]["score"], {})
 
-    def test_cazalis_needs_a_weight_for_every_source(self):
+    def test_cazalis_calculates_weights_when_omitted(self):
         response = self.client.get(self.url, {"scores": "cazalis"})
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 200)
         self.assertIn("source_weights", response.json())
+        self.assertEqual(sum(response.json()["source_weights"].values()), 0)
+
         response = self.client.get(self.url, {"scores": "cazalis", "source_weights": "1:2"})
         self.assertEqual(response.status_code, 400)
 
@@ -296,3 +360,59 @@ class AreasApiTests(AreasTestCase):
 
     def test_retrieve_cell_without_matching_measures(self):
         self.assertEqual(self.client.get(f"{self.url}/12", {"year": 2024}).status_code, 404)
+
+
+class ScoreApiTests(SimpleTestCase):
+    def setUp(self):
+        self.factory = APIRequestFactory()
+        self.area = SimpleNamespace(
+            id_area=12,
+            area_name="Maille 12",
+            area_code="M12",
+            geom_4326=SimpleNamespace(
+                geojson='{"type":"MultiPolygon","coordinates":[]}'
+            ),
+        )
+
+    @patch("traffic.views.LArea.objects.filter")
+    @patch("traffic.views.BasicFrequentationScore.compute")
+    def test_score_map_returns_scored_geojson(self, compute_score, filter_areas):
+        filter_areas.return_value.order_by.return_value = [self.area]
+        compute_score.return_value = {12: 25}
+
+        response = ScoreMapView.as_view()(self.factory.get("/traffic/score-map/"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["type"], "FeatureCollection")
+        self.assertEqual(response.data["features"][0]["id"], 12)
+        self.assertEqual(response.data["features"][0]["properties"]["score"], 25)
+        compute_score.assert_called_once_with(geom_ids=[12])
+
+    @patch("traffic.views.LArea.objects.filter")
+    @patch("traffic.views.CazalisFrequentationScore.compute")
+    def test_cazalis_weights_are_forwarded(self, compute_score, filter_areas):
+        filter_areas.return_value.order_by.return_value = [self.area]
+        compute_score.return_value = {12: 50}
+        request = self.factory.get(
+            "/traffic/score-map/",
+            {"indicator": "cazalis", "weights": '{"3": 2.5}'},
+        )
+
+        response = ScoreMapView.as_view()(request)
+
+        self.assertEqual(response.status_code, 200)
+        compute_score.assert_called_once_with(
+            geom_ids=[12],
+            source_weights={3: 2.5},
+        )
+
+    @patch("traffic.views.DataSource.objects.order_by")
+    def test_sources_endpoint_returns_source_metadata(self, order_sources):
+        order_sources.return_value.values.return_value = [
+            {"id": 3, "code": "outdoorvision", "label": "OutdoorVision"}
+        ]
+
+        response = ScoreSourcesView.as_view()(self.factory.get("/traffic/sources/"))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data[0]["id"], 3)

@@ -139,27 +139,38 @@ class AreasViewSet(viewsets.ReadOnlyModelViewSet):
     def compute_scores(self, area_ids):
         """``{score name: {id_area: value}}`` for the requested scores."""
         rows = self.counts.filter(id_area__in=area_ids)
+        source_weights = self.params.get("source_weights")
+        if "cazalis" in self.params.get("scores", ()) and source_weights is None:
+            source_weights = SCORES["cazalis"].calculate_source_weights()
         try:
-            return {
+            scores = {
                 name: SCORES[name].compute_from(
-                    rows, source_weights=self.params.get("source_weights")
+                    rows, source_weights=source_weights
                 )
                 for name in sorted(self.params.get("scores", ()))
             }
         except ValueError as error:
             raise serializers.ValidationError({"source_weights": [str(error)]})
+        return scores, source_weights
 
     def list(self, request, *args, **kwargs):
         page = self.paginate_queryset(self.filter_queryset(self.get_queryset()))
-        scores = self.compute_scores([area.id_area for area in page])
+        scores, source_weights = self.compute_scores([area.id_area for area in page])
         serializer = self.get_serializer(page, many=True, context={
             **self.get_serializer_context(), "scores": scores,
         })
-        return self.get_paginated_response(serializer.data)
+        response = self.get_paginated_response(serializer.data)
+        if "cazalis" in self.params.get("scores", ()):
+            response.data["source_weights"] = source_weights
+        return response
 
     def retrieve(self, request, *args, **kwargs):
         area = self.get_object()
+        scores, source_weights = self.compute_scores([area.id_area])
         serializer = self.get_serializer(area, context={
-            **self.get_serializer_context(), "scores": self.compute_scores([area.id_area]),
+            **self.get_serializer_context(), "scores": scores,
         })
-        return Response(serializer.data)
+        response = Response(serializer.data)
+        if "cazalis" in self.params.get("scores", ()):
+            response.data["source_weights"] = source_weights
+        return response

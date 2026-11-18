@@ -117,10 +117,6 @@ class AreasQuerySerializer(serializers.Serializer):
         return polygon
 
     def validate(self, data):
-        if "cazalis" in data.get("scores", ()) and "source_weights" not in data:
-            raise serializers.ValidationError(
-                {"source_weights": 'Required by the "cazalis" score.'}
-            )
         return data
 
 
