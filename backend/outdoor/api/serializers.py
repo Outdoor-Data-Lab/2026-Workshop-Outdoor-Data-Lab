@@ -19,14 +19,14 @@ class OfferLabelsMixin(serializers.Serializer):
     source_label = serializers.CharField(source="source.label", read_only=True)
 
 
-class OfferSerializer(OfferLabelsMixin, serializers.ModelSerializer):
+class OfferSerializer(DynamicFieldsMixin, OfferLabelsMixin, serializers.ModelSerializer):
     class Meta:
         model = Offer
         fields = OFFER_FIELDS + ["geom"]
         read_only_fields = ["id", "uuid", "date_create", "date_update"]
 
 
-class OfferGeoSerializer(OfferLabelsMixin, GeoFeatureModelSerializer):
+class OfferGeoSerializer(DynamicFieldsMixin, OfferLabelsMixin, GeoFeatureModelSerializer):
     class Meta(OfferSerializer.Meta):
         geo_field = "geom"
         fields = OFFER_FIELDS
@@ -81,15 +81,15 @@ class LAreaGeoMeta:
     exclude = ("geom", "centroid", "type")
 
 
-class LAreaWithOffersCountSerializer(OffersCountMixin, serializers.ModelSerializer):
+class LAreaWithOffersCountSerializer(DynamicFieldsMixin, OffersCountMixin, serializers.ModelSerializer):
     Meta = LAreaMeta
 
 
-class LAreaGeoWithOffersCountSerializer(OffersCountMixin, GeoFeatureModelSerializer):
+class LAreaGeoWithOffersCountSerializer(DynamicFieldsMixin,OffersCountMixin, GeoFeatureModelSerializer):
     Meta = LAreaGeoMeta
 
 
-class LAreaWithOffersCountAndByPracticeSerializer(OffersCountByPracticeMixin, serializers.ModelSerializer):
+class LAreaWithOffersCountAndByPracticeSerializer(DynamicFieldsMixin, gfjOffersCountByPracticeMixin, serializers.ModelSerializer):
     Meta = LAreaMeta
 
 

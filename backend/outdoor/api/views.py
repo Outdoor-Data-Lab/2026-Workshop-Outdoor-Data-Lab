@@ -19,13 +19,13 @@ class OfferViewSet(viewsets.ReadOnlyModelViewSet):
     """API endpoint for listing and retrieving outdoor offers.
 
     Supports both JSON and GeoJSON output formats via ?format=geojson
-    Spatial filters: area (filter by l_area id)
+    Spatial filters: area (filter by l_area code)
 
     Example requests:
     - GET /api/offers/ -> JSON format
     - GET /api/offers/?format=geojson -> GeoJSON format
-    - GET /api/offers/?area=123 -> Filter by area id (JSON)
-    - GET /api/offers/?area=123&format=geojson -> Filter by area id (GeoJSON)
+    - GET /api/offers/?area=26 -> Filter by area Drôme (JSON)
+    - GET /api/offers/?area=26&format=geojson -> Filter by area code (GeoJSON)
     """
 
     queryset = Offer.objects.select_related('practice', 'source')
