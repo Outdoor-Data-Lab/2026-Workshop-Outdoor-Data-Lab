@@ -1,5 +1,5 @@
 /** API trafic. Types générés par `npm run gen:api`. */
-import type { Feature, FeatureCollection, Geometry } from 'geojson'
+import type { Feature, FeatureCollection, Geometry, MultiPolygon } from 'geojson'
 
 import { mapObjectKey, type LayerId, type MapObject } from '@/types/mapObject'
 
@@ -117,6 +117,48 @@ export function getCountingObjectTypes({ limit, offset }: LimitOffset = {}) {
   )
 }
 
+// Synthèse de fréquentation par maille de 1 km
+
+export type TrafficAreaScore = 'basic' | 'cazalis'
+export type TrafficAreaProperties = Required<NonNullable<Schemas['AreaCounts']['properties']>>
+export type TrafficAreaFeature = Feature<MultiPolygon, TrafficAreaProperties>
+export type TrafficAreaPage = FeatureCollection<MultiPolygon, TrafficAreaProperties> & {
+  count: number
+  next: string | null
+  previous: string | null
+}
+
+export type TrafficAreaFilters = {
+  sources?: number[]
+  dateFrom?: string
+  dateTo?: string
+  scores?: TrafficAreaScore[]
+  sourceWeights?: Record<number, number>
+  bbox?: [number, number, number, number]
+}
+
+/** Mailles ayant des mesures, avec comptages et scores (une page). */
+export function getTrafficByArea(
+  filters: TrafficAreaFilters = {},
+  { limit = OBJECTS_LIMIT, offset }: LimitOffset = {},
+) {
+  const url = withQuery(`${BASE}/areas`, {
+    source: filters.sources,
+    date_from: filters.dateFrom,
+    date_to: filters.dateTo,
+    scores: filters.scores,
+    source_weights: filters.sourceWeights
+      ? Object.entries(filters.sourceWeights)
+          .map(([source, weight]) => `${source}:${weight}`)
+          .join(',')
+      : undefined,
+    bbox: filters.bbox?.join(','),
+    limit,
+    offset,
+  })
+  return apiFetch<TrafficAreaPage>(url)
+}
+
 // Adaptateur vers MapObject
 
 export const COUNTING_OBJECT_LAYER: LayerId = 'traffic/counting-object'
@@ -137,4 +179,28 @@ export function countingObjectToMapObject(feature: CountingObjectFeature): MapOb
 export async function getCountingObjectsForMap(filters: CountingObjectFilters = {}) {
   const page = await getCountingObjects(filters)
   return page.features.map(countingObjectToMapObject)
+}
+
+export const TRAFFIC_AREA_LAYER: LayerId = 'traffic/area'
+
+/** Score utilisé pour colorer les mailles. */
+const MAP_AREA_SCORE: TrafficAreaScore = 'basic'
+
+export function trafficAreaToMapObject(feature: TrafficAreaFeature): MapObject {
+  if (feature.id === undefined) throw new Error('Maille sans identifiant dans la réponse API')
+  const score = feature.properties.score[MAP_AREA_SCORE]
+  return {
+    key: mapObjectKey(TRAFFIC_AREA_LAYER, feature.id),
+    id: feature.id,
+    domain: 'traffic',
+    layer: TRAFFIC_AREA_LAYER,
+    label: `Maille ${feature.id} : score ${score ?? '–'}`,
+    geometry: feature.geometry,
+    value: score,
+  }
+}
+
+export async function getTrafficAreasForMap(filters: TrafficAreaFilters = {}) {
+  const page = await getTrafficByArea({ ...filters, scores: [MAP_AREA_SCORE] })
+  return page.features.map(trafficAreaToMapObject)
 }

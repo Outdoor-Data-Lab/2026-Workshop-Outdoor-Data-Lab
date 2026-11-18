@@ -12,6 +12,14 @@ export interface MapObject {
   layer: LayerId
   label: string
   geometry: Geometry
+  value?: number
+}
+
+/** Dégradé viridis, de la valeur la plus faible à la plus forte. */
+export const VALUE_COLORS = ['#440154', '#3b528b', '#21918c', '#5ec962', '#fde725']
+
+export function valueMax(values: (number | undefined)[]): number {
+  return Math.max(1, ...values.map((v) => v ?? 0))
 }
 
 export function mapObjectKey(layer: LayerId, id: number | string): string {

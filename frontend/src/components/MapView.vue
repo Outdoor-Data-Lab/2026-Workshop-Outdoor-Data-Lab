@@ -11,8 +11,9 @@ import {
 } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 
-import { useLayersStore } from '@/stores/layers'
-import { DOMAIN_COLORS, layerDomain, type LayerId } from '@/types/mapObject'
+import { useLayersStore, type MapFeatureProperties } from '@/stores/layers'
+import { DOMAIN_COLORS, VALUE_COLORS, layerDomain, valueMax, type LayerId } from '@/types/mapObject'
+import type { FeatureCollection, Geometry } from 'geojson'
 
 const props = defineProps<{
   center?: [number, number]
@@ -40,7 +41,14 @@ function whenSelected<T>(on: T, off: T): ExpressionSpecification {
 /** Styles dépendant de la sélection, par suffixe de couche. */
 function selectionPaint(): Record<string, Record<string, ExpressionSpecification>> {
   return {
-    fill: { 'fill-opacity': whenSelected(0.6, 0.3) },
+    fill: {
+      'fill-opacity': whenSelected<number | ExpressionSpecification>(0.85, [
+        'case',
+        ['has', 'value'],
+        0.7,
+        0.3,
+      ]),
+    },
     outline: { 'line-width': whenSelected(3, 1.5) },
     line: { 'line-width': whenSelected(6, 3) },
     point: {
@@ -48,6 +56,22 @@ function selectionPaint(): Record<string, Record<string, ExpressionSpecification
       'circle-stroke-width': whenSelected(3, 1),
     },
   }
+}
+
+/** Remplissage : dégradé de 0 au maximum de la couche si l'objet a une `value`, sinon couleur du domaine. */
+function fillColor(
+  source: LayerId,
+  collection?: FeatureCollection<Geometry, MapFeatureProperties>,
+): ExpressionSpecification {
+  const max = valueMax((collection?.features ?? []).map((f) => f.properties.value))
+  // Couleurs réparties à intervalles réguliers entre 0 et max.
+  const stops = VALUE_COLORS.flatMap((color, i) => [(i / (VALUE_COLORS.length - 1)) * max, color])
+  return [
+    'case',
+    ['has', 'value'],
+    ['interpolate', ['linear'], ['get', 'value'], ...stops],
+    DOMAIN_COLORS[layerDomain(source)],
+  ] as ExpressionSpecification
 }
 
 function layerSpecs(source: LayerId): LayerSpecification[] {
@@ -61,7 +85,7 @@ function layerSpecs(source: LayerId): LayerSpecification[] {
       type: 'fill',
       source,
       filter: isPolygon,
-      paint: { 'fill-color': color, ...sel.fill },
+      paint: { 'fill-color': fillColor(source), ...sel.fill },
     },
     {
       id: `${source}/outline`,
@@ -111,6 +135,8 @@ function sync(m: MlMap, collections: typeof store.featureCollections) {
   ][]) {
     if (!rendered.has(source)) addSource(m, source)
     ;(m.getSource(source) as GeoJSONSource).setData(collection)
+    // Le maximum dépend des données : on recale le dégradé à chaque mise à jour.
+    m.setPaintProperty(`${source}/fill`, 'fill-color', fillColor(source, collection))
   }
   for (const source of rendered.keys()) {
     if (!(source in collections)) removeSource(m, source)
