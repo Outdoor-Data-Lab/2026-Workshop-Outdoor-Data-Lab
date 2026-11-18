@@ -1,71 +1,14 @@
-from math import isfinite
-
-from django.contrib.gis.gdal import GDALException, SRSException
-from django.contrib.gis.geos import GEOSException, GEOSGeometry, Point, Polygon
 from django_filters import rest_framework as filters
-from rest_framework.exceptions import ValidationError
+
+from commons.api.geo import SpatialFilterSet
 
 from .models import LArea, LiMunicipality, LLinear, LPoint
 
-
-def parse_geometry(value):
-    """GeoJSON geometry or WKT/EWKT -> GEOS geometry (WGS84 unless an SRID is given)."""
-    geom = GEOSGeometry(value)
-    if not geom.srid:
-        geom.srid = 4326
-    elif geom.srid != 4326:
-        geom.transform(4326)  # fails early on an unknown SRID
-    return geom
+# Spatial filters run on the native, GiST-indexed Lambert-93 "geom" column:
+# the WGS84 input is reprojected once in SQL.
 
 
-class BBoxMixin(filters.FilterSet):
-    """Spatial filters, all inputs in WGS84 (lon/lat).
-
-    - ``bbox=minlon,minlat,maxlon,maxlat``
-    - ``point=lon,lat``: features containing this point
-    - ``intersects`` / ``within`` / ``contains``: a GeoJSON geometry or WKT
-    """
-
-    bbox = filters.CharFilter(method="filter_bbox")
-    point = filters.CharFilter(method="filter_point")
-    intersects = filters.CharFilter(method="filter_geometry")
-    within = filters.CharFilter(method="filter_geometry")
-    contains = filters.CharFilter(method="filter_geometry")
-    # Native, GiST-indexed Lambert-93 column: the WGS84 input is reprojected
-    # once in SQL, instead of scanning geom_4326 (no spatial index).
-    bbox_field = "geom"
-
-    def filter_bbox(self, queryset, name, value):
-        try:
-            xmin, ymin, xmax, ymax = (float(v) for v in value.split(","))
-            if not all(map(isfinite, (xmin, ymin, xmax, ymax))):
-                raise ValueError
-        except ValueError:
-            raise ValidationError({"bbox": "Expected minlon,minlat,maxlon,maxlat."})
-        box = Polygon.from_bbox((xmin, ymin, xmax, ymax))
-        box.srid = 4326
-        return queryset.filter(**{f"{self.bbox_field}__intersects": box})
-
-    def filter_point(self, queryset, name, value):
-        try:
-            lon, lat = (float(v) for v in value.split(","))
-            if not (isfinite(lon) and isfinite(lat)):
-                raise ValueError
-        except ValueError:
-            raise ValidationError({"point": "Expected lon,lat."})
-        return queryset.filter(
-            **{f"{self.bbox_field}__intersects": Point(lon, lat, srid=4326)}
-        )
-
-    def filter_geometry(self, queryset, name, value):
-        try:
-            geom = parse_geometry(value)
-        except (ValueError, TypeError, GDALException, SRSException, GEOSException):
-            raise ValidationError({name: "Invalid GeoJSON or WKT geometry."})
-        return queryset.filter(**{f"{self.bbox_field}__{name}": geom})
-
-
-class LAreaFilter(BBoxMixin):
+class LAreaFilter(SpatialFilterSet):
     type_code = filters.CharFilter(field_name="type__type_code")
     area_code = filters.CharFilter(field_name="area_code")
     name = filters.CharFilter(field_name="area_name", lookup_expr="icontains")
@@ -75,7 +18,7 @@ class LAreaFilter(BBoxMixin):
         fields = ["enable"]
 
 
-class LLinearFilter(BBoxMixin):
+class LLinearFilter(SpatialFilterSet):
     type_code = filters.CharFilter(field_name="type__type_code")
     name = filters.CharFilter(field_name="linear_name", lookup_expr="icontains")
 
@@ -84,7 +27,7 @@ class LLinearFilter(BBoxMixin):
         fields = ["linear_code", "enable"]
 
 
-class LPointFilter(LLinearFilter):
+class LPointFilter(SpatialFilterSet):
     type_code = filters.CharFilter(field_name="type__type_code")
     name = filters.CharFilter(field_name="point_name", lookup_expr="icontains")
 
