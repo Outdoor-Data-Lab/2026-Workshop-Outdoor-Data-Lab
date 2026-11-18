@@ -1,10 +1,10 @@
-from rest_framework.routers import DefaultRouter
+from rest_framework.routers import SimpleRouter
 
 from . import views
 
 app_name = "biodiversity"
 
-router = DefaultRouter()
+router = SimpleRouter(trailing_slash=False)
 router.register(
     "synthetic_data",
     views.BiodivSyntheticDataAreaViewSet,
