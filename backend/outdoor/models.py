@@ -12,12 +12,10 @@ Django has no schema option, so db_table uses the quoted form
 schema itself is created by migration 0001.
 """
 
-import uuid
-
 from django.contrib.gis.db import models
 from django.db.models import Q
 
-from commons.models import DataSource, Practice
+from commons.models import DataImport, DataSource, Practice
 
 DB_SCHEMA = "outdoor"
 
@@ -29,8 +27,10 @@ def table(name):
 class Offer(models.Model):
     """Something to practise outdoors: a trail, a climbing site, a ski slope..."""
 
-    uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    # Given by the source when it has one, never generated.
+    uuid = models.UUIDField(null=True, blank=True, unique=True, editable=False)
     external_id = models.CharField(max_length=255, blank=True)
+    name = models.CharField(max_length=255)
     geom = models.GeometryField(srid=4326)
     # Any level of the practice hierarchy (e.g. "climbing" or "via_ferrata").
     practice = models.ForeignKey(
@@ -59,4 +59,12 @@ class Offer(models.Model):
         ]
 
     def __str__(self):
-        return f"{self.practice} {self.external_id or self.uuid}"
+        return self.name
+
+
+class OfferImport(DataImport):
+    """An import of offers (see parsers.OfferParser): its own admin entry, whatever
+    the source, next to the traffic imports chosen by source in commons."""
+
+    class Meta:
+        proxy = True

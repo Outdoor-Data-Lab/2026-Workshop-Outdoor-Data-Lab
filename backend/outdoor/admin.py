@@ -1,15 +1,20 @@
-from django.contrib import admin
+from django.contrib import admin, messages
 from django.contrib.gis.admin import GISModelAdmin
+from django.http import HttpResponseRedirect
+from django.urls import reverse
 
-from .models import Offer
+from commons.models import PARSERS, DataSource
+
+from .models import Offer, OfferImport
+from .parsers import OfferParser
 
 
 @admin.register(Offer)
 class OfferAdmin(GISModelAdmin):
-    list_display = ("__str__", "practice", "source", "date_update")
+    list_display = ("name", "practice", "source", "external_id", "date_update")
     list_filter = ("practice__parent", "practice", "source")
     list_select_related = ("practice", "source")
-    search_fields = ("external_id",)
+    search_fields = ("name", "external_id")
 
     # Offers come from imports: the admin only displays them.
     def has_add_permission(self, request):
@@ -17,3 +22,43 @@ class OfferAdmin(GISModelAdmin):
 
     def has_change_permission(self, request, obj=None):
         return False
+
+
+@admin.register(OfferImport)
+class OfferImportAdmin(admin.ModelAdmin):
+    """Import a GeoPackage of offers for a source (see parsers.OfferParser).
+
+    A source provides either offers or counts: the traffic sources, those with a
+    parser in commons.PARSERS, are left out.
+    """
+
+    list_display = ("source", "date_import", "file", "line_numbers", "error_numbers")
+    list_filter = ("source",)
+    fields = ("source", "file")
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).exclude(source__code__in=PARSERS)
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        if db_field.name == "source":
+            kwargs["queryset"] = DataSource.objects.exclude(code__in=PARSERS)
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        try:
+            count = OfferParser(obj).import_data()
+        except ValueError as exc:
+            obj.import_error = exc  # reported by response_add
+        else:
+            self.message_user(request, f"{count} offres importées, {obj.error_numbers} lignes en erreur.")
+
+    def response_add(self, request, obj, post_url_continue=None):
+        if not hasattr(obj, "import_error"):
+            return super().response_add(request, obj, post_url_continue)
+        # Rejected file: the reason instead of the success message.
+        self.message_user(request, f"Import refusé : {obj.import_error}", messages.ERROR)
+        return HttpResponseRedirect(reverse("admin:outdoor_offerimport_changelist"))
