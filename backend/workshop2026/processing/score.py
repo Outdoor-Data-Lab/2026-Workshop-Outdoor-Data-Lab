@@ -1,4 +1,4 @@
-"""Counts and scores per grid cell (ref_geo type ``area_type``, DEFAULT_AREA_TYPE by default), computed on the fly
+"""Counts and scores per grid cell (ref_geo type ``area_type``, DEFAULT_GRID_AREA_TYPE by default), computed on the fly
 from the measures.
 
 A measure belongs to the cells its counting object intersects
@@ -183,9 +183,9 @@ def measures_queryset(
     geom_ids: keep these cells. With both, the union is kept; with neither,
     every cell is kept.
     date_from, date_to: ``datetime.date``, both included.
-    area_type: ref_geo type_code of the grid (default ``settings.DEFAULT_AREA_TYPE``).
+    area_type: ref_geo type_code of the grid (default ``settings.DEFAULT_GRID_AREA_TYPE``).
     """
-    area_type = area_type or settings.DEFAULT_AREA_TYPE
+    area_type = area_type or settings.DEFAULT_GRID_AREA_TYPE
     queryset = CountingMeasure.objects.annotate(
         id_area=F("counting_object__areas__area_id"),
         id_source=F("counting_object__source_id"),

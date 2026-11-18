@@ -107,7 +107,7 @@ class AreasViewSet(viewsets.ReadOnlyModelViewSet):
 
     @property
     def area_type(self):
-        return self.params.get("area_type") or settings.DEFAULT_AREA_TYPE
+        return self.params.get("area_type") or settings.DEFAULT_GRID_AREA_TYPE
 
     @cached_property
     def measures(self):

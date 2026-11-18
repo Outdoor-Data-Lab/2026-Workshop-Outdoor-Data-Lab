@@ -18,7 +18,6 @@ from taxhub.models import Taxref, VBdcStatus
 
 from .models import TaxonRecord
 
-
 # NOTE
 # API Carto, nombre de taxons menacés uniquement
 # API Consultation par zone, liste des taxons
@@ -35,13 +34,13 @@ PROTECTION_FILTER = Q(
     lb_type_statut="Protection nationale",
 )
 
-REDLIST_STATUS = VBdcStatus.objects.filter(
-    REDLIST_FILTER
-).values("cd_ref", "code_statut", "cd_type_statut")
+REDLIST_STATUS = VBdcStatus.objects.filter(REDLIST_FILTER).values(
+    "cd_ref", "code_statut", "cd_type_statut"
+)
 
-PROTECTION_STATUS = VBdcStatus.objects.filter(
-    PROTECTION_FILTER
-).values("cd_ref", "code_statut", "cd_type_statut", "lb_type_statut")
+PROTECTION_STATUS = VBdcStatus.objects.filter(PROTECTION_FILTER).values(
+    "cd_ref", "code_statut", "cd_type_statut", "lb_type_statut"
+)
 
 PROTECTION_OR_REDLIST_STATUS = VBdcStatus.objects.filter(
     PROTECTION_FILTER | REDLIST_FILTER
@@ -97,9 +96,7 @@ def with_taxon_status_counts(queryset=None):
     return queryset.annotate(
         protected_taxa_count=_taxon_count(PROTECTION_STATUS),
         threatened_taxa_count=_taxon_count(REDLIST_STATUS),
-        protected_or_threatened_taxa_count=_taxon_count(
-            PROTECTION_OR_REDLIST_STATUS
-        ),
+        protected_or_threatened_taxa_count=_taxon_count(PROTECTION_OR_REDLIST_STATUS),
     )
 
 
@@ -149,7 +146,7 @@ AREAS_WITH_TAXON_STATUS_COUNTS = with_taxon_status_counts()
 
 # One LArea instance per grid cell of the configured type.
 BASE_GRID = (
-    LArea.objects.filter()
+    LArea.objects.filter(type__type_code=settings.DEFAULT_GRID_AREA_TYPE)
     .select_related("type")
     .defer("geom", "centroid")
 )

@@ -114,7 +114,7 @@ class AreasQuerySerializer(DynamicFieldsMixin, serializers.Serializer):
     area_type = serializers.ChoiceField(
         choices=settings.AREA_TYPES,
         required=False,
-        help_text=f"Grid (ref_geo type_code). Default: {settings.DEFAULT_AREA_TYPE}.",
+        help_text=f"Grid (ref_geo type_code). Default: {settings.DEFAULT_GRID_AREA_TYPE}.",
     )
     source_weights = serializers.CharField(
         required=False,
