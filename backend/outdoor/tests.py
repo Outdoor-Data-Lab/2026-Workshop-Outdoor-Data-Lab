@@ -271,7 +271,7 @@ class OfferGeoFilterTests(RefGeoTestCase):
 
     def test_filter_by_area_returns_offers_in_area(self):
         """Test filtering offers by area returns only offers within that area."""
-        response = self.client.get(self.url, {'area': self.paris.area_code})
+        response = self.client.get(self.url, {'area_code': self.paris.area_code})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['count'], 2)
         external_ids = {r['external_id'] for r in response.data['results']}
@@ -279,14 +279,14 @@ class OfferGeoFilterTests(RefGeoTestCase):
 
     def test_filter_by_nonexistent_area(self):
         """Test filtering by non-existent area returns 400 error."""
-        response = self.client.get(self.url, {'area': 99999})
+        response = self.client.get(self.url, {'area_code': 99999})
         self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
-        self.assertIn('area', response.data)
+        self.assertIn('area_code', response.data)
 
     def test_combined_filter_area_and_practice(self):
         """Test combining area and practice filters."""
         response = self.client.get(self.url, {
-            'area': self.paris.area_code,
+            'area_code': self.paris.area_code,
             'practice': self.practice_hiking.id
         })
         self.assertEqual(response.status_code, status.HTTP_200_OK)
@@ -306,7 +306,7 @@ class OfferGeoFilterTests(RefGeoTestCase):
     def test_geojson_feature_properties(self):
         """Test that GeoJSON features include correct properties."""
         response = self.client.get(self.url, {
-            'area': self.paris.area_code,
+            'area_code': self.paris.area_code,
             'format': 'geojson'
         })
         data = response.json()

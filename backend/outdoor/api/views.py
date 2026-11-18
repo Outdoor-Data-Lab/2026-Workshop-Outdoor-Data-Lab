@@ -24,8 +24,8 @@ class OfferViewSet(viewsets.ReadOnlyModelViewSet):
     Example requests:
     - GET /api/offers/ -> JSON format
     - GET /api/offers/?format=geojson -> GeoJSON format
-    - GET /api/offers/?area=26 -> Filter by area Drôme (JSON)
-    - GET /api/offers/?area=26&format=geojson -> Filter by area code (GeoJSON)
+    - GET /api/offers/?area_code=26 -> Filter by area Drôme (JSON)
+    - GET /api/offers/?area_code=26&format=geojson -> Filter by area code (GeoJSON)
     """
 
     queryset = Offer.objects.select_related('practice', 'source')
