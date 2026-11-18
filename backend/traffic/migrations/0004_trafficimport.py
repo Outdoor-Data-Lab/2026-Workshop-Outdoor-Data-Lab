@@ -7,7 +7,7 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ('commons', '0003_rename_inpn_source_sinp'),
-        ('traffic', '0002_initial_reference_values'),
+        ('traffic', '0003_counting_object_areas'),
     ]
 
     operations = [

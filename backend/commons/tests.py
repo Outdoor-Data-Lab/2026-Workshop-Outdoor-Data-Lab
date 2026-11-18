@@ -81,11 +81,30 @@ class PracticeTests(TestCase):
 
 
 class PracticeApiTests(TestCase):
-    url = "/api/commons/practice"
+    url = "/api/commons/practices"
 
-    def test_invalid_parent_id_is_400(self):
-        for query in ("parent_id=abc", "parent_id=abc&recursive=true"):
-            self.assertEqual(self.client.get(f"{self.url}?{query}").status_code, 400)
+    def codes(self, query):
+        response = self.client.get(f"{self.url}?{query}&limit=100")
+        self.assertEqual(response.status_code, 200)
+        return {p["code"] for p in response.json()["results"]}
+
+    def test_filters(self):
+        self.assertEqual(self.codes("parent_code=walking"), {"hiking", "snowshoeing"})
+        self.assertEqual(self.codes("code=gravel"), {"gravel"})
+        self.assertNotIn("hiking", self.codes("has_parent=false"))
+        self.assertNotIn("walking", self.codes("has_parent=True"))
+
+    def test_recursive_returns_every_descendant(self):
+        Practice.objects.create(code="nordic_walking", label="Marche nordique",
+                                parent=Practice.objects.get(code="hiking"))
+        self.assertEqual(
+            self.codes("parent_code=walking&recursive=true"),
+            {"hiking", "snowshoeing", "nordic_walking"},
+        )
+
+    def test_relations_exposed_by_code(self):
+        response = self.client.get(f"{self.url}?code=gravel")
+        self.assertEqual(response.json()["results"][0]["parent_code"], "cycling")
 
     def test_recursive_terminates_on_a_cycle(self):
         Practice.objects.filter(code="walking").update(

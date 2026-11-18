@@ -18,6 +18,7 @@ from django.contrib.gis.db import models
 from django.db.models import F, Max, Min, Q
 
 from commons.models import DataImport, DataSource, Practice
+from ref_geo.models import LArea
 
 DB_SCHEMA = "traffic"
 
@@ -175,6 +176,38 @@ class CountingMeasure(models.Model):
 
     def __str__(self):
         return f"{self.counting_object} {self.start_datetime:%Y-%m-%d %H:%M} : {self.count} {self.unit.code}"
+
+
+class CountingObjectArea(models.Model):
+    """A 1 km grid cell (ref_geo "M1") intersected by a counting object.
+
+    Filled by a trigger on traffic.counting_objects (insert, update of geom),
+    see migration 0003, and rebuilt with ``manage.py sync_counting_object_areas``
+    (e.g. after loading ref_geo). A segment crossing several cells gets a row
+    per cell: its measures count in each of them.
+
+    ``area`` references ref_geo.l_areas (column ``id_area``) without a database
+    constraint: ref_geo is loaded outside of Django, possibly after ``migrate``,
+    and may be reloaded.
+    """
+
+    pk = models.CompositePrimaryKey("counting_object", "area")
+    counting_object = models.ForeignKey(
+        CountingObject,
+        on_delete=models.CASCADE,
+        db_index=False,
+        related_name="areas",
+    )
+    area = models.ForeignKey(
+        LArea,
+        on_delete=models.CASCADE,
+        db_constraint=False,
+        db_column="id_area",
+        related_name="counting_object_areas",
+    )
+
+    class Meta:
+        db_table = table("counting_object_areas")
 
 
 class TrafficImport(DataImport):
