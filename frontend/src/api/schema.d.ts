@@ -216,8 +216,8 @@ export interface paths {
          *     Example requests:
          *     - GET /api/offers/ -> JSON format
          *     - GET /api/offers/?format=geojson -> GeoJSON format
-         *     - GET /api/offers/?area=26 -> Filter by area Drôme (JSON)
-         *     - GET /api/offers/?area=26&format=geojson -> Filter by area code (GeoJSON)
+         *     - GET /api/offers/?area_code=26 -> Filter by area Drôme (JSON)
+         *     - GET /api/offers/?area_code=26&format=geojson -> Filter by area code (GeoJSON)
          */
         get: operations["api_outdoor_offers_list"];
         put?: never;
@@ -244,8 +244,8 @@ export interface paths {
          *     Example requests:
          *     - GET /api/offers/ -> JSON format
          *     - GET /api/offers/?format=geojson -> GeoJSON format
-         *     - GET /api/offers/?area=26 -> Filter by area Drôme (JSON)
-         *     - GET /api/offers/?area=26&format=geojson -> Filter by area code (GeoJSON)
+         *     - GET /api/offers/?area_code=26 -> Filter by area Drôme (JSON)
+         *     - GET /api/offers/?area_code=26&format=geojson -> Filter by area code (GeoJSON)
          */
         get: operations["api_outdoor_offers_retrieve"];
         put?: never;
@@ -619,7 +619,8 @@ export interface paths {
          *     Only the cells with measures matching ``source`` and the period
          *     ``date_from`` / ``date_to`` (YYYY-MM-DD, both included, on the start of
          *     the measures).
-         *     Properties: ``counts``, ``count_segment``, ``count_presence`` and ``score``
+         *     Properties: ``counts``, ``count_segment``, ``count_presence``, ``sources``
+         *     (counts per data source, absolute or relative) and ``score``
          *     (``{score name: value}`` for the requested ``scores``). Geometry in WGS84.
          *     Scores are computed for the cells of the page only.
          *
@@ -650,7 +651,8 @@ export interface paths {
          *     Only the cells with measures matching ``source`` and the period
          *     ``date_from`` / ``date_to`` (YYYY-MM-DD, both included, on the start of
          *     the measures).
-         *     Properties: ``counts``, ``count_segment``, ``count_presence`` and ``score``
+         *     Properties: ``counts``, ``count_segment``, ``count_presence``, ``sources``
+         *     (counts per data source, absolute or relative) and ``score``
          *     (``{score name: value}`` for the requested ``scores``). Geometry in WGS84.
          *     Scores are computed for the cells of the page only.
          *
@@ -836,7 +838,7 @@ export interface components {
     schemas: {
         /**
          * @description A grid cell with its counts (``context["counts"]``:
-         *     ``{id_area: {"counts", "count_segment", "count_presence"}}``) and its scores
+         *     ``{id_area: {"counts", "count_segment", "count_presence", "sources"}}``) and its scores
          *     (``context["scores"]``: ``{score name: {id_area: value}}``), both computed
          *     by AreasViewSet.
          */
@@ -852,6 +854,7 @@ export interface components {
                 readonly counts?: number;
                 readonly count_segment?: number;
                 readonly count_presence?: number;
+                readonly sources?: components["schemas"]["SourceCount"][];
                 readonly score?: {
                     [key: string]: number;
                 };
@@ -1007,6 +1010,23 @@ export interface components {
             meta_update_date?: string | null;
             description?: string | null;
         };
+        /** @description Nombre d'offres qui intersectent la géométrie de la zone. */
+        LAreaWithOffersCount: {
+            readonly id_area: number;
+            readonly offers_count: string;
+            readonly type_code: string;
+            area_name?: string | null;
+            area_code?: string | null;
+            source?: string | null;
+            comment?: string | null;
+            enable?: boolean;
+            additional_data?: unknown;
+            /** Format: date-time */
+            meta_create_date?: string | null;
+            /** Format: date-time */
+            meta_update_date?: string | null;
+            description?: string | null;
+        };
         LLinear: {
             readonly id_linear: number;
             readonly type_code: string;
@@ -1077,6 +1097,7 @@ export interface components {
             readonly uuid: string | null;
             /** @default  */
             external_id: string;
+            name: string;
             practice: number;
             readonly practice_label: string;
             source: number;
@@ -1308,6 +1329,21 @@ export interface components {
             previous?: string | null;
             results: components["schemas"]["LArea"][];
         };
+        PaginatedLAreaWithOffersCountList: {
+            /** @example 123 */
+            count: number;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?offset=400&limit=100
+             */
+            next?: string | null;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?offset=200&limit=100
+             */
+            previous?: string | null;
+            results: components["schemas"]["LAreaWithOffersCount"][];
+        };
         PaginatedLLinearList: {
             /** @example 123 */
             count: number;
@@ -1463,6 +1499,23 @@ export interface components {
             code: string;
             label: string;
             readonly parent_code: string;
+        };
+        SourceCount: {
+            code: string;
+            label: string;
+            /** @description Counts every passage, not a sample of users. */
+            absolute: boolean;
+            count: number;
+            /**
+             * Format: date-time
+             * @description Start of the first measure.
+             */
+            first_data: string;
+            /**
+             * Format: date-time
+             * @description Start of the last measure.
+             */
+            latest_data: string;
         };
         TLinearGroup: {
             readonly id_group: number;
@@ -1849,7 +1902,10 @@ export interface operations {
     api_outdoor_offers_list: {
         parameters: {
             query?: {
-                area?: string;
+                /** @description Filter by area code (e.g., '26') */
+                area_code?: string;
+                /** @description Filter by area ID */
+                area_id?: number;
                 date_from?: string;
                 date_to?: string;
                 external_id?: string;
@@ -1909,6 +1965,7 @@ export interface operations {
     api_outdoor_offers_area_list: {
         parameters: {
             query?: {
+                /** @description Filter areas that intersect with the given area code (e.g., '05') */
                 area_code?: string;
                 bbox?: string;
                 contains?: string;
@@ -1937,8 +1994,8 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PaginatedLAreaList"];
-                    "application/geo+json": components["schemas"]["PaginatedLAreaList"];
+                    "application/json": components["schemas"]["PaginatedLAreaWithOffersCountList"];
+                    "application/geo+json": components["schemas"]["PaginatedLAreaWithOffersCountList"];
                 };
             };
         };
@@ -1962,8 +2019,8 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["LArea"];
-                    "application/geo+json": components["schemas"]["LArea"];
+                    "application/json": components["schemas"]["LAreaWithOffersCount"];
+                    "application/geo+json": components["schemas"]["LAreaWithOffersCount"];
                 };
             };
         };
@@ -2634,6 +2691,8 @@ export interface operations {
     api_traffic_counting_objects_list: {
         parameters: {
             query?: {
+                area_code?: string;
+                area_id?: number;
                 bbox?: string;
                 contains?: string;
                 format?: "geojson" | "json";

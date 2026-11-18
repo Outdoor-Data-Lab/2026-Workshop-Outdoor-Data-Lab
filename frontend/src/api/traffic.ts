@@ -114,6 +114,7 @@ export function getCountingObjectTypes({ limit, offset }: LimitOffset = {}) {
 // Synthèse de fréquentation par maille de 1 km
 
 export type TrafficAreaScore = 'basic' | 'cazalis'
+export type SourceCount = Schemas['SourceCount']
 export type TrafficAreaProperties = Required<NonNullable<Schemas['AreaCounts']['properties']>>
 export type TrafficAreaFeature = Feature<MultiPolygon, TrafficAreaProperties>
 export type TrafficAreaPage = GeoJsonPage<MultiPolygon, TrafficAreaProperties>
@@ -150,6 +151,11 @@ function trafficAreasUrl(
 /** Mailles ayant des mesures, avec comptages et scores (une page). */
 export function getTrafficByArea(filters: TrafficAreaFilters = {}, page: LimitOffset = {}) {
   return apiFetch<TrafficAreaPage>(trafficAreasUrl(filters, page))
+}
+
+/** Une maille, avec ses comptages par source (404 si elle n'a pas de mesure). */
+export function getTrafficArea(id: number) {
+  return apiFetch<TrafficAreaFeature>(`${BASE}/areas/${id}`)
 }
 
 // Adaptateur vers MapObject

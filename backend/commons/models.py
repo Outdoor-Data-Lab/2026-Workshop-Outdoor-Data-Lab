@@ -64,6 +64,10 @@ class DataSource(models.Model):
         blank=True,
         help_text="Import pages offering this source; none for a source used only as an origin.",
     )
+    absolute_counts = models.BooleanField(
+        default=False,
+        help_text="Counts every passage (e.g. an eco-counter), not only a sample of users.",
+    )
 
     class Meta:
         db_table = table("data_sources")

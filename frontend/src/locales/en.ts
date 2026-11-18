@@ -33,6 +33,28 @@ export default {
     title: 'Detail',
     empty: 'Select an object on the map.',
   },
+  cell: {
+    loading: 'Loading…',
+    traffic: 'Traffic',
+    biodiversity: 'Biodiversity',
+    outdoor: 'Outdoor',
+    zonings: 'Regulatory zoning',
+    soon: 'coming soon',
+    offers: 'no offer | {n} offer | {n} offers',
+    absolute: 'absolute',
+    relative: 'relative',
+    /** What each source counts, by code. */
+    units: {
+      ecocompteur: '{n} passage counted | {n} passages counted',
+      strava:
+        '{n} trip on the segments of the cell | {n} trips summed over the segments of the cell',
+      outdoorvision: '{n} GPS outing crossing the cell | {n} GPS outings crossing the cell',
+      inaturalist: '{n} observer-day | {n} observer-days',
+      other: '{n} measure | {n} measures',
+    },
+    countsNote:
+      'Absolute: the counter counts every passage. Relative: only the users of an app are counted; these figures compare cells with each other. The score combines the sources, weighted by how well they match the eco-counters.',
+  },
   notifications: {
     close: 'Close',
     withContext: '{context}: {message}',

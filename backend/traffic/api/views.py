@@ -79,7 +79,8 @@ class AreasViewSet(viewsets.ReadOnlyModelViewSet):
     Only the cells with measures matching ``source`` and the period
     ``date_from`` / ``date_to`` (YYYY-MM-DD, both included, on the start of
     the measures).
-    Properties: ``counts``, ``count_segment``, ``count_presence`` and ``score``
+    Properties: ``counts``, ``count_segment``, ``count_presence``, ``sources``
+    (counts per data source, absolute or relative) and ``score``
     (``{score name: value}`` for the requested ``scores``). Geometry in WGS84.
     Scores are computed for the cells of the page only.
 
