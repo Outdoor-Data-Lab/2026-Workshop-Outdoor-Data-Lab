@@ -1,5 +1,5 @@
 from django.contrib import admin, messages
-from django.contrib.gis.admin import GISModelAdmin
+from django.contrib.gis.forms import OSMWidget
 from django.http import HttpResponseRedirect
 from django.urls import reverse
 
@@ -9,12 +9,30 @@ from .models import Offer, OfferImport
 from .parsers import OfferParser
 
 
+class MapWidget(OSMWidget):
+    """The admin map widget, without its "Delete all Features" link."""
+
+    def get_context(self, name, value, attrs):
+        return super().get_context(name, value, attrs) | {"disabled": True}
+
+
 @admin.register(Offer)
-class OfferAdmin(GISModelAdmin):
+class OfferAdmin(admin.ModelAdmin):
     list_display = ("name", "practice", "source", "external_id", "date_update")
     list_filter = ("practice__parent", "practice", "source")
     list_select_related = ("practice", "source")
     search_fields = ("name", "external_id")
+    # The view page is read-only, where the admin shows geom as WKT: a map instead.
+    exclude = ("geom",)
+    readonly_fields = ("map",)
+
+    @property
+    def media(self):
+        return super().media + MapWidget().media
+
+    @admin.display(description="Geom")
+    def map(self, obj):
+        return MapWidget().render("geom", obj.geom, attrs={"id": "id_geom"})
 
     # Offers come from imports: the admin only displays them.
     def has_add_permission(self, request):

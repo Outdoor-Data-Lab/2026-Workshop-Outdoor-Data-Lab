@@ -243,3 +243,12 @@ class OfferImportAdminTests(OfferImportTestCase):
         sources = self.client.get(self.url).context["adminform"].form.fields["source"].queryset
         self.assertIn(self.source, sources)
         self.assertNotIn(DataSource.objects.get(code="outdoorvision"), sources)
+
+
+class OfferAdminTests(OutdoorTestCase):
+    def test_view_page_shows_a_map_instead_of_wkt(self):
+        offer = self.make_offer(name="Lac")
+        self.client.force_login(get_user_model().objects.create_superuser("admin@example.org", "x"))
+        html = self.client.get(reverse("admin:outdoor_offer_change", args=[offer.pk])).content.decode()
+        self.assertIn('class="dj_map_wrapper"', html)
+        self.assertNotIn("SRID=4326", html)
