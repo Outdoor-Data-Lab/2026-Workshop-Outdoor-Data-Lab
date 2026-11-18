@@ -210,6 +210,19 @@ class CountingObjectApiTests(TrafficTestCase):
         self.assertEqual((data["count"], len(data["results"])), (3, 2))
         self.assertEqual(data["results"][0]["unit_code"], "person")
 
+    def test_dynamic_fields_filtering(self):
+        """Test DynamicFieldsMixin filters fields correctly for all serializers in traffic.api.serializers."""
+        # Test CountingObjectSerializer
+        data = self.get("fields=id,uuid")
+        result = data["results"][0]
+        self.assertIn("id", result)
+        self.assertIn("uuid", result)
+        self.assertNotIn("external_id", result)
+        self.assertNotIn("type_code", result)
+        self.assertNotIn("source_code", result)
+        # Verify only requested fields exist
+        self.assertEqual(set(result.keys()), {"id", "uuid"})
+
 
 class ReferenceDataTests(TestCase):
     def test_initial_units(self):
@@ -363,7 +376,8 @@ class StravaParserTests(TrafficTestCase):
         self.assertFalse(CountingObject.objects.exists())
 
     def test_archive_with_several_exports_is_refused(self):
-        with self.assertRaisesMessage(ValueError, "un seul export, soit un .shp et un .csv (trouvé : 1 .shp et 2 .csv)"):
+        with self.assertRaisesMessage(ValueError,
+                                      "un seul export, soit un .shp et un .csv (trouvé : 1 .shp et 2 .csv)"):
             self.run_import(extra=[("other.csv", "edge_uid,activity_type,year,total_trip_count\n")])
         with self.assertRaisesMessage(ValueError, "contient d'autres zips"):
             self.run_import(extra=[("all_edges_yearly_2023_is.zip", b"")])
@@ -394,7 +408,8 @@ class CompteurParserTests(TrafficTestCase):
     def test_one_counter_object_and_one_measure_per_hour(self):
         data_import, count = self.run_import()
         self.assertEqual((count, data_import.line_numbers, data_import.error_numbers), (4, 8, 4))
-        self.assertEqual(set(CountingObject.objects.values_list("external_id", "type__code")), {("A", "counter"), ("B", "counter")})
+        self.assertEqual(set(CountingObject.objects.values_list("external_id", "type__code")),
+                         {("A", "counter"), ("B", "counter")})
         measure = CountingMeasure.objects.get(counting_object__external_id="A", count=5)
         # 10:00 in Paris (summer time) = 08:00 UTC, measures last one hour.
         self.assertEqual(measure.start_datetime, datetime(2024, 7, 1, 8, tzinfo=timezone.utc))
@@ -406,7 +421,9 @@ class CompteurParserTests(TrafficTestCase):
         self.run_import()
         self.run_import(counts=(("A", 9), ("A", 1), ("B", 3), ("B", 2)))
         self.assertEqual(CountingMeasure.objects.count(), 4)
-        self.assertEqual(sorted(CountingMeasure.objects.filter(counting_object__external_id="A").values_list("count", flat=True)), [1, 9])
+        self.assertEqual(
+            sorted(CountingMeasure.objects.filter(counting_object__external_id="A").values_list("count", flat=True)),
+            [1, 9])
 
 
 def zip_bytes(files: dict[str, str]) -> bytes:
@@ -441,10 +458,12 @@ class INaturalistParserTests(TrafficTestCase):
     def inaturalist_export(self, observations=OBSERVATIONS):
         rows = [
             dict(id=i, observed_on=d, user_id=100 + i, user_login=login, user_name=name, latitude=lat, longitude=lon,
-                 coordinates_obscured=str(obscured).lower(), scientific_name="Rupicapra rupicapra", description="Vu\nau lac")
+                 coordinates_obscured=str(obscured).lower(), scientific_name="Rupicapra rupicapra",
+                 description="Vu\nau lac")
             for i, name, login, d, lat, lon, obscured in observations
         ]
-        return zip_bytes({"README.txt": "Export iNaturalist", "observations-1.csv": pd.DataFrame(rows).to_csv(index=False)})
+        return zip_bytes(
+            {"README.txt": "Export iNaturalist", "observations-1.csv": pd.DataFrame(rows).to_csv(index=False)})
 
     def gbif_download(self, observations):
         rows = [
@@ -465,7 +484,8 @@ class INaturalistParserTests(TrafficTestCase):
         # 14 July in Paris (summer time) = 13 July 22:00 UTC, for one day.
         self.assertEqual(measure.start_datetime, datetime(2025, 7, 13, 22, tzinfo=timezone.utc))
         self.assertEqual(measure.end_datetime, datetime(2025, 7, 14, 22, tzinfo=timezone.utc))
-        self.assertTrue(CountingObject.objects.filter(external_id=observer_day_id("pdupont", pd.Timestamp("2025-07-14"))))
+        self.assertTrue(
+            CountingObject.objects.filter(external_id=observer_day_id("pdupont", pd.Timestamp("2025-07-14"))))
 
     def test_observers_are_not_stored(self):
         self.run_export()
@@ -475,7 +495,8 @@ class INaturalistParserTests(TrafficTestCase):
     def test_gbif_after_the_export_counts_each_outing_once(self):
         self.run_export()
         new = (7, "Paul Roux", "proux", "2025-07-16", 44.95, 6.30, False)
-        data_import, count = self.import_file("gbif.zip", self.gbif_download([self.OBSERVATIONS[0], self.OBSERVATIONS[2], self.OBSERVATIONS[5], new]))
+        data_import, count = self.import_file("gbif.zip", self.gbif_download(
+            [self.OBSERVATIONS[0], self.OBSERVATIONS[2], self.OBSERVATIONS[5], new]))
         self.assertEqual((count, data_import.error_numbers), (2, 1))  # Jeanne's 14 July again, and Paul
         self.assertEqual((CountingObject.objects.count(), CountingMeasure.objects.count()), (4, 4))
 
