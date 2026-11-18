@@ -2,3 +2,5 @@
 __pycache__/
 *.pyc
 .git/
+# Postgres data bind mount (owned by the postgres user, unreadable by the build)
+db-data/

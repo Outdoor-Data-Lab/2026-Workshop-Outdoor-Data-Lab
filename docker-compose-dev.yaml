@@ -65,6 +65,7 @@ services:
             - "*.pyc"
             - .git/
             - .venv/
+            - db-data/
         # Rebuild the image when dependencies change.
         - action: rebuild
           path: pyproject.toml
