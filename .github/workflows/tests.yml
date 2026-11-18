@@ -13,7 +13,7 @@ jobs:
   test:
     runs-on: ubuntu-24.04
     # Margin for a run without cache (first run, new version).
-    timeout-minutes: 20
+    timeout-minutes: 30
 
     services:
       db:
