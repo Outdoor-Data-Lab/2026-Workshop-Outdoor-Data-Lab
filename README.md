@@ -56,3 +56,13 @@ To stop the stack and erase the database
 ```sh
 docker compose -f docker-compose-dev.yaml down -v 
 ```
+
+## Load demonstration traffic data
+
+Start the development stack, then load the sample traffic data with the Django management command:
+
+```sh
+docker compose -f docker-compose-dev.yaml exec web python manage.py load_traffic_demo
+```
+
+The command runs `backend/workshop2026/processing/insert_traffic_data.sql` and refreshes the traffic score materialized view. The script creates ten synthetic counters or segments around the Ecrins, with daily counts for July 7–20, 2025. It is safe to rerun: only rows with the script's `demo_*` external IDs are replaced. These records are sample data, not real observations.
