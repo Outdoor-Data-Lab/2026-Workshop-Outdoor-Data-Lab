@@ -11,6 +11,7 @@ Django has no schema option, so db_table uses the quoted form
 schema itself is created by migration 0001.
 """
 
+from django.core.exceptions import ImproperlyConfigured
 from django.db import models
 from django.db.models import F, Q
 from django.utils.module_loading import import_string
@@ -23,14 +24,18 @@ def table(name):
 
 
 # Source code -> parser class, run when a file is imported for that source.
-PARSERS = {
-    "outdoorvision": "traffic.parsers.outdoorvision.OutdoorVisionParser",
-    "strava": "traffic.parsers.strava.StravaParser",
-    "ecocompteur": "traffic.parsers.compteur.CompteurParser",
-    "inaturalist": "traffic.parsers.inaturalist.INaturalistParser",
-    "sinp": "biodiversity.parsers.sinp.SINPParser",
-    "gbif": "biodiversity.parsers.gbif.GBIFParser",
-}
+# Each domain app registers its own parsers when it starts (register_parsers in
+# its AppConfig.ready()): commons does not know them. Updated in place, never
+# rebound, so the modules that imported it see every parser.
+PARSERS: dict[str, str] = {}
+
+
+def register_parsers(parsers: dict[str, str]) -> None:
+    """Add the parsers of a domain app: a source has a single parser."""
+    taken = {code for code, path in parsers.items() if PARSERS.get(code, path) != path}
+    if taken:
+        raise ImproperlyConfigured(f"Sources already having a parser: {', '.join(sorted(taken))}")
+    PARSERS.update(parsers)
 
 
 class DataSource(models.Model):

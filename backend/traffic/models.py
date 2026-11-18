@@ -17,7 +17,7 @@ import uuid
 from django.contrib.gis.db import models
 from django.db.models import F, Max, Min, Q
 
-from commons.models import DataSource, Practice
+from commons.models import DataImport, DataSource, Practice
 
 DB_SCHEMA = "traffic"
 
@@ -176,3 +176,10 @@ class CountingMeasure(models.Model):
     def __str__(self):
         return f"{self.counting_object} {self.start_datetime:%Y-%m-%d %H:%M} : {self.count} {self.unit.code}"
 
+
+class TrafficImport(DataImport):
+    """An import of counting objects and measures (see traffic.parsers): the admin page
+    of the traffic imports, which lists the sources of the traffic parsers only."""
+
+    class Meta:
+        proxy = True

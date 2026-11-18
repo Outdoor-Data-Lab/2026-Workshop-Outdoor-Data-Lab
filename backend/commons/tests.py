@@ -3,13 +3,14 @@ from pathlib import Path
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ImproperlyConfigured
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import IntegrityError, connection, transaction
 from django.db.models import ProtectedError
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 
-from .models import DataImport, DataSource, Practice
+from .models import PARSERS, DataImport, DataSource, Practice, register_parsers
 
 
 class CommonsTests(TestCase):
@@ -112,36 +113,6 @@ class DataImportFileTests(TestCase):
                 self.assertEqual(stored.read(), b"content")
 
 
-class DataImportAddPageTests(TestCase):
-    url = "/admin/commons/dataimport/add/"
-
-    def setUp(self):
-        self.client.force_login(get_user_model().objects.create_superuser("admin@example.org", "x"))
-
-    def test_expected_file_of_each_source_is_shown(self):
-        response = self.client.get(self.url)
-        strava = DataSource.objects.get(code="strava")
-        self.assertContains(response, 'id="import-example"')
-        self.assertContains(response, f"&quot;{strava.pk}&quot;: {{&quot;content&quot;: &quot;Contient des tron")
-        self.assertContains(response, "&quot;example&quot;: &quot;Zip Strava Metro")
-
-    def test_refused_file_shows_the_error_and_keeps_nothing(self):
-        strava = DataSource.objects.get(code="strava")
-        with tempfile.TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
-            response = self.client.post(
-                self.url,
-                {"source": strava.pk, "file": SimpleUploadedFile("export.zip", b"not a zip"),
-                 "line_numbers": 0, "error_numbers": 0},
-                follow=True,
-            )
-            self.assertEqual(list(Path(media_root).rglob("*.*")), [])
-        # Back to the form with the same source, and the parser's message.
-        self.assertEqual(response.redirect_chain, [(f"{self.url}?source={strava.pk}", 302)])
-        self.assertContains(response, "Import refusé")
-        self.assertContains(response, "Le fichier Strava doit être un zip")
-        self.assertFalse(DataImport.objects.exists())
-
-
 class DataImportParserTests(SimpleTestCase):
     def make_import(self, source_code="outdoorvision"):
         data_import = DataImport(
@@ -166,34 +137,91 @@ class DataImportParserTests(SimpleTestCase):
         self.assertIsNone(self.make_import("geotrek").run_parser())
 
 
-class DataImportAdminTests(TestCase):
-    def setUp(self):
-        self.enterContext(override_settings(MEDIA_ROOT=self.enterContext(tempfile.TemporaryDirectory())))
-        user = get_user_model().objects.create_superuser("admin@example.com", "password")
-        self.client.force_login(user)
+class ImportAdminTests(TestCase):
+    """The import pages of the domains share commons.admin.ImportAdmin."""
 
-    def add_import(self, source_code):
+    def setUp(self):
+        self.media = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self.enterContext(override_settings(MEDIA_ROOT=self.media))
+        self.client.force_login(get_user_model().objects.create_superuser("admin@example.com", "password"))
+        self.traffic_url = reverse("admin:traffic_trafficimport_add")
+        self.biodiversity_url = reverse("admin:biodiversity_observationimport_add")
+
+    def add_import(self, url, source_code, content=b"content", name="data.csv"):
         return self.client.post(
-            reverse("admin:commons_dataimport_add"),
+            url,
             {
                 "source": DataSource.objects.get(code=source_code).pk,
-                "file": SimpleUploadedFile("data.csv", b"content"),
+                "file": SimpleUploadedFile(name, content),
                 "line_numbers": 0,
                 "error_numbers": 0,
             },
             follow=True,
         )
 
-    def test_source_without_parser_is_rejected(self):
-        response = self.add_import("geotrek")
-        self.assertContains(response, "Aucun parser n&#x27;est disponible pour la source « Geotrek ».")
+    def test_each_page_offers_the_sources_of_its_domain(self):
+        traffic = self.client.get(self.traffic_url)
+        self.assertContains(traffic, ">Strava</option>")
+        self.assertNotContains(traffic, ">SINP</option>")
+        biodiversity = self.client.get(self.biodiversity_url)
+        self.assertContains(biodiversity, ">SINP</option>")
+        self.assertNotContains(biodiversity, ">Strava</option>")
+
+    def test_expected_file_of_each_source_is_shown(self):
+        response = self.client.get(self.traffic_url)
+        strava = DataSource.objects.get(code="strava")
+        self.assertContains(response, 'id="import-example"')
+        self.assertContains(response, f"&quot;{strava.pk}&quot;: {{&quot;content&quot;: &quot;Contient des tron")
+        self.assertContains(response, "&quot;example&quot;: &quot;Zip Strava Metro")
+
+    def test_refused_file_shows_the_error_and_keeps_nothing(self):
+        strava = DataSource.objects.get(code="strava")
+        response = self.add_import(self.traffic_url, "strava", b"not a zip", "export.zip")
+        self.assertEqual(list(self.media.rglob("*.*")), [])
+        # Back to the form with the same source, and the parser's message.
+        self.assertEqual(response.redirect_chain, [(f"{self.traffic_url}?source={strava.pk}", 302)])
+        self.assertContains(response, "Import refusé")
+        self.assertContains(response, "Le fichier Strava doit être un zip")
+        self.assertFalse(DataImport.objects.exists())
+
+    def test_source_of_another_domain_is_rejected(self):
+        response = self.add_import(self.biodiversity_url, "strava")
+        self.assertContains(response, "Select a valid choice")
         self.assertFalse(DataImport.objects.exists())
 
     @patch("biodiversity.parsers.sinp.SINPParser")
     def test_imported_count_is_shown(self, parser_class):
         parser_class.return_value.import_data.return_value = 12
-        response = self.add_import("sinp")
+        response = self.add_import(self.biodiversity_url, "sinp")
         self.assertContains(response, "12 éléments importés.")
+
+
+class DataImportHistoryTests(TestCase):
+    def setUp(self):
+        self.client.force_login(get_user_model().objects.create_superuser("admin@example.com", "password"))
+        for code in ("strava", "sinp"):
+            DataImport.objects.create(source=DataSource.objects.get(code=code), file=f"imports/{code}.csv")
+
+    def test_history_lists_every_import_but_adds_none(self):
+        response = self.client.get(reverse("admin:commons_dataimport_changelist"))
+        self.assertContains(response, "imports/strava.csv")
+        self.assertContains(response, "imports/sinp.csv")
+        self.assertEqual(self.client.get(reverse("admin:commons_dataimport_add")).status_code, 403)
+
+    def test_a_domain_page_lists_its_imports_only(self):
+        response = self.client.get(reverse("admin:traffic_trafficimport_changelist"))
+        self.assertContains(response, "imports/strava.csv")
+        self.assertNotContains(response, "imports/sinp.csv")
+
+
+class RegisterParsersTests(SimpleTestCase):
+    def test_a_source_has_a_single_parser(self):
+        with self.assertRaises(ImproperlyConfigured):
+            register_parsers({"strava": "biodiversity.parsers.gbif.GBIFParser"})
+        register_parsers({"strava": PARSERS["strava"]})  # registering it again changes nothing
+
+    def test_every_domain_registered_its_parsers(self):
+        self.assertLessEqual({"outdoorvision", "strava", "ecocompteur", "inaturalist", "sinp", "gbif"}, set(PARSERS))
 
 
 class ParserExamplesTests(SimpleTestCase):

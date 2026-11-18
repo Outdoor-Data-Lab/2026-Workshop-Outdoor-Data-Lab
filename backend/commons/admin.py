@@ -1,13 +1,12 @@
 import json
 
-from django import forms
 from django.contrib import admin, messages
 from django.http import HttpResponseRedirect
 from django.utils.html import format_html
 from django.utils.http import urlencode
 from django.utils.module_loading import import_string
 
-from .models import PARSERS, DataImport, DataSource, Practice
+from .models import DataImport, DataSource, Practice
 
 
 class ImportRefused(Exception):
@@ -28,29 +27,44 @@ class PracticeAdmin(admin.ModelAdmin):
     search_fields = ("code", "label")
 
 
-class DataImportForm(forms.ModelForm):
-    class Meta:
-        model = DataImport
-        fields = "__all__"
-
-    def clean_source(self):
-        source = self.cleaned_data["source"]
-        if not self.instance.pk and source.code not in PARSERS:
-            raise forms.ValidationError(
-                f"Aucun parser n'est disponible pour la source « {source} »."
-            )
-        return source
-
-
 @admin.register(DataImport)
 class DataImportAdmin(admin.ModelAdmin):
-    form = DataImportForm
+    """History of every import, whatever its domain. Files are imported from the
+    page of their domain: traffic imports, observation imports, offer imports."""
+
     list_display = ("source", "date_import", "file", "line_numbers", "error_numbers")
-    list_filter = ("source",)
+    list_filter = (("source", admin.RelatedOnlyFieldListFilter),)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+
+class ImportAdmin(admin.ModelAdmin):
+    """Admin of the imports of one domain (a proxy of DataImport): only the sources
+    of `parsers` are listed and offered, and the chosen file is imported on save.
+
+    The parsers describe their file (CONTENT, EXAMPLE), shown under the source
+    field; a file they refuse is reported on the form, and nothing is kept.
+    """
+
+    parsers: dict[str, str] = {}  # source code -> parser class path, of this domain
+    list_display = ("source", "date_import", "file", "line_numbers", "error_numbers")
+    list_filter = (("source", admin.RelatedOnlyFieldListFilter),)
     readonly_fields = ("date_import",)
 
     class Media:
         js = ("commons/import_loading.js", "commons/import_example.js")
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).filter(source__code__in=self.parsers)
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        if db_field.name == "source":
+            kwargs["queryset"] = DataSource.objects.filter(code__in=self.parsers)
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
     def render_change_form(self, request, context, *args, **kwargs):
         """Show what the file of the selected source holds, and an example, under the source field.
@@ -60,8 +74,8 @@ class DataImportAdmin(admin.ModelAdmin):
         form = context["adminform"].form
         if "source" in form.fields:
             parsers = {
-                source.pk: import_string(PARSERS[source.code])
-                for source in DataSource.objects.filter(code__in=PARSERS)
+                source.pk: import_string(self.parsers[source.code])
+                for source in DataSource.objects.filter(code__in=self.parsers)
             }
             examples = {
                 pk: {"content": getattr(parser, "CONTENT", ""), "example": getattr(parser, "EXAMPLE", "")}

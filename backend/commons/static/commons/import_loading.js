@@ -1,6 +1,7 @@
 // The parser runs during the request: show that the import is running and block double submits.
 document.addEventListener("DOMContentLoaded", () => {
-  const form = document.querySelector("#dataimport_form, #offerimport_form");
+  // Every import form: traffic, observation and offer imports.
+  const form = document.querySelector('form[id$="import_form"]');
   form?.addEventListener("submit", (event) => {
     if (event.submitter?.name === "_cancel") return;
     const file = form.querySelector("input[type=file]")?.files[0];
