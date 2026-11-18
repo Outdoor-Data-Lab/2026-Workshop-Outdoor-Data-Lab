@@ -46,6 +46,7 @@ def counts_queryset(geoms=None, geom_ids=None, sources=None, year=None, month=No
     return queryset
 
 
+
 class Score:
     """Base class: subclasses set ``name`` and implement ``compute_from``."""
 
@@ -64,6 +65,7 @@ class Score:
         raise NotImplementedError
 
 
+
 class BasicFrequentationScore(Score):
     """Sum of the counts of every source."""
 
@@ -73,6 +75,7 @@ class BasicFrequentationScore(Score):
     def compute_from(cls, queryset, **params):
         rows = queryset.values("id_area").annotate(total=Sum("counts"))
         return {row["id_area"]: row["total"] for row in rows}
+
 
 
 class CazalisFrequentationScore(Score):
