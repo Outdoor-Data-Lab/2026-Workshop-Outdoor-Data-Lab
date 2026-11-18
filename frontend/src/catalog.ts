@@ -21,8 +21,8 @@ export async function trafficLayers(): Promise<LayerDefinition[]> {
       label: referenceLabel('countingObjectTypes', type.code, type.label),
       group: 'traffic',
       // L'adaptateur range tous les compteurs dans une même couche : on les rattache à celle du type.
-      load: async () =>
-        (await getCountingObjectsForMap({ typeCode: type.code })).map((o) => ({
+      load: async ({ areaId }) =>
+        (await getCountingObjectsForMap({ typeCode: type.code, areaId })).map((o) => ({
           ...o,
           layer: id,
           key: mapObjectKey(id, o.id),
@@ -35,7 +35,7 @@ export async function trafficLayers(): Promise<LayerDefinition[]> {
       id: TRAFFIC_AREA_LAYER,
       label: i18n.global.t('layers.trafficAreas'),
       group: 'traffic',
-      load: () => getTrafficAreasForMap(),
+      load: ({ areaId }) => getTrafficAreasForMap({ areaId }),
     },
   ]
 }
@@ -47,12 +47,15 @@ export async function outdoorLayers(): Promise<LayerDefinition[]> {
       id: OFFER_LAYER,
       label: i18n.global.t('layers.outdoorOffers'),
       group: 'outdoor',
-      load: () => getOffersForMap(),
+      load: ({ areaId }) => getOffersForMap({ areaId }),
     },
   ]
 }
 
-/** Une couche par couche externe déclarée dans l'admin, colorée selon un attribut si demandé. */
+/**
+ * Une couche par couche externe déclarée dans l'admin, colorée selon un attribut si demandé.
+ * Servies par d'autres sites : pas filtrées par zone.
+ */
 export async function externalLayers(): Promise<LayerDefinition[]> {
   const { results } = await getExternalLayers()
   return results.map((layer) => {

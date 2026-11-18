@@ -2,6 +2,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import AreaFilter from '@/components/AreaFilter.vue'
 import DetailPanel from '@/components/DetailPanel.vue'
 import LayerSwitcher from '@/components/LayerSwitcher.vue'
 import MapLegend, { type LegendItem } from '@/components/MapLegend.vue'
@@ -42,6 +43,7 @@ const legend = computed<LegendItem[]>(() => {
   <main class="home">
     <div class="map">
       <MapView />
+      <AreaFilter class="area-filter" />
       <LayerSwitcher class="layer-switcher" />
       <MapLegend v-if="legend.length" :items="legend" />
     </div>
@@ -72,6 +74,13 @@ const legend = computed<LegendItem[]>(() => {
 .map {
   position: relative;
   min-width: 0;
+}
+
+/* En haut à gauche de la carte, en attendant le panneau des filtres. */
+.area-filter {
+  position: absolute;
+  top: 10px;
+  left: 10px;
 }
 
 /* Sous les boutons de zoom de MapLibre, en haut à droite. */

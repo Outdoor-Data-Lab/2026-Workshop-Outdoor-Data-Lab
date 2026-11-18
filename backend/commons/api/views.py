@@ -1,10 +1,13 @@
-from ..models import DataImport, DataSource, ExternalLayer, Practice
+from rest_framework.generics import RetrieveAPIView
+
+from ..models import DataImport, DataSource, ExternalLayer, InstanceSettings, Practice
 from .filters import DataImportFilter, PracticeFilter
 from .geo import ReadOnlyViewSet
 from .serializers import (
     DataImportSerializer,
     DataSourceSerializer,
     ExternalLayerSerializer,
+    InstanceSettingsSerializer,
     PracticeSerializer,
 )
 
@@ -34,3 +37,13 @@ class ExternalLayerViewSet(ReadOnlyViewSet):
     queryset = ExternalLayer.objects.order_by("label")
     serializer_class = ExternalLayerSerializer
     ordering_fields = ("id", "label")
+
+
+class InstanceSettingsView(RetrieveAPIView):
+    """Settings of this instance (default area of the map)."""
+
+    serializer_class = InstanceSettingsSerializer
+
+    def get_object(self):
+        # No join to ref_geo: the area is read only when set (ref_geo may not be loaded yet).
+        return InstanceSettings.load()

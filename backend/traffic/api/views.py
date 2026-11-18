@@ -8,7 +8,6 @@ from rest_framework.response import Response
 from rest_framework_gis.filters import InBBoxFilter
 
 from commons.api.geo import GeoJsonLimitOffsetPagination, GeoViewSet, ReadOnlyViewSet
-from ref_geo.filters import LAreaFilter
 from ref_geo.models import LArea
 from workshop2026.processing.score import SCORES, counts_by_area, measures_queryset
 
@@ -18,7 +17,7 @@ from ..models import (
     CountingObjectType,
     Unit,
 )
-from .filters import CountingMeasureFilter, CountingObjectFilter
+from .filters import CountingMeasureFilter, CountingObjectFilter, TrafficAreaFilter
 from .serializers import (
     AreaCountsSerializer,
     AreasQuerySerializer,
@@ -86,7 +85,8 @@ class AreasViewSet(viewsets.ReadOnlyModelViewSet):
 
     Spatial filters on the cells, as in ref_geo: ``bbox``, ``point``,
     ``intersects``, ``within``, ``contains`` (LAreaFilter, on the indexed
-    Lambert-93 geometry) and ``in_bbox`` (rest_framework_gis). Pagination:
+    Lambert-93 geometry) and ``in_bbox`` (rest_framework_gis); ``area_id``:
+    cells intersecting this ref_geo area. Pagination:
     ``limit`` / ``offset``.
     """
 
@@ -94,7 +94,7 @@ class AreasViewSet(viewsets.ReadOnlyModelViewSet):
     lookup_field = "id_area"
     pagination_class = GeoJsonLimitOffsetPagination
     filter_backends = [DjangoFilterBackend, InBBoxFilter]
-    filterset_class = LAreaFilter
+    filterset_class = TrafficAreaFilter
     # InBBoxFilter builds its box without an SRID: it must target the WGS84 column.
     bbox_filter_field = "geom_4326"
     bbox_filter_include_overlapping = True

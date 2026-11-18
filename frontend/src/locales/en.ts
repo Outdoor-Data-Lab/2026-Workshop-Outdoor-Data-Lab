@@ -24,6 +24,17 @@ export default {
     outdoorOffers: 'Outdoor offers',
     loadError: 'Could not load {label}',
   },
+  areaFilter: {
+    label: 'Area',
+    placeholder: 'Search a municipality, a department…',
+    noResults: 'No area found.',
+    clear: 'Remove the area filter',
+  },
+  /** Types de zones `ref_geo`, par code (repli : le code). */
+  areaTypes: {
+    COM: 'Municipality',
+    DEP: 'Department',
+  },
   legend: {
     title: 'Legend',
     counters: 'Counters',

@@ -24,6 +24,16 @@ export default {
     outdoorOffers: 'Offres outdoor',
     loadError: 'Impossible de charger {label}',
   },
+  areaFilter: {
+    label: 'Zone',
+    placeholder: 'Rechercher une commune, un département…',
+    noResults: 'Aucune zone trouvée.',
+    clear: 'Retirer le filtre de zone',
+  },
+  areaTypes: {
+    COM: 'Commune',
+    DEP: 'Département',
+  },
   legend: {
     title: 'Légende',
     counters: 'Compteurs',

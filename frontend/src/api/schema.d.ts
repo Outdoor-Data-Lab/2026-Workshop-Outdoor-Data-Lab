@@ -168,6 +168,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/commons/instance-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Settings of this instance (default area of the map). */
+        get: operations["api_commons_instance_settings_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/commons/practices": {
         parameters: {
             query?: never;
@@ -216,8 +233,8 @@ export interface paths {
          *     Example requests:
          *     - GET /api/offers/ -> JSON format
          *     - GET /api/offers/?format=geojson -> GeoJSON format
-         *     - GET /api/offers/?area=26 -> Filter by area Drôme (JSON)
-         *     - GET /api/offers/?area=26&format=geojson -> Filter by area code (GeoJSON)
+         *     - GET /api/offers/?area_code=26 -> Filter by area Drôme (JSON)
+         *     - GET /api/offers/?area_code=26&format=geojson -> Filter by area code (GeoJSON)
          */
         get: operations["api_outdoor_offers_list"];
         put?: never;
@@ -244,8 +261,8 @@ export interface paths {
          *     Example requests:
          *     - GET /api/offers/ -> JSON format
          *     - GET /api/offers/?format=geojson -> GeoJSON format
-         *     - GET /api/offers/?area=26 -> Filter by area Drôme (JSON)
-         *     - GET /api/offers/?area=26&format=geojson -> Filter by area code (GeoJSON)
+         *     - GET /api/offers/?area_code=26 -> Filter by area Drôme (JSON)
+         *     - GET /api/offers/?area_code=26&format=geojson -> Filter by area code (GeoJSON)
          */
         get: operations["api_outdoor_offers_retrieve"];
         put?: never;
@@ -614,7 +631,7 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * @description Counts and scores per 1 km grid cell (ref_geo "M1"), as GeoJSON.
+         * @description Counts and scores per grid cell (ref_geo ``area_type``, "M1" 1 km by default), as GeoJSON.
          *
          *     Only the cells with measures matching ``source`` and the period
          *     ``date_from`` / ``date_to`` (YYYY-MM-DD, both included, on the start of
@@ -625,7 +642,8 @@ export interface paths {
          *
          *     Spatial filters on the cells, as in ref_geo: ``bbox``, ``point``,
          *     ``intersects``, ``within``, ``contains`` (LAreaFilter, on the indexed
-         *     Lambert-93 geometry) and ``in_bbox`` (rest_framework_gis). Pagination:
+         *     Lambert-93 geometry) and ``in_bbox`` (rest_framework_gis); ``area_id``:
+         *     cells intersecting this ref_geo area. Pagination:
          *     ``limit`` / ``offset``.
          */
         get: operations["api_traffic_areas_list"];
@@ -645,7 +663,7 @@ export interface paths {
             cookie?: never;
         };
         /**
-         * @description Counts and scores per 1 km grid cell (ref_geo "M1"), as GeoJSON.
+         * @description Counts and scores per grid cell (ref_geo ``area_type``, "M1" 1 km by default), as GeoJSON.
          *
          *     Only the cells with measures matching ``source`` and the period
          *     ``date_from`` / ``date_to`` (YYYY-MM-DD, both included, on the start of
@@ -656,7 +674,8 @@ export interface paths {
          *
          *     Spatial filters on the cells, as in ref_geo: ``bbox``, ``point``,
          *     ``intersects``, ``within``, ``contains`` (LAreaFilter, on the indexed
-         *     Lambert-93 geometry) and ``in_bbox`` (rest_framework_gis). Pagination:
+         *     Lambert-93 geometry) and ``in_bbox`` (rest_framework_gis); ``area_id``:
+         *     cells intersecting this ref_geo area. Pagination:
          *     ``limit`` / ``offset``.
          */
         get: operations["api_traffic_areas_retrieve"];
@@ -839,6 +858,11 @@ export interface components {
          *     ``{id_area: {"counts", "count_segment", "count_presence"}}``) and its scores
          *     (``context["scores"]``: ``{score name: {id_area: value}}``), both computed
          *     by AreasViewSet.
+         *
+         *     A score with details (``context["score_details"]``: ``{score name: dict}``)
+         *     is an object: ``{"score": value, **details}``, else the bare value. For
+         *     "cazalis": ``source_weights`` and, when estimated, ``source_correlations``
+         *     and ``reference_counters``.
          */
         AreaCounts: {
             type?: components["schemas"]["GisFeatureEnum"];
@@ -853,13 +877,22 @@ export interface components {
                 readonly count_segment?: number;
                 readonly count_presence?: number;
                 readonly score?: {
-                    [key: string]: number;
+                    [key: string]: number | {
+                        [key: string]: unknown;
+                    };
                 };
             };
         };
         AreaCountsList: {
             type?: components["schemas"]["GisFeatureCollectionEnum"];
             features?: components["schemas"]["AreaCounts"][];
+        };
+        /** @description An area without its geometry, as found by name in ref_geo. */
+        AreaSummary: {
+            readonly id_area: number;
+            area_name?: string | null;
+            area_code?: string | null;
+            readonly type_code: string;
         };
         AreaTaxon: {
             cd_ref: number;
@@ -992,8 +1025,28 @@ export interface components {
         GisFeatureCollectionEnum: "FeatureCollection";
         /** @enum {string} */
         GisFeatureEnum: "Feature";
+        InstanceSettings: {
+            readonly default_area: components["schemas"]["AreaSummary"];
+        };
         LArea: {
             readonly id_area: number;
+            readonly type_code: string;
+            area_name?: string | null;
+            area_code?: string | null;
+            source?: string | null;
+            comment?: string | null;
+            enable?: boolean;
+            additional_data?: unknown;
+            /** Format: date-time */
+            meta_create_date?: string | null;
+            /** Format: date-time */
+            meta_update_date?: string | null;
+            description?: string | null;
+        };
+        /** @description Nombre d'offres qui intersectent la géométrie de la zone. */
+        LAreaWithOffersCount: {
+            readonly id_area: number;
+            readonly offers_count: string;
             readonly type_code: string;
             area_name?: string | null;
             area_code?: string | null;
@@ -1308,6 +1361,21 @@ export interface components {
             previous?: string | null;
             results: components["schemas"]["LArea"][];
         };
+        PaginatedLAreaWithOffersCountList: {
+            /** @example 123 */
+            count: number;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?offset=400&limit=100
+             */
+            next?: string | null;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?offset=200&limit=100
+             */
+            previous?: string | null;
+            results: components["schemas"]["LAreaWithOffersCount"][];
+        };
         PaginatedLLinearList: {
             /** @example 123 */
             count: number;
@@ -1533,10 +1601,13 @@ export interface operations {
     api_biodiversity_list_taxa_list: {
         parameters: {
             query?: {
+                /** @description Filter areas that intersect with the given area code (e.g., '05') */
                 area_code?: string;
                 bbox?: string;
                 contains?: string;
                 enable?: boolean;
+                /** @description Only show areas that have protected or threatened taxa (count > 0) */
+                has_protected_or_threatened_taxa?: boolean;
                 /** @description Specify a bounding box as filter: in_bbox=min_lon,min_lat,max_lon,max_lat */
                 in_bbox?: number[];
                 intersects?: string;
@@ -1548,6 +1619,7 @@ export interface operations {
                 /** @description Which field to use when ordering the results. */
                 ordering?: string;
                 point?: string;
+                /** @description Filter areas by type code (e.g., 'COM', 'DEP') */
                 type_code?: string;
                 within?: string;
             };
@@ -1592,10 +1664,13 @@ export interface operations {
     api_biodiversity_synthetic_data_list: {
         parameters: {
             query?: {
+                /** @description Filter areas that intersect with the given area code (e.g., '05') */
                 area_code?: string;
                 bbox?: string;
                 contains?: string;
                 enable?: boolean;
+                /** @description Only show areas that have protected or threatened taxa (count > 0) */
+                has_protected_or_threatened_taxa?: boolean;
                 /** @description Specify a bounding box as filter: in_bbox=min_lon,min_lat,max_lon,max_lat */
                 in_bbox?: number[];
                 intersects?: string;
@@ -1607,6 +1682,7 @@ export interface operations {
                 /** @description Which field to use when ordering the results. */
                 ordering?: string;
                 point?: string;
+                /** @description Filter areas by type code (e.g., 'COM', 'DEP') */
                 type_code?: string;
                 within?: string;
             };
@@ -1794,6 +1870,25 @@ export interface operations {
             };
         };
     };
+    api_commons_instance_settings_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InstanceSettings"];
+                };
+            };
+        };
+    };
     api_commons_practices_list: {
         parameters: {
             query?: {
@@ -1849,7 +1944,10 @@ export interface operations {
     api_outdoor_offers_list: {
         parameters: {
             query?: {
-                area?: string;
+                /** @description Filter by area code (e.g., '26') */
+                area_code?: string;
+                /** @description Filter by area ID */
+                area_id?: number;
                 date_from?: string;
                 date_to?: string;
                 external_id?: string;
@@ -1909,6 +2007,7 @@ export interface operations {
     api_outdoor_offers_area_list: {
         parameters: {
             query?: {
+                /** @description Filter areas that intersect with the given area code (e.g., '05') */
                 area_code?: string;
                 bbox?: string;
                 contains?: string;
@@ -1923,6 +2022,7 @@ export interface operations {
                 /** @description Which field to use when ordering the results. */
                 ordering?: string;
                 point?: string;
+                /** @description Filter areas by type code (e.g., 'COM', 'DEP') */
                 type_code?: string;
                 within?: string;
             };
@@ -1937,8 +2037,8 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PaginatedLAreaList"];
-                    "application/geo+json": components["schemas"]["PaginatedLAreaList"];
+                    "application/json": components["schemas"]["PaginatedLAreaWithOffersCountList"];
+                    "application/geo+json": components["schemas"]["PaginatedLAreaWithOffersCountList"];
                 };
             };
         };
@@ -1962,8 +2062,8 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["LArea"];
-                    "application/geo+json": components["schemas"]["LArea"];
+                    "application/json": components["schemas"]["LAreaWithOffersCount"];
+                    "application/geo+json": components["schemas"]["LAreaWithOffersCount"];
                 };
             };
         };
@@ -2457,6 +2557,14 @@ export interface operations {
         parameters: {
             query?: {
                 area_code?: string;
+                area_id?: number;
+                /**
+                 * @description Grid (ref_geo type_code). Default: M1.
+                 *
+                 *     * `M1` - M1
+                 *     * `M0.5` - M0.5
+                 */
+                area_type?: "M1" | "M0.5";
                 bbox?: string;
                 contains?: string;
                 /** @description First day of the period (YYYY-MM-DD), included. */
@@ -2501,6 +2609,13 @@ export interface operations {
     api_traffic_areas_retrieve: {
         parameters: {
             query?: {
+                /**
+                 * @description Grid (ref_geo type_code). Default: M1.
+                 *
+                 *     * `M1` - M1
+                 *     * `M0.5` - M0.5
+                 */
+                area_type?: "M1" | "M0.5";
                 /** @description First day of the period (YYYY-MM-DD), included. */
                 date_from?: string;
                 /** @description Last day of the period (YYYY-MM-DD), included. */
@@ -2634,6 +2749,8 @@ export interface operations {
     api_traffic_counting_objects_list: {
         parameters: {
             query?: {
+                area_code?: string;
+                area_id?: number;
                 bbox?: string;
                 contains?: string;
                 format?: "geojson" | "json";

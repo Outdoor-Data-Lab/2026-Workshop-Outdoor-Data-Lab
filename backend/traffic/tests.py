@@ -871,6 +871,16 @@ class AreasApiTests(AreasTestCase):
         self.assertEqual(ids(intersects="POLYGON((6.1 44.1,7.2 44.1,7.2 44.2,6.1 44.2,6.1 44.1))"), [12, 13])
         self.assertEqual(ids(area_code="B"), [13])
 
+    def test_filters_on_intersecting_area(self):
+        commune = BibAreasType.objects.create(type_name="Communes", type_code="COM")
+        LArea.objects.create(id_area=50, type=commune, area_code="X", **cell(7.4, 44.4, 8.0, 45.0))
+
+        response = self.client.get(self.url, {"area_id": 50})
+        self.assertEqual([f["id"] for f in response.json()["features"]], [13])
+        response = self.client.get(self.url, {"area_id": 999})
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("area_id", response.json())
+
     def test_rejects_invalid_parameters(self):
         response = self.client.get(self.url, {"date_from": "2023-13-01", "scores": "foo"})
         self.assertEqual(response.status_code, 400)

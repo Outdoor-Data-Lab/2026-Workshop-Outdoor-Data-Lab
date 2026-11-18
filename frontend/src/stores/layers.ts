@@ -21,7 +21,21 @@ export interface MapFeatureProperties {
   value?: number
 }
 
-/** Couche proposée à l'utilisateur. `load` est appelé au premier affichage. */
+/** Filtres communs à toutes les couches, passés à leur `load`. */
+export interface LayerFilters {
+  /** Zone `ref_geo` : seuls les objets qui l'intersectent. */
+  areaId?: number
+}
+
+/** Zone choisie pour filtrer les couches. */
+export interface SelectedArea {
+  id: number
+  name: string
+  typeCode: string
+  geometry: Geometry
+}
+
+/** Couche proposée à l'utilisateur. `load` est appelé au premier affichage et à chaque changement de filtre. */
 export interface LayerDefinition {
   id: LayerId
   label: string
@@ -29,7 +43,7 @@ export interface LayerDefinition {
   group: string
   /** Affichée au survol du nom. */
   description?: string
-  load: () => Promise<MapObject[]>
+  load: (filters: LayerFilters) => Promise<MapObject[]>
 }
 
 /** Couches de la carte : définitions, visibilité et objets chargés. */
@@ -43,6 +57,8 @@ export const useLayersStore = defineStore('layers', () => {
   const objectsByLayer = shallowRef<Partial<Record<LayerId, MapObject[]>>>({})
   const status = ref<Partial<Record<LayerId, LayerStatus>>>({})
   const selectedKey = ref<string | null>(null)
+  const area = shallowRef<SelectedArea | null>(null)
+  const filters = computed<LayerFilters>(() => ({ areaId: area.value?.id }))
 
   const byKey = computed(() => {
     const index = new Map<string, MapObject>()
@@ -110,13 +126,13 @@ export const useLayersStore = defineStore('layers', () => {
   /** En cas d'échec : erreur dans `status` et notification. `label` nomme la couche dans le message. */
   async function loadLayer(
     layer: LayerId,
-    loader: () => Promise<MapObject[]>,
+    loader: (filters: LayerFilters) => Promise<MapObject[]>,
     { label = layer }: { label?: string } = {},
   ) {
     const call = (lastCall[layer] = (lastCall[layer] ?? 0) + 1)
     status.value[layer] = { loading: true }
     try {
-      const objects = await loader()
+      const objects = await loader(filters.value)
       if (call !== lastCall[layer]) return
       setLayer(layer, objects)
       status.value[layer] = { loading: false }
@@ -156,6 +172,22 @@ export const useLayersStore = defineStore('layers', () => {
     }
   }
 
+  /** Change de zone : les objets chargés sont oubliés, les couches visibles rechargées, les autres le seront à leur affichage. */
+  function setArea(value: SelectedArea | null) {
+    area.value = value
+    objectsByLayer.value = {}
+    status.value = {}
+    selectedKey.value = null
+    for (const definition of definitions.value) {
+      if (visible.value[definition.id]) {
+        loadLayer(definition.id, definition.load, { label: definition.label })
+      } else {
+        // Un chargement en cours avec l'ancienne zone sera ignoré.
+        lastCall[definition.id] = (lastCall[definition.id] ?? 0) + 1
+      }
+    }
+  }
+
   function select(key: string | null) {
     selectedKey.value = key && byKey.value.has(key) ? key : null
   }
@@ -168,6 +200,8 @@ export const useLayersStore = defineStore('layers', () => {
     status,
     selectedKey,
     selected,
+    area,
+    filters,
     featureCollections,
     setLayer,
     removeLayer,
@@ -175,6 +209,7 @@ export const useLayersStore = defineStore('layers', () => {
     addDefinitions,
     setConcept,
     setVisible,
+    setArea,
     select,
   }
 })

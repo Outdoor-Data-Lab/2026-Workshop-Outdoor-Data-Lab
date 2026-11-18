@@ -55,6 +55,29 @@ describe('layers store', () => {
     expect(layers.visible).toEqual({ 'traffic/counter': false, 'biodiversity/taxon': true })
   })
 
+  it('reloads visible layers on the selected area, and hidden ones when shown', async () => {
+    const layers = useLayersStore()
+    const counters = vi.fn().mockResolvedValue([point])
+    const segments = vi.fn().mockResolvedValue([])
+    layers.addDefinitions([
+      definition('traffic/counter', counters),
+      definition('traffic/segment', segments),
+    ])
+    layers.setVisible('traffic/counter', true)
+    await vi.waitFor(() => expect(layers.objectsByLayer['traffic/counter']).toEqual([point]))
+
+    const area = { id: 39, name: 'Isère', typeCode: 'DEP', geometry: point.geometry }
+    layers.setArea(area)
+    expect(counters).toHaveBeenLastCalledWith({ areaId: 39 })
+    expect(segments).not.toHaveBeenCalled()
+
+    layers.setVisible('traffic/segment', true)
+    expect(segments).toHaveBeenLastCalledWith({ areaId: 39 })
+
+    layers.setArea(null)
+    expect(counters).toHaveBeenLastCalledWith({ areaId: undefined })
+  })
+
   it('leaves external layers to the user, whatever the concept', () => {
     const layers = useLayersStore()
     layers.addDefinitions([definition('external/1')])
