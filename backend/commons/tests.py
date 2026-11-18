@@ -115,6 +115,18 @@ class PracticeApiTests(TestCase):
             cursor.execute("SET LOCAL statement_timeout = 2000")
         response = self.client.get(f"{self.url}?parent_code=walking&recursive=true")
         self.assertEqual(response.status_code, 200)
+    def test_dynamic_fields_filtering(self):
+        """Test DynamicFieldsMixin filters fields correctly for all serializers in commons.api.serializers."""
+        # Test PracticeSerializer
+        response = self.client.get(f"{self.url}?fields=id,code")
+        self.assertEqual(response.status_code, 200)
+        result = response.json()["results"][0]
+        self.assertIn("id", result)
+        self.assertIn("code", result)
+        self.assertNotIn("label", result)
+        self.assertNotIn("parent_code", result)
+        # Verify only requested fields exist
+        self.assertEqual(set(result.keys()), {"id", "code"})
 
 
 class ExternalLayerApiTests(TestCase):
