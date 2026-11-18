@@ -25,8 +25,10 @@ api_patterns = [
     path("traffic/", include("traffic.api.urls")),
     path("commons/", include("commons.api.urls")),
     path("biodiversity/", include("biodiversity.urls")),
+    path("outdoor/", include("outdoor.api.urls")),
     path("ref-geo/", include("ref_geo.urls")),
 ]
+
 
 urlpatterns = [
     path("admin/", admin.site.urls),
