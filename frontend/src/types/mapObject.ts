@@ -4,15 +4,14 @@ export type Domain = 'traffic' | 'biodiversity'
 
 export type LayerId = `${Domain}/${string}`
 
-/** Objet affiché sur la carte, tous domaines confondus. `P` : propriétés propres au domaine. */
-export interface MapObject<P extends object = Record<string, unknown>> {
+/** Objet affiché sur la carte : le minimum pour dessiner et identifier. Le détail se charge par `id`. */
+export interface MapObject {
   key: string
   id: number | string
   domain: Domain
   layer: LayerId
   label: string
   geometry: Geometry
-  properties: P
 }
 
 export function mapObjectKey(layer: LayerId, id: number | string): string {

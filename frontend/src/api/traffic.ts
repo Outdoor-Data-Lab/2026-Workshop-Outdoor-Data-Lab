@@ -92,9 +92,7 @@ export function getCountingObjectTypes({ limit, offset }: LimitOffset = {}) {
 
 export const COUNTING_OBJECT_LAYER: LayerId = 'traffic/counting-object'
 
-export type CountingObjectMapObject = MapObject<CountingObjectProperties>
-
-export function countingObjectToMapObject(feature: CountingObjectFeature): CountingObjectMapObject {
+export function countingObjectToMapObject(feature: CountingObjectFeature): MapObject {
   // GeoFeatureModelSerializer met la clé primaire sur la Feature.
   if (feature.id === undefined) throw new Error('Compteur sans identifiant dans la réponse API')
   return {
@@ -104,7 +102,6 @@ export function countingObjectToMapObject(feature: CountingObjectFeature): Count
     layer: COUNTING_OBJECT_LAYER,
     label: feature.properties.external_id || `Compteur ${feature.id}`,
     geometry: feature.geometry,
-    properties: feature.properties,
   }
 }
 
