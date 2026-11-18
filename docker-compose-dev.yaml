@@ -49,6 +49,15 @@ services:
           path: pyproject.toml
         - action: rebuild
           path: uv.lock
+  
+  flower:
+    build:
+      context: .
+    command: celery --broker=redis://redis:6379/0 flower
+    ports:
+      - 5555:5555
+    depends_on:
+      - worker
 
   frontend:
     build:
