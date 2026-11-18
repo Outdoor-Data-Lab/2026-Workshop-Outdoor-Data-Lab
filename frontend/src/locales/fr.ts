@@ -41,6 +41,9 @@ export default {
     tracks: 'Sorties (traces)',
     trafficAreas: 'Fréquentation par maille (score)',
   },
+  offer: {
+    practice: 'Pratique',
+  },
   detail: {
     title: 'Détail',
     empty: 'Sélectionnez un objet sur la carte.',

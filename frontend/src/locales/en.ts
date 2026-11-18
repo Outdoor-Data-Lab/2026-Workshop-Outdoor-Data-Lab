@@ -42,6 +42,9 @@ export default {
     tracks: 'Outings (tracks)',
     trafficAreas: 'Traffic per grid cell (score)',
   },
+  offer: {
+    practice: 'Practice',
+  },
   detail: {
     title: 'Detail',
     empty: 'Select an object on the map.',
