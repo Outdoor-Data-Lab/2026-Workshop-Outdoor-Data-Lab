@@ -72,8 +72,8 @@ class Offer(models.Model):
 
 
 class OfferImport(DataImport):
-    """An import of offers (see parsers.OfferParser): its own admin entry, whatever
-    the source, next to the traffic imports chosen by source in commons."""
+    """An import of offers (see parsers.OfferParser): the admin page of the offer
+    imports, which offers every source but those of the other domains."""
 
     class Meta:
         proxy = True

@@ -1,16 +1,21 @@
 import json
 
 from django.contrib import admin, messages
+from django.core import signing
+from django.core.exceptions import PermissionDenied
+from django.db import transaction
 from django.http import HttpResponseRedirect
+from django.template.response import TemplateResponse
+from django.urls import reverse
 from django.utils.html import format_html
 from django.utils.http import urlencode
 from django.utils.module_loading import import_string
 
 from .models import DataImport, DataSource, Practice
+from .parsers import describe_errors
 
-
-class ImportRefused(Exception):
-    """The parser refused the file: shown to the user instead of a server error."""
+PREVIEW_ERRORS = 20  # lines in error listed on the preview page
+TOKEN_MAX_AGE = 24 * 3600  # seconds a preview can be applied
 
 
 @admin.register(DataSource)
@@ -43,28 +48,47 @@ class DataImportAdmin(admin.ModelAdmin):
 
 
 class ImportAdmin(admin.ModelAdmin):
-    """Admin of the imports of one domain (a proxy of DataImport): only the sources
-    of `parsers` are listed and offered, and the chosen file is imported on save.
+    """Admin of the imports of one domain (a proxy of DataImport).
 
-    The parsers describe their file (CONTENT, EXAMPLE), shown under the source
-    field; a file they refuse is reported on the form, and nothing is kept.
+    The uploaded file is imported at once. With `with_preview`, it is first
+    previewed (lines read, changes, lines in error) and only applied once
+    confirmed, "Cancel" deleting it: the file is then read twice. A file the
+    parser refuses keeps nothing: the form comes back with the reason and the
+    same source.
+
+    The page lists and offers the sources of get_sources() (by default those of
+    `parsers`); get_parser() gives the parser of a source, whose CONTENT and
+    EXAMPLE are shown under the source field.
     """
 
     parsers: dict[str, str] = {}  # source code -> parser class path, of this domain
+    with_preview = False
     list_display = ("source", "date_import", "file", "line_numbers", "error_numbers")
     list_filter = (("source", admin.RelatedOnlyFieldListFilter),)
-    readonly_fields = ("date_import",)
+    fields = ("source", "file")
 
     class Media:
         js = ("commons/import_loading.js", "commons/import_example.js")
 
+    def get_sources(self):
+        """The sources this page imports."""
+        return DataSource.objects.filter(code__in=self.parsers)
+
+    def get_parser(self, source):
+        """The parser class of a source."""
+        return import_string(self.parsers[source.code])
+
     def get_queryset(self, request):
-        return super().get_queryset(request).filter(source__code__in=self.parsers)
+        return super().get_queryset(request).filter(source__in=self.get_sources())
 
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
         if db_field.name == "source":
-            kwargs["queryset"] = DataSource.objects.filter(code__in=self.parsers)
+            kwargs["queryset"] = self.get_sources()
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
+    def has_change_permission(self, request, obj=None):
+        # An import is applied once, then only viewed.
+        return False
 
     def render_change_form(self, request, context, *args, **kwargs):
         """Show what the file of the selected source holds, and an example, under the source field.
@@ -73,36 +97,94 @@ class ImportAdmin(admin.ModelAdmin):
         """
         form = context["adminform"].form
         if "source" in form.fields:
-            parsers = {
-                source.pk: import_string(self.parsers[source.code])
-                for source in DataSource.objects.filter(code__in=self.parsers)
-            }
             examples = {
-                pk: {"content": getattr(parser, "CONTENT", ""), "example": getattr(parser, "EXAMPLE", "")}
-                for pk, parser in parsers.items()
+                source.pk: {"content": parser.CONTENT, "example": parser.EXAMPLE}
+                for source in self.get_sources()
+                for parser in [self.get_parser(source)]
             }
             form.fields["source"].help_text = format_html(
-                '<span id="import-example" data-examples="{}"></span>', json.dumps(examples)
+                '<span id="import-example" data-examples="{}" data-preview="{}"></span>',
+                json.dumps(examples),
+                "1" if self.with_preview else "",
             )
         return super().render_change_form(request, context, *args, **kwargs)
 
     def add_view(self, request, form_url="", extra_context=None):
-        # The admin saves within a transaction: an ImportRefused leaving it rolls
-        # back the DataImport and its log entry, so nothing is left of the import.
-        try:
-            return super().add_view(request, form_url, extra_context)
-        except ImportRefused as error:
-            self.message_user(request, f"Import refusé, rien n'a été enregistré : {error}", messages.ERROR)
-            # Back to the empty form, with the same source selected.
-            return HttpResponseRedirect(f"{request.path}?{urlencode({'source': request.POST.get('source', '')})}")
+        if request.method == "POST":
+            if not self.has_add_permission(request):
+                raise PermissionDenied
+            if "token" in request.POST:
+                return self.confirm(request)
+            form = self.get_form(request)(request.POST, request.FILES)
+            if form.is_valid():
+                data_import = form.save(commit=False)
+                upload = request.FILES["file"]
+                data_import.file.save(upload.name, upload, save=False)
+                if self.with_preview:
+                    return self.show_preview(request, data_import, upload.name)
+                return self.apply(request, data_import.source, data_import.file.name)
+        return super().add_view(request, form_url, extra_context)
 
-    def save_model(self, request, obj, form, change):
-        super().save_model(request, obj, form, change)
-        if change:
-            return
+    def show_preview(self, request, data_import, file_name):
+        """Show what the import of the stored file would do, with Apply and Cancel."""
+        parser = self.get_parser(data_import.source)(data_import)
         try:
-            count = obj.run_parser()
+            preview = parser.preview()
         except ValueError as error:
-            obj.file.delete(save=False)  # the rollback does not remove the stored file
-            raise ImportRefused(error) from error
-        self.message_user(request, f"{count} éléments importés.", messages.SUCCESS)
+            data_import.file.delete(save=False)
+            return self.refused(request, error, data_import.source_id)
+        pending = {"source": data_import.source_id, "file": data_import.file.name}
+        context = {
+            **self.admin_site.each_context(request),
+            "opts": self.opts,
+            "title": f"Preview of the {self.opts.verbose_name}",
+            "media": self.media,
+            "source": data_import.source,
+            "file_name": file_name,
+            "preview": preview,
+            "errors": parser.errors[:PREVIEW_ERRORS],
+            "more_errors": len(parser.errors) - PREVIEW_ERRORS,
+            "token": signing.dumps(pending, salt=self.opts.label_lower),
+        }
+        return TemplateResponse(request, "admin/commons/import_preview.html", context)
+
+    def confirm(self, request):
+        """Apply or cancel a previewed import."""
+        try:
+            pending = signing.loads(request.POST["token"], salt=self.opts.label_lower, max_age=TOKEN_MAX_AGE)
+        except signing.BadSignature:
+            return self.done(request, "Preview expired or invalid: start the import again.", messages.ERROR)
+        storage = DataImport._meta.get_field("file").storage
+        # Test _cancel, not _apply: import_loading.js disables the buttons on submit,
+        # so the Apply button's name is not sent.
+        if "_cancel" in request.POST:
+            storage.delete(pending["file"])
+            return self.done(request, "Import cancelled.", messages.INFO)
+
+        return self.apply(request, DataSource.objects.get(pk=pending["source"]), pending["file"])
+
+    def apply(self, request, source, file_name):
+        """Import the stored file; a refused file keeps nothing."""
+        try:
+            with transaction.atomic():
+                data_import = self.model.objects.create(source=source, file=file_name)
+                parser = self.get_parser(source)(data_import)
+                count = parser.import_data()
+                self.log_addition(request, data_import, [{"added": {}}])
+        except ValueError as error:
+            DataImport._meta.get_field("file").storage.delete(file_name)
+            return self.refused(request, error, source.pk)
+        message = f"{count} item(s) imported, {data_import.error_numbers} line(s) in error"
+        if parser.errors:
+            message += f": {describe_errors(parser.errors)}"
+        return self.done(request, f"{message}.", messages.WARNING if data_import.error_numbers else messages.SUCCESS)
+
+    def refused(self, request, error, source_id):
+        """Back to the empty form, with the same source and the reason: nothing is kept."""
+        self.message_user(request, f"Import refused, nothing was saved: {error}", messages.ERROR)
+        url = reverse(f"admin:{self.opts.app_label}_{self.opts.model_name}_add")
+        return HttpResponseRedirect(f"{url}?{urlencode({'source': source_id})}")
+
+    def done(self, request, message, level):
+        self.message_user(request, message, level)
+        return HttpResponseRedirect(reverse(f"admin:{self.opts.app_label}_{self.opts.model_name}_changelist"))

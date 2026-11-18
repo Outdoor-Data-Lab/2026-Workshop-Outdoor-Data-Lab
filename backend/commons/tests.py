@@ -211,7 +211,7 @@ class ImportAdminTests(TestCase):
         self.assertEqual(list(self.media.rglob("*.*")), [])
         # Back to the form with the same source, and the parser's message.
         self.assertEqual(response.redirect_chain, [(f"{self.traffic_url}?source={strava.pk}", 302)])
-        self.assertContains(response, "Import refusé")
+        self.assertContains(response, "Import refused, nothing was saved")
         self.assertContains(response, "The Strava file must be a zip")
         self.assertFalse(DataImport.objects.exists())
 
@@ -221,10 +221,13 @@ class ImportAdminTests(TestCase):
         self.assertFalse(DataImport.objects.exists())
 
     @patch("biodiversity.parsers.sinp.SINPParser")
-    def test_imported_count_is_shown(self, parser_class):
+    def test_imported_at_once_without_preview(self, parser_class):
+        parser_class.return_value.errors = []
         parser_class.return_value.import_data.return_value = 12
         response = self.add_import(self.biodiversity_url, "sinp")
-        self.assertContains(response, "12 éléments importés.")
+        parser_class.return_value.preview.assert_not_called()  # the file is read once
+        self.assertContains(response, "12 item(s) imported, 0 line(s) in error.")
+        self.assertEqual(DataImport.objects.get().source.code, "sinp")
 
 
 class DataImportHistoryTests(TestCase):
