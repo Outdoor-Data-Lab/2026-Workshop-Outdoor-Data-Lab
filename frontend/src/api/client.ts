@@ -19,6 +19,16 @@ export class NetworkError extends Error {
   }
 }
 
+export type Paginated<T> = {
+  count: number
+  next?: string | null
+  previous?: string | null
+  results: T[]
+}
+
+/** Pagination limit/offset ; le backend renvoie 50 éléments si `limit` est absent. */
+export type LimitOffset = { limit?: number; offset?: number }
+
 type QueryValue = string | number | boolean | null | undefined
 
 /** Ajoute une query string, sans les valeurs null/undefined. */
