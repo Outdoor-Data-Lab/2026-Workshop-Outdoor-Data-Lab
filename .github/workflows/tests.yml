@@ -47,7 +47,7 @@ jobs:
         with:
           packages: gdal-bin libgdal-dev libgeos-dev libproj-dev
           # Bump to refresh the cache.
-          version: 1
+          version: 2
           # Runs ldconfig, so that Django finds libgdal and libgeos_c.
           execute_install_scripts: true
 
