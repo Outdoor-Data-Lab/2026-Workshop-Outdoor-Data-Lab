@@ -1,132 +1,206 @@
--- Données fictives autour du massif des Écrins pour tester les cartes de score.
--- Exécution réentrante : seules les lignes portant les identifiants de démo
--- de ce script sont remplacées.
+-- Fake traffic data to test traffic.materialized_view_counts.
+-- Re-runnable: the demo rows (external_id 'demo_m1_%') are deleted first.
+--
+-- Run (from the repo root):
+--   docker compose exec -T db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB"' \
+--     < backend/workshop2026/processing/insert_traffic_data.sql
+--
+-- What it covers, on the first 3 M1 cells (by id_area):
+--   cell 1: outdoorvision counter + outdoorvision segment  -> count_presence and count_segment on one row
+--           ecocompteur counter                            -> a second source in the same cell
+--   cell 2: komoot segment                                 -> count_segment only
+--   cell 3: strava counter, measures in 2023 and 2024      -> several years
+-- Measures: one per day on the 5th, 15th and 25th of each month, Jan-Mar,
+-- count = object number * 10 + day of month (easy to check by hand).
 BEGIN;
 
-DELETE FROM traffic.counting_measures
-WHERE counting_object_id IN (
-    SELECT id
-    FROM traffic.counting_objects
-    WHERE external_id IN (
-        'demo_m1_001', 'demo_m1_002', 'demo_m1_003',
-        'demo_ecrins_vallouise', 'demo_ecrins_ailefroide',
-        'demo_ecrins_berarde', 'demo_ecrins_lauvitel',
-        'demo_ecrins_lautaret', 'demo_ecrins_valgaudemar',
-        'demo_ecrins_dormillouse', 'demo_ecrins_grave',
-        'demo_ecrins_plateau', 'demo_ecrins_alpinisme'
-    )
-);
+DELETE FROM
+    traffic.counting_measures
+WHERE
+    counting_object_id IN (
+        SELECT
+            id
+        FROM
+            traffic.counting_objects
+        WHERE
+            external_id LIKE 'demo_m1_%'
+    );
 
-DELETE FROM traffic.counting_objects
-WHERE external_id IN (
-    'demo_m1_001', 'demo_m1_002', 'demo_m1_003',
-    'demo_ecrins_vallouise', 'demo_ecrins_ailefroide',
-    'demo_ecrins_berarde', 'demo_ecrins_lauvitel',
-    'demo_ecrins_lautaret', 'demo_ecrins_valgaudemar',
-    'demo_ecrins_dormillouse', 'demo_ecrins_grave',
-    'demo_ecrins_plateau', 'demo_ecrins_alpinisme'
-);
+DELETE FROM
+    traffic.counting_objects
+WHERE
+    external_id LIKE 'demo_m1_%';
 
--- Chaque point de démo est rattaché à la maille M1 la plus proche.
--- Les géométries sont construites en Lambert-93 puis stockées en WGS84.
-CREATE TEMPORARY TABLE demo_sites ON COMMIT DROP AS
-WITH proposed_sites (
-    external_id, site_name, type_code, source_code, origin_code,
-    unit_code, practice_code, weekday_count, weekend_factor,
-    variation, longitude, latitude, installation_date
-) AS (
-    VALUES
-        ('demo_ecrins_vallouise', 'Vallouise', 'counter', 'ecocompteur', NULL, 'person', 'hiking', 155, 1.9, 1, 6.49::double precision, 44.83::double precision, DATE '2021-06-15'),
-        ('demo_ecrins_ailefroide', 'Ailefroide', 'counter', 'ecocompteur', NULL, 'person', 'hiking', 230, 2.1, 4, 6.41::double precision, 44.90::double precision, DATE '2020-07-01'),
-        ('demo_ecrins_berarde', 'La Bérarde', 'counter', 'outdoorvision', 'garmin', 'person', 'mountaineering', 82, 1.7, 7, 6.28::double precision, 44.93::double precision, DATE '2022-05-20'),
-        ('demo_ecrins_lauvitel', 'Lac du Lauvitel', 'counter', 'strava', NULL, 'person', 'hiking', 105, 1.8, 2, 6.04::double precision, 45.05::double precision, DATE '2023-04-10'),
-        ('demo_ecrins_lautaret', 'Col du Lautaret', 'segment', 'outdoorvision', 'komoot', 'bike', 'cycling', 180, 2.2, 9, 6.41::double precision, 45.04::double precision, DATE '2021-05-01'),
-        ('demo_ecrins_valgaudemar', 'Valgaudemar', 'counter', 'geotrek', NULL, 'person', 'hiking', 68, 2.0, 3, 6.18::double precision, 44.81::double precision, DATE '2022-06-01'),
-        ('demo_ecrins_dormillouse', 'Dormillouse', 'counter', 'ecocompteur', NULL, 'person', 'hiking', 74, 2.3, 11, 6.45::double precision, 44.78::double precision, DATE '2020-07-15'),
-        ('demo_ecrins_grave', 'La Grave', 'segment', 'strava', NULL, 'bike', 'mountain_biking', 132, 1.8, 5, 6.30::double precision, 45.05::double precision, DATE '2023-05-15'),
-        ('demo_ecrins_plateau', 'Plateau d’Emparis', 'counter', 'geotrek', NULL, 'person', 'trail_running', 48, 1.6, 8, 6.12::double precision, 45.02::double precision, DATE '2021-08-01'),
-        ('demo_ecrins_alpinisme', 'Vallon des Étançons', 'counter', 'outdoorvision', 'garmin', 'person', 'mountaineering', 92, 1.5, 6, 6.32::double precision, 44.91::double precision, DATE '2022-07-01')
-)
-SELECT
-    site.*,
-    area.id_area,
-    area.geom
-FROM proposed_sites site
-CROSS JOIN LATERAL (
-    SELECT la.id_area, la.geom
-    FROM ref_geo.l_areas la
-    JOIN ref_geo.bib_areas_types bat ON la.id_type = bat.id_type
-    WHERE bat.type_code = 'M1'
-      AND la.geom IS NOT NULL
-      AND la.geom_4326 && ST_Expand(
-          ST_SetSRID(ST_MakePoint(site.longitude, site.latitude), 4326),
-          0.05
-      )
-    ORDER BY ST_Distance(
+-- Grid geometries are in EPSG:2154; traffic stores EPSG:4326.
+WITH sample_areas AS (
+    SELECT
+        la.id_area,
         la.geom,
-        ST_Transform(
-            ST_SetSRID(ST_MakePoint(site.longitude, site.latitude), 4326),
-            2154
-        )
-    )
-    LIMIT 1
-) area;
-
-INSERT INTO traffic.counting_objects (
-    uuid, external_id, type_id, source_id, origin_id, geom,
-    date_create, date_update, installation_date, uninstallation_date,
-    processed, manager, image_url
+        ROW_NUMBER() OVER (
+            ORDER BY
+                la.id_area
+        ) AS position
+    FROM
+        ref_geo.l_areas la
+        JOIN ref_geo.bib_areas_types bat ON la.id_type = bat.id_type
+    WHERE
+        bat.type_code = 'M1'
+        AND la.geom IS NOT NULL
+    ORDER BY
+        la.id_area
+    LIMIT
+        3
+), sample_objects AS (
+    SELECT
+        *
+    FROM
+        (
+            VALUES
+                ('demo_m1_001', 'counter', 'outdoorvision', 1),
+                ('demo_m1_002', 'segment', 'outdoorvision', 1),
+                ('demo_m1_003', 'counter', 'ecocompteur', 1),
+                ('demo_m1_004', 'segment', 'komoot', 2),
+                ('demo_m1_005', 'counter', 'strava', 3)
+        ) AS s(external_id, type_code, source_code, position)
 )
+INSERT INTO
+    traffic.counting_objects (
+        uuid,
+        external_id,
+        type_id,
+        source_id,
+        origin_id,
+        geom,
+        date_create,
+        date_update,
+        installation_date,
+        uninstallation_date,
+        processed,
+        manager,
+        image_url
+    )
 SELECT
     gen_random_uuid(),
-    site.external_id,
-    (SELECT id FROM traffic.counting_object_types WHERE code = site.type_code),
-    (SELECT id FROM commons.data_sources WHERE code = site.source_code),
-    (SELECT id FROM commons.data_sources WHERE code = site.origin_code),
-    CASE WHEN site.type_code = 'segment' THEN
-        ST_Transform(ST_MakeLine(
-            ST_ClosestPoint(site.geom, ST_Translate(ST_PointOnSurface(site.geom), -80, -40)),
-            ST_ClosestPoint(site.geom, ST_Translate(ST_PointOnSurface(site.geom), 80, 40))
-        ), 4326)
-    ELSE ST_Transform(ST_PointOnSurface(site.geom), 4326) END,
-    CURRENT_TIMESTAMP,
-    CURRENT_TIMESTAMP,
-    site.installation_date,
+    s.external_id,
+    (
+        SELECT
+            id
+        FROM
+            traffic.counting_object_types
+        WHERE
+            code = s.type_code
+    ),
+    (
+        SELECT
+            id
+        FROM
+            commons.data_sources
+        WHERE
+            code = s.source_code
+    ),
+    NULL,
+    -- Kept well inside the 1 km cell so it intersects that cell only.
+    CASE
+        WHEN s.type_code = 'segment' THEN ST_Transform(
+            ST_MakeLine(
+                ST_Translate(ST_PointOnSurface(a.geom), -100, -100),
+                ST_Translate(ST_PointOnSurface(a.geom), 100, 100)
+            ),
+            4326
+        )
+        ELSE ST_Transform(ST_PointOnSurface(a.geom), 4326)
+    END,
+    now(),
+    now(),
+    '2022-06-01' :: date,
     NULL,
     FALSE,
-    'Démonstration · ' || site.site_name,
-    'https://example.com/outdoor-data-lab/' || site.external_id || '.jpg'
-FROM demo_sites site;
+    'Équipe de démonstration',
+    ''
+FROM
+    sample_objects s
+    JOIN sample_areas a ON a.position = s.position;
 
--- Deux semaines de fréquentation journalière, avec des pics le week-end
--- et des profils distincts selon les lieux et les pratiques.
-INSERT INTO traffic.counting_measures (
-    counting_object_id, external_id, date_create, date_update,
-    start_datetime, end_datetime, count, unit_id, practice_id, processed
-)
+-- One statement, so the refresh trigger fires once.
+INSERT INTO
+    traffic.counting_measures (
+        counting_object_id,
+        external_id,
+        date_create,
+        date_update,
+        start_datetime,
+        end_datetime,
+        count,
+        unit_id,
+        practice_id,
+        processed
+    )
 SELECT
-    counting_object.id,
-    site.external_id || '_' || TO_CHAR(calendar.measure_day, 'YYYYMMDD'),
-    CURRENT_TIMESTAMP,
-    CURRENT_TIMESTAMP,
-    calendar.measure_day::date::timestamp,
-    (calendar.measure_day::date + 1)::timestamp,
-    ROUND((site.weekday_count * CASE
-        WHEN EXTRACT(ISODOW FROM calendar.measure_day) IN (6, 7)
-            THEN site.weekend_factor
-        ELSE 1
-    END)::numeric)::integer
-        + MOD(EXTRACT(DOY FROM calendar.measure_day)::integer + site.variation, 17),
-    (SELECT id FROM traffic.units WHERE code = site.unit_code),
-    (SELECT id FROM commons.practices WHERE code = site.practice_code),
+    co.id,
+    co.external_id || '_' || to_char(d, 'YYYYMMDD'),
+    now(),
+    now(),
+    d + interval '8 hours',
+    d + interval '18 hours',
+    substr(co.external_id, 9) :: int * 10 + extract(
+        day
+        FROM
+            d
+    ) :: int,
+    (
+        SELECT
+            id
+        FROM
+            traffic.units
+        WHERE
+            code = 'person'
+    ),
+    (
+        SELECT
+            id
+        FROM
+            commons.practices
+        WHERE
+            code = 'hiking'
+    ),
     FALSE
-FROM demo_sites site
-JOIN traffic.counting_objects counting_object
-    ON counting_object.external_id = site.external_id
-CROSS JOIN GENERATE_SERIES(
-    DATE '2025-07-07', DATE '2025-07-20', INTERVAL '1 day'
-) AS calendar(measure_day);
-
-REFRESH MATERIALIZED VIEW traffic.materialized_view_counts;
+FROM
+    traffic.counting_objects co
+    CROSS JOIN LATERAL (
+        SELECT
+            (make_date(y, m, day)) :: timestamptz AS d
+        FROM
+            generate_series(
+                2023,
+                CASE
+                    WHEN co.external_id = 'demo_m1_005' THEN 2024
+                    ELSE 2023
+                END
+            ) y,
+            generate_series(1, 3) m,
+            unnest(ARRAY [5, 15, 25]) day
+    ) days
+WHERE
+    co.external_id LIKE 'demo_m1_%';
 
 COMMIT;
+
+-- Check: the view against a direct aggregate of the demo measures.
+SELECT
+    v.*
+FROM
+    traffic.materialized_view_counts v
+WHERE
+    v.id_source IN (
+        SELECT
+            source_id
+        FROM
+            traffic.counting_objects
+        WHERE
+            external_id LIKE 'demo_m1_%'
+    )
+ORDER BY
+    v.id_area,
+    v.id_source,
+    v.year,
+    v.month;
