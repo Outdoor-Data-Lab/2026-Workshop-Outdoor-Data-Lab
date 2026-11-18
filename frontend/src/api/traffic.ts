@@ -11,10 +11,10 @@ type Schemas = components['schemas']
 export type Unit = Schemas['Unit']
 export type CountingObjectType = Schemas['CountingObjectType']
 export type CountingMeasure = Schemas['CountingMeasure']
-export type SearchPredicate = Schemas['PredicateEnum']
+export type CountingObject = Schemas['CountingObject']
 
-/** Le schéma OpenAPI rend tout optionnel : on garde ses `properties`, avec une géométrie GeoJSON standard. */
-export type CountingObjectProperties = NonNullable<Schemas['CountingObject']['properties']>
+/** En GeoJSON, l'`id` passe sur la Feature : les autres champs vont dans `properties`. */
+export type CountingObjectProperties = Omit<CountingObject, 'id'>
 export type CountingObjectFeature = Feature<Geometry, CountingObjectProperties>
 export type CountingObjectCollection = FeatureCollection<Geometry, CountingObjectProperties>
 
@@ -30,61 +30,90 @@ export type Paginated<T> = {
   results: T[]
 }
 
+/** Pagination limit/offset ; le backend renvoie 50 éléments si `limit` est absent. */
+export type LimitOffset = { limit?: number; offset?: number }
+
+export type CountingObjectFilters = {
+  typeCode?: string
+  sourceCode?: string
+  originCode?: string
+  /** minlon, minlat, maxlon, maxlat (WGS84) */
+  bbox?: [number, number, number, number]
+}
+
+export type SpatialPredicate = 'intersects' | 'within' | 'contains'
+
 const BASE = '/api/traffic'
 
-const OBJECTS_PAGE_SIZE = 1000
+const OBJECTS_LIMIT = 1000
 
-type PageOptions = { page?: number; pageSize?: number }
+function countingObjectQuery(filters: CountingObjectFilters) {
+  return {
+    type_code: filters.typeCode,
+    source_code: filters.sourceCode,
+    origin_code: filters.originCode,
+    bbox: filters.bbox?.join(','),
+  }
+}
 
+/** Compteurs en GeoJSON (une page). */
 export function getCountingObjects(
-  filters: { type?: number } = {},
-  { page, pageSize = OBJECTS_PAGE_SIZE }: PageOptions = {},
+  filters: CountingObjectFilters = {},
+  { limit = OBJECTS_LIMIT, offset }: LimitOffset = {},
 ) {
-  const url = withQuery(`${BASE}/counting-object`, {
-    type: filters.type,
-    page,
-    page_size: pageSize,
+  const url = withQuery(`${BASE}/counting-objects`, {
+    format: 'geojson',
+    ...countingObjectQuery(filters),
+    limit,
+    offset,
   })
   return apiFetch<CountingObjectPage>(url)
 }
 
+/** Détail d'un compteur, en JSON (sans géométrie). */
 export function getCountingObject(id: number) {
-  return apiFetch<CountingObjectFeature>(`${BASE}/counting-object/${id}`)
+  return apiFetch<CountingObject>(`${BASE}/counting-objects/${id}`)
 }
 
-/** Compteurs qui intersectent ou sont contenus dans `geometry`. */
+/** Compteurs qui intersectent, sont contenus dans ou contiennent `geometry`. */
 export function searchCountingObjects(
   geometry: Geometry,
-  predicate: SearchPredicate = 'intersects',
-  filters: { type?: number } = {},
-  { page, pageSize = OBJECTS_PAGE_SIZE }: PageOptions = {},
+  predicate: SpatialPredicate = 'intersects',
+  filters: CountingObjectFilters = {},
+  { limit = OBJECTS_LIMIT, offset }: LimitOffset = {},
 ) {
-  const url = withQuery(`${BASE}/counting-object/search`, {
-    type: filters.type,
-    page,
-    page_size: pageSize,
+  const url = withQuery(`${BASE}/counting-objects`, {
+    format: 'geojson',
+    ...countingObjectQuery(filters),
+    [predicate]: JSON.stringify(geometry),
+    limit,
+    offset,
   })
-  return apiFetch<CountingObjectPage>(url, {
-    method: 'POST',
-    body: JSON.stringify({ geometry, predicate }),
-  })
+  return apiFetch<CountingObjectPage>(url)
 }
 
-/** Pages de 50, taille fixée par le backend. */
-export function getMeasures(countingObjectId: number, { page }: { page?: number } = {}) {
-  const url = withQuery(`${BASE}/counting-measure`, { counting_object: countingObjectId, page })
+export function getMeasures(
+  countingObjectId: number,
+  filters: { unitCode?: string; practiceCode?: string } = {},
+  { limit, offset }: LimitOffset = {},
+) {
+  const url = withQuery(`${BASE}/counting-measures`, {
+    counting_object: countingObjectId,
+    unit_code: filters.unitCode,
+    practice_code: filters.practiceCode,
+    limit,
+    offset,
+  })
   return apiFetch<Paginated<CountingMeasure>>(url)
 }
 
-type LimitOffset = { limit?: number; offset?: number }
-
 export function getUnits({ limit, offset }: LimitOffset = {}) {
-  return apiFetch<Paginated<Unit>>(withQuery(`${BASE}/unit`, { limit, offset }))
+  return apiFetch<Paginated<Unit>>(withQuery(`${BASE}/units`, { limit, offset }))
 }
 
 export function getCountingObjectTypes({ limit, offset }: LimitOffset = {}) {
   return apiFetch<Paginated<CountingObjectType>>(
-    withQuery(`${BASE}/counting-object-type`, { limit, offset }),
+    withQuery(`${BASE}/counting-object-types`, { limit, offset }),
   )
 }
 
@@ -92,9 +121,7 @@ export function getCountingObjectTypes({ limit, offset }: LimitOffset = {}) {
 
 export const COUNTING_OBJECT_LAYER: LayerId = 'traffic/counting-object'
 
-export type CountingObjectMapObject = MapObject<CountingObjectProperties>
-
-export function countingObjectToMapObject(feature: CountingObjectFeature): CountingObjectMapObject {
+export function countingObjectToMapObject(feature: CountingObjectFeature): MapObject {
   // GeoFeatureModelSerializer met la clé primaire sur la Feature.
   if (feature.id === undefined) throw new Error('Compteur sans identifiant dans la réponse API')
   return {
@@ -104,11 +131,10 @@ export function countingObjectToMapObject(feature: CountingObjectFeature): Count
     layer: COUNTING_OBJECT_LAYER,
     label: feature.properties.external_id || `Compteur ${feature.id}`,
     geometry: feature.geometry,
-    properties: feature.properties,
   }
 }
 
-export async function getCountingObjectsForMap(filters: { type?: number } = {}) {
+export async function getCountingObjectsForMap(filters: CountingObjectFilters = {}) {
   const page = await getCountingObjects(filters)
   return page.features.map(countingObjectToMapObject)
 }
