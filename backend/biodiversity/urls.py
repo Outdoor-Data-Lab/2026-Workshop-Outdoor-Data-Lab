@@ -6,9 +6,14 @@ app_name = "biodiversity"
 
 router = DefaultRouter()
 router.register(
-    "taxon-status-areas",
-    views.TaxonStatusAreaViewSet,
-    basename="taxon-status-area",
+    "synthetic_data",
+    views.BiodivSyntheticDataAreaViewSet,
+    basename="biodiv-synthetic-data",
+)
+router.register(
+    "list_taxa",
+    views.BiodivListTaxaAreaViewSet,
+    basename="biodiv-list-taxa",
 )
 
 urlpatterns = router.urls

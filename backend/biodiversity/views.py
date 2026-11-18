@@ -5,23 +5,35 @@ from rest_framework_gis.filters import InBBoxFilter
 
 from ref_geo.filters import LAreaFilter
 from ref_geo.pagination import GeoJsonLimitOffsetPagination
-from rest_framework_gis.filters import InBBoxFilter
+
 from . import serializers
-from .querysets import GRID
+from .querysets import GRID, TAXA_GRID
 
 
-class TaxonStatusAreaViewSet(viewsets.ReadOnlyModelViewSet):
-    """Taxon status counts per 1 km area.
+class TaxonAreaViewSet(viewsets.ReadOnlyModelViewSet):
+    """Base read-only geographic view filtered with a WGS84 ``in_bbox``."""
 
-    Use ``bbox=minlon,minlat,maxlon,maxlat`` to restrict the returned areas.
-    Coordinates are WGS84 longitudes and latitudes.
-    """
+    pagination_class = GeoJsonLimitOffsetPagination
+    filter_backends = [
+        InBBoxFilter,
+        DjangoFilterBackend,
+        drf_filters.OrderingFilter,
+    ]
+    filterset_class = LAreaFilter
+    ordering_fields = ("id_area", "area_code", "area_name")
+    bbox_filter_field = "geom_4326"
+    bbox_filter_include_overlapping = True
+
+
+class BiodivSyntheticDataAreaViewSet(TaxonAreaViewSet):
+    """Protected and threatened taxon counts per configured grid area."""
 
     queryset = GRID.order_by("id_area")
     serializer_class = serializers.TaxonStatusAreaSerializer
-    pagination_class = GeoJsonLimitOffsetPagination
-    filter_backends = [InBBoxFilter, DjangoFilterBackend, drf_filters.OrderingFilter,]
-    search_area = ['area_code', 'area_name', 'type__type_code']
-    filterset_class = LAreaFilter
-    ordering_fields = ("id_area", "area_code", "area_name")
-    bbox_filter_include_overlapping = True
+
+
+class BiodivListTaxaAreaViewSet(TaxonAreaViewSet):
+    """Protected or threatened taxa, nested within each grid area."""
+
+    queryset = TAXA_GRID.order_by("id_area")
+    serializer_class = serializers.TaxonListAreaSerializer
