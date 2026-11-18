@@ -23,3 +23,4 @@ Exemples :
 | Habitats du PNE (Delphine), 52 Mo | `https://data.ecrins-parcnational.fr/files/Habitats_Delphine_PNE.geojson` |
 | Zones humides du PNE | `https://data.ecrins-parcnational.fr/files/Zones_humides_PNE.geojson` |
 | Alpages du PNE | `https://data.ecrins-parcnational.fr/files/alpages-pne.geojson` |
+| Signalements Suricate du PNE, 2023-2025 | `https://data.ecrins-parcnational.fr/files/Suricate-PNE-2023-2025.geojson` |
