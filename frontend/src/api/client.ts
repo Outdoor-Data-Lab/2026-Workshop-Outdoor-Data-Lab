@@ -1,5 +1,5 @@
 /** Client HTTP de l'API Django, via le proxy Vite `/api`. */
-import type { Feature } from 'geojson'
+import type { Feature, FeatureCollection, GeoJsonProperties, Geometry } from 'geojson'
 
 export class ApiError extends Error {
   constructor(
@@ -25,6 +25,16 @@ export type Paginated<T> = {
   next?: string | null
   previous?: string | null
   results: T[]
+}
+
+/** Page d'une liste demandée avec `?format=geojson` (`GeoJsonLimitOffsetPagination`). */
+export type GeoJsonPage<
+  G extends Geometry | null = Geometry,
+  P = GeoJsonProperties,
+> = FeatureCollection<G, P> & {
+  count: number
+  next: string | null
+  previous: string | null
 }
 
 /** Pagination limit/offset ; le backend renvoie 50 éléments si `limit` est absent. */

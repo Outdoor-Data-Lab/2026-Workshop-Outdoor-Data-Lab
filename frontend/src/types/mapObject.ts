@@ -1,7 +1,7 @@
 import type { Geometry } from 'geojson'
 
 /** `external` : couches GeoJSON d'autres sites, hors concepts, cochées au choix de l'utilisateur. */
-export type Domain = 'traffic' | 'biodiversity' | 'external'
+export type Domain = 'traffic' | 'biodiversity' | 'outdoor' | 'external'
 
 export type LayerId = `${Domain}/${string}`
 
@@ -38,5 +38,6 @@ export function layerDomain(layer: LayerId): Domain {
 export const DOMAIN_COLORS: Record<Domain, string> = {
   traffic: '#e4572e',
   biodiversity: '#2e9e5b',
+  outdoor: '#8e44ad',
   external: '#3388ff',
 }

@@ -131,10 +131,10 @@ export const useLayersStore = defineStore('layers', () => {
     return CONCEPTS.find((c) => c.id === concept.value)!.domains.includes(layerDomain(layer))
   }
 
-  /** Les couches ajoutées sont affichées si elles relèvent du concept actif (jamais les externes). */
+  /** Les couches ajoutées sont décochées : l'utilisateur choisit celles à afficher. */
   function addDefinitions(added: LayerDefinition[]) {
     definitions.value = [...definitions.value, ...added]
-    for (const definition of added) setVisible(definition.id, inConcept(definition.id))
+    for (const definition of added) setVisible(definition.id, false)
   }
 
   /** Change de concept et réinitialise la visibilité des couches, sauf des externes. */

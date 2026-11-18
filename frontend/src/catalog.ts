@@ -1,5 +1,6 @@
 /** Couches proposées, construites depuis les tables de référence de l'API. */
 import { getExternalLayers, getFeatures } from '@/api/externalLayers'
+import { OFFER_LAYER, getOffersForMap } from '@/api/outdoor'
 import {
   TRAFFIC_AREA_LAYER,
   getCountingObjectTypes,
@@ -35,6 +36,18 @@ export async function trafficLayers(): Promise<LayerDefinition[]> {
       label: i18n.global.t('layers.trafficAreas'),
       group: 'traffic',
       load: () => getTrafficAreasForMap(),
+    },
+  ]
+}
+
+/** Offres d'activités outdoor. */
+export async function outdoorLayers(): Promise<LayerDefinition[]> {
+  return [
+    {
+      id: OFFER_LAYER,
+      label: i18n.global.t('layers.outdoorOffers'),
+      group: 'outdoor',
+      load: () => getOffersForMap(),
     },
   ]
 }

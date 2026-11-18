@@ -8,6 +8,7 @@ export default {
   },
   layerGroups: {
     traffic: 'Traffic',
+    outdoor: 'Outdoor',
     external: 'External layers',
   },
   /** Valeurs de référence de l'API, par code (repli : le libellé de l'API). */
@@ -20,6 +21,7 @@ export default {
     failed: '(failed)',
     trafficAreas: 'Traffic per grid cell',
     trafficArea: 'Cell {id}: score {score}',
+    outdoorOffers: 'Outdoor offers',
     loadError: 'Could not load {label}',
   },
   legend: {

@@ -50,7 +50,15 @@ function selectionPaint(): Record<string, Record<string, ExpressionSpecification
         0.3,
       ]),
     },
-    outline: { 'line-width': whenSelected(3, 1.5) },
+    // Pas de contour sur les mailles colorées, sauf sélectionnées.
+    outline: {
+      'line-width': whenSelected<number | ExpressionSpecification>(3, [
+        'case',
+        ['has', 'value'],
+        0,
+        1.5,
+      ]),
+    },
     line: { 'line-width': whenSelected(6, 3) },
     point: {
       'circle-radius': whenSelected(9, 6),
@@ -91,7 +99,8 @@ function layerSpecs(source: LayerId): LayerSpecification[] {
       type: 'fill',
       source,
       filter: isPolygon,
-      paint: { 'fill-color': fillColor(source), ...sel.fill },
+      // Sans antialiasing : les bords lissés des mailles voisines se superposaient en traits sombres.
+      paint: { 'fill-color': fillColor(source), 'fill-antialias': false, ...sel.fill },
     },
     {
       id: `${source}/outline`,

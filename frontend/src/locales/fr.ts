@@ -9,6 +9,7 @@ export default {
   },
   layerGroups: {
     traffic: 'Fréquentation',
+    outdoor: 'Outdoor',
     external: 'Couches externes',
   },
   countingObjectTypes: {
@@ -20,6 +21,7 @@ export default {
     failed: '(échec)',
     trafficAreas: 'Fréquentation par maille',
     trafficArea: 'Maille {id} : score {score}',
+    outdoorOffers: 'Offres outdoor',
     loadError: 'Impossible de charger {label}',
   },
   legend: {
