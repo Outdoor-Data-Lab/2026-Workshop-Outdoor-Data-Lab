@@ -1,14 +1,19 @@
 /** Couches proposées, construites depuis les tables de référence de l'API. */
 import { getExternalLayers, getFeatures } from '@/api/externalLayers'
-import { getCountingObjectTypes, getCountingObjectsForMap } from '@/api/traffic'
-import { referenceLabel } from '@/i18n'
+import {
+  TRAFFIC_AREA_LAYER,
+  getCountingObjectTypes,
+  getCountingObjectsForMap,
+  getTrafficAreasForMap,
+} from '@/api/traffic'
+import { i18n, referenceLabel } from '@/i18n'
 import type { LayerDefinition } from '@/stores/layers'
 import { mapObjectKey, type LayerId, type MapObject } from '@/types/mapObject'
 
-/** Une couche par type de compteur. */
+/** Une couche par type de compteur, puis la fréquentation par maille. */
 export async function trafficLayers(): Promise<LayerDefinition[]> {
   const { results } = await getCountingObjectTypes()
-  return results.map((type) => {
+  const byType = results.map((type): LayerDefinition => {
     const id: LayerId = `traffic/${type.code}`
     return {
       id,
@@ -23,6 +28,15 @@ export async function trafficLayers(): Promise<LayerDefinition[]> {
         })),
     }
   })
+  return [
+    ...byType,
+    {
+      id: TRAFFIC_AREA_LAYER,
+      label: i18n.global.t('layers.trafficAreas'),
+      group: 'traffic',
+      load: () => getTrafficAreasForMap(),
+    },
+  ]
 }
 
 /** Une couche par couche externe déclarée dans l'admin, colorée selon un attribut si demandé. */

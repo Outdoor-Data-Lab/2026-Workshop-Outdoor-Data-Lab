@@ -29,13 +29,15 @@ export type Paginated<T> = {
 /** Pagination limit/offset ; le backend renvoie 50 éléments si `limit` est absent. */
 export type LimitOffset = { limit?: number; offset?: number }
 
-type QueryValue = string | number | boolean | null | undefined
+type QueryScalar = string | number | boolean
+type QueryValue = QueryScalar | QueryScalar[] | null | undefined
 
-/** Ajoute une query string, sans les valeurs null/undefined. */
+/** Ajoute une query string, sans les valeurs null/undefined. Un tableau répète la clé. */
 export function withQuery(path: string, params: Record<string, QueryValue> = {}): string {
   const query = new URLSearchParams()
   for (const [key, value] of Object.entries(params)) {
-    if (value !== null && value !== undefined) query.set(key, String(value))
+    if (value === null || value === undefined) continue
+    for (const item of Array.isArray(value) ? value : [value]) query.append(key, String(item))
   }
   const qs = query.toString()
   return qs ? `${path}?${qs}` : path

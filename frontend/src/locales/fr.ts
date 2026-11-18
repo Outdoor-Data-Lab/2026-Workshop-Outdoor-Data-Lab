@@ -18,7 +18,13 @@ export default {
   layers: {
     loading: '(chargement)',
     failed: '(échec)',
+    trafficAreas: 'Fréquentation par maille',
     loadError: 'Impossible de charger {label}',
+  },
+  legend: {
+    title: 'Légende',
+    counters: 'Compteurs',
+    trafficAreas: 'Fréquentation par maille (score)',
   },
   detail: {
     title: 'Détail',

@@ -18,7 +18,13 @@ export default {
   layers: {
     loading: '(loading)',
     failed: '(failed)',
+    trafficAreas: 'Traffic per grid cell',
     loadError: 'Could not load {label}',
+  },
+  legend: {
+    title: 'Legend',
+    counters: 'Counters',
+    trafficAreas: 'Traffic per grid cell (score)',
   },
   detail: {
     title: 'Detail',

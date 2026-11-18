@@ -18,6 +18,7 @@ export interface MapFeatureProperties {
   key: string
   label: string
   color?: string
+  value?: number
 }
 
 /** Couche proposée à l'utilisateur. `load` est appelé au premier affichage. */
@@ -66,7 +67,12 @@ export const useLayersStore = defineStore('layers', () => {
         features: objects.map((o) => ({
           type: 'Feature',
           geometry: o.geometry,
-          properties: { key: o.key, label: o.label, color: o.color },
+          properties: {
+            key: o.key,
+            label: o.label,
+            color: o.color,
+            ...(o.value !== undefined && { value: o.value }),
+          },
         })),
       }
       collectionOf.set(objects, collection)
