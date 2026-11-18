@@ -123,10 +123,19 @@ class CountingObject(models.Model):
         return self.external_id or str(self.uuid)
 
 
-class CountingMeasure(models.Model):
-    """A count recorded by a counting object over a time interval."""
+# Key of a measure (see counting_measure_unique_period): the parsers upsert on it.
+MEASURE_KEY = ["counting_object", "start_datetime", "end_datetime", "practice", "unit"]
 
-    # No standalone index: the (counting_object, start_datetime) index covers it.
+
+class CountingMeasure(models.Model):
+    """A count recorded by a counting object over a time interval.
+
+    An object may have measures of different lengths over the same period (a
+    Strava edge gets a yearly measure and daily ones): do not add up its
+    measures without choosing one length.
+    """
+
+    # No standalone index: the counting_measure_unique_period index starts with it.
     counting_object = models.ForeignKey(
         CountingObject,
         on_delete=models.CASCADE,
@@ -160,11 +169,12 @@ class CountingMeasure(models.Model):
                 condition=Q(end_datetime__gt=F("start_datetime")),
                 name="counting_measure_end_after_start",
             ),
-        ]
-        indexes = [
-            models.Index(
-                fields=["counting_object", "start_datetime"],
-                name="counting_measure_object_start",
+            # One count per object, period, practice and unit: a re-import updates
+            # it instead of adding a duplicate. An empty practice counts as a value.
+            models.UniqueConstraint(
+                fields=MEASURE_KEY,
+                nulls_distinct=False,
+                name="counting_measure_unique_period",
             ),
         ]
 
