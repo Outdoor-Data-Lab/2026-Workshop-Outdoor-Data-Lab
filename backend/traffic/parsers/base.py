@@ -5,21 +5,26 @@ row per measure, with the columns of MEASURE_COLUMNS. Lines it deliberately skip
 are counted in `skipped_lines` and saved as the import's error_numbers.
 
 Saving is the same for every source: missing objects are created in bulk, and
-measures are upserted on their key (object, start, end, practice, unit). A
-re-import updates the count of the measures it contains and leaves the others:
-a yearly and a daily measure of the same edge, or two practices over the same
-period, never replace each other. A measure missing from the new file is kept.
+the measures the file gives again are replaced: those of an already known object
+with the same start, end, practice and unit are deleted before the file's
+measures are inserted. A re-import thus replaces the measures it contains and
+leaves the others: a yearly and a daily measure of the same edge, or two
+practices over the same period, never replace each other. A measure missing
+from the new file is kept.
+
+Nothing in the database forbids two measures with the same key: only the
+parsers avoid creating them.
 """
 
 from abc import ABC, abstractmethod
 
 import pandas as pd
 from django.contrib.gis.geos import GEOSGeometry
-from django.db import transaction
+from django.db import connection, transaction
 
 from commons.models import DataImport, Practice
 
-from ..models import MEASURE_KEY, CountingMeasure, CountingObject, CountingObjectType, Unit
+from ..models import CountingMeasure, CountingObject, CountingObjectType, Unit
 
 MEASURE_COLUMNS = ["external_id", "geometry", "start_datetime", "end_datetime", "count", "activity"]
 BATCH_SIZE = 5000
@@ -53,7 +58,8 @@ class TrafficParser(ABC):
         unit = Unit.objects.get(code=self.UNIT)
 
         with transaction.atomic():
-            object_ids = self._save_objects(rows, object_type)
+            object_ids, known = self._save_objects(rows, object_type)
+            self._delete_given_measures(rows[rows.external_id.isin(known)], object_ids, practices, unit)
             CountingMeasure.objects.bulk_create(
                 (
                     CountingMeasure(
@@ -67,9 +73,6 @@ class TrafficParser(ABC):
                     for row in rows.itertuples()
                 ),
                 batch_size=BATCH_SIZE,
-                update_conflicts=True,
-                unique_fields=MEASURE_KEY,
-                update_fields=["count", "date_update"],
             )
             self.data_import.line_numbers = line_count
             self.data_import.error_numbers = self.skipped_lines
@@ -84,7 +87,7 @@ class TrafficParser(ABC):
         return {activity: by_code[code] for activity, code in self.PRACTICE_CODES.items()}
 
     def _check_no_duplicates(self, rows: pd.DataFrame) -> None:
-        """Refuse a file giving two counts for the same measure key: the upsert would keep only one."""
+        """Refuse a file giving two counts for the same measure key: both would be added up."""
         key = rows[["external_id", "start_datetime", "end_datetime"]].assign(
             practice=rows["activity"].map(self.PRACTICE_CODES)
         )
@@ -96,8 +99,9 @@ class TrafficParser(ABC):
                 f"par exemple {first.external_id} à partir du {first.start_datetime}."
             )
 
-    def _save_objects(self, rows, object_type) -> dict[str, int]:
-        """Create the objects not imported yet; return the ids of all objects by external id."""
+    def _save_objects(self, rows, object_type) -> tuple[dict[str, int], set[str]]:
+        """Create the objects not imported yet; return the ids of all objects by
+        external id, and the external ids of the objects that already existed."""
         objects = CountingObject.objects.filter(source=self.source)
         known = set(objects.values_list("external_id", flat=True))
         new = rows.drop_duplicates("external_id").loc[lambda r: ~r.external_id.isin(known)]
@@ -113,4 +117,30 @@ class TrafficParser(ABC):
             ),
             batch_size=BATCH_SIZE,
         )
-        return dict(objects.values_list("external_id", "id"))
+        return dict(objects.values_list("external_id", "id")), known
+
+    def _delete_given_measures(self, rows, object_ids, practices, unit) -> None:
+        """Delete the measures that the rows give again: same object, start, end, practice and unit."""
+        table = connection.ops.quote_name(CountingMeasure._meta.db_table)
+        # One query per batch: the keys are passed as arrays, and the lookup uses
+        # the (counting_object, start_datetime) index.
+        sql = f"""
+            DELETE FROM {table} AS m
+            USING unnest(%s::bigint[], %s::timestamptz[], %s::timestamptz[], %s::bigint[])
+                AS k(object_id, start_at, end_at, practice_id)
+            WHERE m.counting_object_id = k.object_id AND m.start_datetime = k.start_at
+              AND m.end_datetime = k.end_at AND m.practice_id = k.practice_id AND m.unit_id = %s
+        """
+        with connection.cursor() as cursor:
+            for i in range(0, len(rows), BATCH_SIZE):
+                batch = rows.iloc[i : i + BATCH_SIZE]
+                cursor.execute(
+                    sql,
+                    [
+                        [object_ids[uid] for uid in batch.external_id],
+                        [start.to_pydatetime() for start in batch.start_datetime],
+                        [end.to_pydatetime() for end in batch.end_datetime],
+                        [practices[activity].pk for activity in batch.activity],
+                        unit.pk,
+                    ],
+                )
