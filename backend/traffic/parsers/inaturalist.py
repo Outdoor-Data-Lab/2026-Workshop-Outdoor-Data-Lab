@@ -60,16 +60,16 @@ OBSCURED_UNCERTAINTY = 27_000
 class INaturalistParser(TrafficParser):
     NAME = "iNaturalist"
     CONTENT = (
-        "Contient des observations naturalistes (points), dont seuls les observateurs sont gardés : "
-        "un observateur un jour donné compte comme un passage, localisé par les points de ses observations "
-        "de la journée. Ces points ne sont pas reliés en trace : le trajet réel n'est pas connu. "
-        "Les espèces ne sont pas importées."
+        "Holds naturalist observations (points), of which only the observers are kept: "
+        "an observer on a given day counts as one passage, located by the points of their observations "
+        "of the day. These points are not joined into a track: the actual route is not known. "
+        "Species are not imported."
     )
     EXAMPLE = (
-        "Export du site iNaturalist (zip contenant observations-*.csv, même si son nom finit par .csv) ou "
-        "téléchargement GBIF des observations iNaturalist (zip, CSV séparé par des tabulations). Ex. : "
-        "iNaturalist-observations-816641.csv, GBIF-iNaturalist-0012597-261110092616502.zip. Importer les deux "
-        "ne compte pas deux fois un même observateur le même jour."
+        "Export from the iNaturalist site (zip holding observations-*.csv, even if its name ends with .csv) or "
+        "GBIF download of the iNaturalist observations (zip, tab-separated CSV). E.g. "
+        "iNaturalist-observations-816641.csv, GBIF-iNaturalist-0012597-261110092616502.zip. Importing both "
+        "does not count the same observer twice on the same day."
     )
     # Observers are assumed on foot: the files do not say how they moved.
     PRACTICE_CODES = {"observation": "walking"}
@@ -91,7 +91,7 @@ class INaturalistParser(TrafficParser):
         keep = ~obscured & name.fillna("").ne("") & day.notna() & latitude.notna() & longitude.notna()
         self.skipped_lines = int((~keep).sum())
         if not keep.any():
-            raise ValueError(f"Le fichier {format_name} ne contient aucune observation utilisable.")
+            raise ValueError(f"The {format_name} file holds no usable observation.")
 
         points = pd.DataFrame({"name": name, "day": day, "lat": latitude, "lon": longitude})[keep]
         # Sorted by outing: shapely builds the multipoints from consecutive points.
@@ -124,7 +124,7 @@ class INaturalistParser(TrafficParser):
                     name for name in archive.namelist() if name.lower().endswith(".csv") and not name.startswith("__MACOSX/")
                 ]
                 if len(csv_names) != 1:
-                    raise ValueError(f"L'archive iNaturalist doit contenir un seul .csv (trouvé : {len(csv_names)}).")
+                    raise ValueError(f"The iNaturalist archive must hold a single .csv (found: {len(csv_names)}).")
                 data = archive.read(csv_names[0])
         header = data[: data.find(b"\n")].decode("utf-8-sig", errors="replace")
         separator = "\t" if "\t" in header else ","
@@ -135,8 +135,8 @@ class INaturalistParser(TrafficParser):
                     io.BytesIO(data), sep=separator, usecols=list(columns.values()), dtype=str, low_memory=False
                 )
                 return format_name, lines
-        expected = " ; ".join(f"{name} : {', '.join(columns.values())}" for name, columns in FORMATS.items())
-        raise ValueError(f"Colonnes iNaturalist non reconnues. Attendues ({expected}).")
+        expected = "; ".join(f"{name}: {', '.join(columns.values())}" for name, columns in FORMATS.items())
+        raise ValueError(f"Unrecognised iNaturalist columns. Expected ({expected}).")
 
 
 def observer_day_id(name: str, day: pd.Timestamp) -> str:

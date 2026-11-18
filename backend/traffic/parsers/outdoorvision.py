@@ -16,12 +16,12 @@ REQUIRED_COLUMNS = {"id", "track_id", "date_start", "date_end", "activity", "geo
 class OutdoorVisionParser(TrafficParser):
     NAME = "Outdoorvision"
     CONTENT = (
-        "Contient des traces GPS de sorties (lignes) : les morceaux d'une même sortie (track_id) "
-        "sont réunis, et chaque sortie compte comme un passage."
+        "Holds GPS tracks of outings (lines): the pieces of the same outing (track_id) "
+        "are merged, and each outing counts as one passage."
     )
     EXAMPLE = (
-        "GPKG de traces brutes, un fichier à la fois. Ex. : Export_Traces_PNR_Vercors_12.gpkg "
-        "(colonnes id, track_id, activity, date_start, date_end). Le .hdf livré à côté est inutile."
+        "GPKG of raw tracks, one file at a time. E.g. Export_Traces_PNR_Vercors_12.gpkg "
+        "(columns id, track_id, activity, date_start, date_end). The .hdf delivered with it is not needed."
     )
     # Outdoorvision activity -> commons practice code (any level of the hierarchy).
     PRACTICE_CODES = {
@@ -38,38 +38,38 @@ class OutdoorVisionParser(TrafficParser):
             try:
                 tracks = gpd.read_file(source_file)
             except DataSourceError as error:
-                raise ValueError("Le fichier Outdoorvision n'est pas un GPKG lisible.") from error
+                raise ValueError("The Outdoorvision file is not a readable GPKG.") from error
 
         missing = REQUIRED_COLUMNS.difference(tracks.columns)
         if missing:
-            raise ValueError(f"Colonnes Outdoorvision manquantes : {', '.join(sorted(missing))}")
+            raise ValueError(f"Missing Outdoorvision columns: {', '.join(sorted(missing))}")
         if tracks.crs is None:
-            raise ValueError("Le fichier Outdoorvision ne définit aucun SCR.")
+            raise ValueError("The Outdoorvision file defines no coordinate reference system.")
         if tracks.empty:
-            raise ValueError("Le fichier Outdoorvision ne contient aucune donnée.")
+            raise ValueError("The Outdoorvision file holds no data.")
         if tracks["track_id"].isna().any():
-            raise ValueError("Certaines lignes Outdoorvision n'ont pas de track_id.")
+            raise ValueError("Some Outdoorvision lines have no track_id.")
         if tracks["activity"].isna().any():
-            raise ValueError("Certaines lignes Outdoorvision n'ont pas d'activité.")
+            raise ValueError("Some Outdoorvision lines have no activity.")
         if tracks.geometry.isna().any() or tracks.geometry.is_empty.any():
-            raise ValueError("Certaines lignes Outdoorvision n'ont pas de géométrie.")
+            raise ValueError("Some Outdoorvision lines have no geometry.")
         for column in ("date_start", "date_end"):
             tracks[column] = pd.to_datetime(tracks[column], errors="coerce", utc=True)
             if tracks[column].isna().any():
-                raise ValueError(f"Certaines valeurs de {column} ne sont pas des dates valides.")
+                raise ValueError(f"Some {column} values are not valid dates.")
 
         tracks["track_id"] = tracks["track_id"].astype(str)
         tracks["activity"] = tracks["activity"].astype(str).str.strip().str.lower()
         several = tracks.groupby("track_id")["activity"].nunique().loc[lambda n: n > 1]
         if not several.empty:
-            raise ValueError(f"Plusieurs activités sont associées au track_id {several.index[0]}.")
+            raise ValueError(f"Several activities are given for track_id {several.index[0]}.")
 
         outings = tracks.to_crs(4326).dissolve(
             by="track_id", aggfunc={"date_start": "min", "date_end": "max", "activity": "first"}
         )
         backwards = outings.index[outings.date_end <= outings.date_start]
         if len(backwards):
-            raise ValueError(f"La date de fin du track_id {backwards[0]} doit suivre sa date de début.")
+            raise ValueError(f"The end date of track_id {backwards[0]} must follow its start date.")
 
         outings = outings.reset_index()
         rows = pd.DataFrame(

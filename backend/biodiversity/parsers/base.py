@@ -69,6 +69,6 @@ class BiodiversityRecordParser(ImportParser):
         unknown = set(codes).difference(by_code)
         if unknown:
             raise ValueError(
-                f"Référentiels {self.NAME} inconnus : {', '.join(sorted(unknown))}"
+                f"Unknown {self.NAME} referentials: {', '.join(sorted(unknown))}"
             )
         return by_code

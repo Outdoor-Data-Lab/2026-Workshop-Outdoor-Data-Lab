@@ -49,7 +49,7 @@ class TrafficParser(ImportParser):
         """Create the missing counting objects, then replace the measures the file gives again."""
         missing = set(MEASURE_COLUMNS).difference(rows.columns)
         if missing:
-            raise ValueError(f"{type(self).__name__}.read() sans les colonnes : {', '.join(sorted(missing))}")
+            raise ValueError(f"{type(self).__name__}.read() without the columns: {', '.join(sorted(missing))}")
         practices = self._practices(rows["activity"])
         self._check_no_duplicates(rows)
         object_type = CountingObjectType.objects.get(code=self.OBJECT_TYPE)
@@ -76,7 +76,7 @@ class TrafficParser(ImportParser):
     def _practices(self, activities: pd.Series) -> dict[str, Practice]:
         unknown = set(activities).difference(self.PRACTICE_CODES)
         if unknown:
-            raise ValueError(f"Activités {self.NAME} inconnues : {', '.join(sorted(unknown))}")
+            raise ValueError(f"Unknown {self.NAME} activities: {', '.join(sorted(unknown))}")
         by_code = Practice.objects.in_bulk(set(self.PRACTICE_CODES.values()), field_name="code")
         return {activity: by_code[code] for activity, code in self.PRACTICE_CODES.items()}
 
@@ -89,8 +89,8 @@ class TrafficParser(ImportParser):
         if duplicated.any():
             first = rows[duplicated].iloc[0]
             raise ValueError(
-                f"Mesures {self.NAME} en double (même objet, période et pratique) : {duplicated.sum()}, "
-                f"par exemple {first.external_id} à partir du {first.start_datetime}."
+                f"Duplicate {self.NAME} measures (same object, period and practice): {duplicated.sum()}, "
+                f"e.g. {first.external_id} from {first.start_datetime}."
             )
 
     def _save_objects(self, rows, object_type) -> tuple[dict[str, int], set[str]]:

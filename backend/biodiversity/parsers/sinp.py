@@ -32,11 +32,11 @@ REQUIRED = [
 class SINPParser(BiodiversityRecordParser):
     NAME = "SINP"
     CONTENT = (
-        "Contient des observations d'espèces (une géométrie par observation, le plus souvent un point), "
-        "avec leur taxon TaxRef."
+        "Holds species observations (one geometry per observation, most often a point), "
+        "with their TaxRef taxon."
     )
     EXAMPLE = (
-        "CSV séparé par des points-virgules, export de la synthèse GeoNature (SINP), colonnes id_perm_sinp, "
+        "Semicolon-separated CSV, export of the GeoNature synthesis (SINP), columns id_perm_sinp, "
         "cd_nom, cd_ref, nom_valide, date_debut, date_fin, wkt_4326, precision, jdd_uuid."
     )
 
@@ -54,15 +54,15 @@ class SINPParser(BiodiversityRecordParser):
 
         missing = set(COLUMNS).difference(data.columns)
         if missing:
-            raise ValueError(f"Colonnes SINP manquantes : {', '.join(sorted(missing))}")
+            raise ValueError(f"Missing SINP columns: {', '.join(sorted(missing))}")
         if data.empty:
-            raise ValueError("Le fichier SINP ne contient aucune observation.")
+            raise ValueError("The SINP file holds no observation.")
 
         rows = data.rename(columns=COLUMNS)
         incomplete = rows[REQUIRED].isna().any(axis=1)
         if incomplete.any():
             lines = ", ".join(str(i + 2) for i in rows.index[incomplete][:10])
-            raise ValueError(f"Observations SINP incomplètes (lignes {lines}).")
+            raise ValueError(f"Incomplete SINP observations (lines {lines}).")
 
         for column in ("record_start_date", "record_end_date"):
             rows[column] = pd.to_datetime(rows[column], format="ISO8601").dt.date

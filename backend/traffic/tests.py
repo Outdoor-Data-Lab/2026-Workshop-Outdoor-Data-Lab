@@ -289,18 +289,18 @@ class OutdoorVisionParserTests(TrafficTestCase):
         self.assertEqual((CountingObject.objects.count(), CountingMeasure.objects.count()), (2, 2))
 
     def test_unknown_activity_imports_nothing(self):
-        with self.assertRaisesMessage(ValueError, "inconnues : swimming"):
+        with self.assertRaisesMessage(ValueError, "activities: swimming"):
             self.run_import([(1, "t1", "swimming", *self.ROWS[0][3:])])
         self.assertFalse(CountingObject.objects.exists())
 
     def test_missing_column_is_rejected(self):
-        with self.assertRaisesMessage(ValueError, "manquantes : track_id"):
+        with self.assertRaisesMessage(ValueError, "columns: track_id"):
             self.run_import(drop=["track_id"])
 
     def test_unreadable_file_is_rejected(self):
         data_import = DataImport(source=self.source)
         data_import.file.save("export.gpkg", ContentFile(b"not a GeoPackage"))
-        with self.assertRaisesMessage(ValueError, "pas un GPKG lisible"):
+        with self.assertRaisesMessage(ValueError, "not a readable GPKG"):
             OutdoorVisionParser(data_import).import_data()
 
 
@@ -380,20 +380,19 @@ class StravaParserTests(TrafficTestCase):
         self.assertEqual(sorted(practices), ["cycling", "cycling", "walking", "walking"])
 
     def test_duplicate_measures_are_refused(self):
-        with self.assertRaisesMessage(ValueError, "Mesures Strava en double (même objet, période et pratique) : 1"):
+        with self.assertRaisesMessage(ValueError, "Duplicate Strava measures (same object, period and practice): 1"):
             self.run_import(counts=((10, 80), (10, 5)))
         self.assertFalse(CountingObject.objects.exists())
 
     def test_archive_with_several_exports_is_refused(self):
-        with self.assertRaisesMessage(ValueError,
-                                      "un seul export, soit un .shp et un .csv (trouvé : 1 .shp et 2 .csv)"):
+        with self.assertRaisesMessage(ValueError, "a single export, i.e. one .shp and one .csv (found: 1 .shp and 2 .csv)"):
             self.run_import(extra=[("other.csv", "edge_uid,activity_type,year,total_trip_count\n")])
-        with self.assertRaisesMessage(ValueError, "contient d'autres zips"):
+        with self.assertRaisesMessage(ValueError, "holds other zips"):
             self.run_import(extra=[("all_edges_yearly_2023_is.zip", b"")])
         self.assertFalse(CountingObject.objects.exists())
 
     def test_unknown_activity_imports_nothing(self):
-        with self.assertRaisesMessage(ValueError, "inconnues : Ride"):
+        with self.assertRaisesMessage(ValueError, "activities: Ride"):
             self.run_import(activity="Ride")
         self.assertFalse(CountingObject.objects.exists())
 
@@ -510,7 +509,7 @@ class INaturalistParserTests(TrafficTestCase):
         self.assertEqual((CountingObject.objects.count(), CountingMeasure.objects.count()), (4, 4))
 
     def test_unknown_columns_are_refused(self):
-        with self.assertRaisesMessage(ValueError, "Colonnes iNaturalist non reconnues"):
+        with self.assertRaisesMessage(ValueError, "Unrecognised iNaturalist columns"):
             self.import_file("other.zip", zip_bytes({"data.csv": "a,b\n1,2\n"}))
 
     def run_export(self):
@@ -521,7 +520,7 @@ class ParserDescriptionTests(SimpleTestCase):
     def test_every_parser_says_what_its_file_holds(self):
         for parser in (OutdoorVisionParser, StravaParser, CompteurParser, INaturalistParser):
             with self.subTest(parser.__name__):
-                self.assertTrue(parser.CONTENT.startswith("Contient des "))
+                self.assertTrue(parser.CONTENT.startswith("Holds "))
 
 
 def cell(xmin, ymin, xmax, ymax):

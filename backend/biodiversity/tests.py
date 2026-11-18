@@ -158,12 +158,12 @@ class SINPParserTests(BiodiversityTestCase):
         self.assertEqual(TaxonRecord.objects.get().scientific_name, "Lynx lynx")
 
     def test_incomplete_line_imports_nothing(self):
-        with self.assertRaisesMessage(ValueError, "lignes 3"):
+        with self.assertRaisesMessage(ValueError, "lines 3"):
             self.run_import(self.line(self.LYNX), self.line(self.FROG, start=""))
         self.assertFalse(TaxonRecord.objects.exists())
 
     def test_missing_column_is_rejected(self):
-        with self.assertRaisesMessage(ValueError, "manquantes : wkt_4326"):
+        with self.assertRaisesMessage(ValueError, "Missing SINP columns: wkt_4326"):
             self.run_import(header=self.HEADER.replace("wkt_4326", "geom"))
 
 
@@ -363,5 +363,5 @@ class GBIFParserTests(BiodiversityTestCase):
     def test_missing_taxref_is_reported(self):
         with connection.cursor() as cursor:
             cursor.execute("drop schema taxonomie cascade")
-        with self.assertRaisesMessage(ValueError, "TaxRef n'est pas chargé"):
+        with self.assertRaisesMessage(ValueError, "TaxRef is not loaded"):
             self.run_import(self.line(1))

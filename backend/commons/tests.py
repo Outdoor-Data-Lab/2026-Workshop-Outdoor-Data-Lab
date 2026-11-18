@@ -202,8 +202,8 @@ class ImportAdminTests(TestCase):
         response = self.client.get(self.traffic_url)
         strava = DataSource.objects.get(code="strava")
         self.assertContains(response, 'id="import-example"')
-        self.assertContains(response, f"&quot;{strava.pk}&quot;: {{&quot;content&quot;: &quot;Contient des tron")
-        self.assertContains(response, "&quot;example&quot;: &quot;Zip Strava Metro")
+        self.assertContains(response, f"&quot;{strava.pk}&quot;: {{&quot;content&quot;: &quot;Holds trail and road edges")
+        self.assertContains(response, "&quot;example&quot;: &quot;Yearly or daily Strava Metro zip")
 
     def test_refused_file_shows_the_error_and_keeps_nothing(self):
         strava = DataSource.objects.get(code="strava")
@@ -212,7 +212,7 @@ class ImportAdminTests(TestCase):
         # Back to the form with the same source, and the parser's message.
         self.assertEqual(response.redirect_chain, [(f"{self.traffic_url}?source={strava.pk}", 302)])
         self.assertContains(response, "Import refusé")
-        self.assertContains(response, "Le fichier Strava doit être un zip")
+        self.assertContains(response, "The Strava file must be a zip")
         self.assertFalse(DataImport.objects.exists())
 
     def test_source_of_another_domain_is_rejected(self):

@@ -107,9 +107,9 @@ class DataImport(models.Model):
         if parser is None:
             return None
         if not self.pk:
-            raise ValueError("Le DataImport doit être enregistré avant son traitement.")
+            raise ValueError("The DataImport must be saved before it is processed.")
         if not self.file:
-            raise ValueError("Aucun fichier n'est associé au DataImport.")
+            raise ValueError("The DataImport has no file.")
 
         # Imported by path: the parsers themselves import DataImport.
         return import_string(parser)(self).import_data()
