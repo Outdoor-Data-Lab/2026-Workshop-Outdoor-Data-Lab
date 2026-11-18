@@ -149,7 +149,7 @@ AREAS_WITH_TAXON_STATUS_COUNTS = with_taxon_status_counts()
 
 # One LArea instance per grid cell of the configured type.
 BASE_GRID = (
-    LArea.objects.filter(type__type_code=settings.DEFAULT_AREA_TYPE)
+    LArea.objects.filter()
     .select_related("type")
     .defer("geom", "centroid")
 )

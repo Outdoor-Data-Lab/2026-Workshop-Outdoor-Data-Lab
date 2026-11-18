@@ -3,7 +3,7 @@ from rest_framework import filters as drf_filters
 from rest_framework import viewsets
 from rest_framework_gis.filters import InBBoxFilter
 
-from ref_geo.filters import LAreaFilter
+from ref_geo.filters import LAreaFilter, LAreaCountFilter
 from commons.api.geo import GeoJsonLimitOffsetPagination
 
 from . import serializers
@@ -19,7 +19,7 @@ class TaxonAreaViewSet(viewsets.ReadOnlyModelViewSet):
         DjangoFilterBackend,
         drf_filters.OrderingFilter,
     ]
-    filterset_class = LAreaFilter
+    filterset_class = LAreaCountFilter
     ordering_fields = ("id_area", "area_code", "area_name")
     bbox_filter_field = "geom_4326"
     bbox_filter_include_overlapping = True
