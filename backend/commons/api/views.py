@@ -1,7 +1,12 @@
-from ..models import DataImport, DataSource, Practice
+from ..models import DataImport, DataSource, ExternalLayer, Practice
 from .filters import DataImportFilter, PracticeFilter
 from .geo import ReadOnlyViewSet
-from .serializers import DataImportSerializer, DataSourceSerializer, PracticeSerializer
+from .serializers import (
+    DataImportSerializer,
+    DataSourceSerializer,
+    ExternalLayerSerializer,
+    PracticeSerializer,
+)
 
 
 class PracticeViewSet(ReadOnlyViewSet):
@@ -23,3 +28,9 @@ class DataImportViewSet(ReadOnlyViewSet):
     serializer_class = DataImportSerializer
     filterset_class = DataImportFilter
     ordering_fields = ("id", "date_import")
+
+
+class ExternalLayerViewSet(ReadOnlyViewSet):
+    queryset = ExternalLayer.objects.order_by("label")
+    serializer_class = ExternalLayerSerializer
+    ordering_fields = ("id", "label")

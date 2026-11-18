@@ -10,7 +10,7 @@ from django.db.models import ProtectedError
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 
-from .models import PARSERS, DataImport, DataSource, Practice, register_parsers
+from .models import PARSERS, DataImport, DataSource, ExternalLayer, Practice, register_parsers
 
 
 class CommonsTests(TestCase):
@@ -18,7 +18,7 @@ class CommonsTests(TestCase):
         with connection.cursor() as cursor:
             cursor.execute("select tablename from pg_tables where schemaname = 'commons'")
             tables = {row[0] for row in cursor.fetchall()}
-        self.assertEqual(tables, {"data_sources", "data_imports", "practices"})
+        self.assertEqual(tables, {"data_sources", "data_imports", "practices", "external_layers"})
 
     def test_initial_data_sources(self):
         self.assertEqual(
@@ -115,6 +115,25 @@ class PracticeApiTests(TestCase):
             cursor.execute("SET LOCAL statement_timeout = 2000")
         response = self.client.get(f"{self.url}?parent_code=walking&recursive=true")
         self.assertEqual(response.status_code, 200)
+
+
+class ExternalLayerApiTests(TestCase):
+    def test_layer_exposed(self):
+        ExternalLayer.objects.create(
+            label="Zones sensibles",
+            url="https://biodiv-sports.fr/api/v2/sensitivearea/?format=geojson",
+            description="Données : Biodiv'Sports",
+            properties=["name"],
+            color_property="species_id",
+            colors={"7": "#c0392b"},
+        )
+        response = self.client.get("/api/commons/external-layers")
+        self.assertEqual(response.status_code, 200)
+        layer = response.json()["results"][0]
+        self.assertEqual(
+            (layer["description"], layer["properties"], layer["colors"]),
+            ("Données : Biodiv'Sports", ["name"], {"7": "#c0392b"}),
+        )
 
 
 class DataImportFileTests(TestCase):
