@@ -20,6 +20,8 @@ from django.db.models import F, Max, Min, Q
 from commons.models import DataImport, DataSource, Practice
 from ref_geo.models import LArea
 
+from postgres_copy import CopyManager
+
 DB_SCHEMA = "traffic"
 
 
@@ -177,6 +179,8 @@ class CountingMeasure(models.Model):
     date_create = models.DateTimeField(auto_now_add=True)
     date_update = models.DateTimeField(auto_now=True)
     processed = models.BooleanField(default=False)
+
+    objects = CopyManager()
 
     class Meta:
         db_table = table("counting_measures")

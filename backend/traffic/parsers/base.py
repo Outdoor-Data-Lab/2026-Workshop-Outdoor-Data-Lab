@@ -34,6 +34,11 @@ from commons.parsers import ImportParser
 
 from ..models import CountingMeasure, CountingObject, CountingObjectType, Unit
 
+from io import StringIO
+import pandas as pd
+from contextlib import closing
+from django.utils import timezone
+
 MEASURE_COLUMNS = ["external_id", "geometry", "start_datetime", "end_datetime", "count", "activity"]
 BATCH_SIZE = 5000
 
@@ -62,22 +67,43 @@ class TrafficParser(ImportParser):
 
         object_ids, known = self._save_objects(rows, object_type, self._origins(rows))
         self._delete_given_measures(rows[rows.external_id.isin(known)], object_ids, practices, unit)
-        measures = (
-            CountingMeasure(
-                counting_object_id=object_ids[row.external_id],
-                start_datetime=row.start_datetime,
-                end_datetime=row.end_datetime,
-                count=row.count,
-                unit=unit,
-                practice=practices[row.activity],
-                data_import=self.data_import,
-            )
-            for row in rows.itertuples()
+
+        df = rows.assign(
+            counting_object_id=rows["external_id"].map(object_ids),
+            practice_id=rows["activity"].map({k: p.pk for k, p in practices.items()}),
+            unit_id=unit.pk,
+            data_import=self.data_import.pk,
         )
+
+        now = timezone.now()
+        df = df.assign(date_create=now, date_update=now, processed=False, external_id="-")
+        COLUMNS = ["external_id", "counting_object_id", "practice_id", "unit_id", "start_datetime", "end_datetime", "count", "data_import", "date_create", "date_update", "processed"]
+        df = df[COLUMNS]
+        df["unit"] = unit
+
+        def in_memory_csv(data):
+            """Creates an in-memory csv.
+
+            Assumes `data` is a list of dicts
+            with native python types."""
+
+            mem_csv = StringIO()
+            pd.DataFrame(data).to_csv(mem_csv, index=False)
+            mem_csv.seek(0)
+            return mem_csv
+
         # One call per batch: bulk_create() builds all its objects before writing
         # them, which does not fit in memory for millions of measures.
-        for batch in batched(measures, BATCH_SIZE):
-            CountingMeasure.objects.bulk_create(batch)
+        for batch in batched(df, BATCH_SIZE):
+            mem_csv = in_memory_csv(df)
+            with closing(mem_csv) as csv_io:
+                CountingMeasure.objects.from_csv(
+                    csv_io,
+                    mapping = {col: col for col in COLUMNS},
+                    temp_table_name="temp_counting_measure",
+                    drop_constraints=False,
+                    drop_indexes=False,
+                )
 
     def _practices(self, activities: pd.Series) -> dict[str, Practice]:
         unknown = set(activities).difference(self.PRACTICE_CODES)
