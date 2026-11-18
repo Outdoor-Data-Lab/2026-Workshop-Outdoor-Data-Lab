@@ -14,7 +14,7 @@ from .models import (
 
 
 class ReadOnlyAdmin(admin.ModelAdmin):
-    """The data comes from the RefGeo dump: browse only."""
+    """For now, RefGeo is only in read only"""
 
     def has_add_permission(self, request):
         return False
