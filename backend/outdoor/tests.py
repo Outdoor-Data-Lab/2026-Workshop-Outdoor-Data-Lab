@@ -5,6 +5,7 @@ from pathlib import Path
 
 import geopandas as gpd
 import shapely
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.contrib.gis.geos import LineString, Point
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -91,10 +92,11 @@ class OfferImportTestCase(OutdoorTestCase):
         self.addCleanup(media.cleanup)
         self.enterContext(override_settings(MEDIA_ROOT=media.name))
 
+    def make_import(self, content):
+        return DataImport.objects.create(source=self.source, file=SimpleUploadedFile("offres.gpkg", content))
+
     def run_import(self, content):
-        data_import = DataImport.objects.create(
-            source=self.source, file=SimpleUploadedFile("offres.gpkg", content)
-        )
+        data_import = self.make_import(content)
         OfferParser(data_import).import_data()
         return data_import
 
@@ -142,7 +144,7 @@ class OfferParserTests(OfferImportTestCase):
         self.make_offer(source=DataSource.objects.get(code="visorando"), uuid=taken)
         twice = str(uuid.uuid4())
         bowtie = shapely.Polygon([(6.2, 44.8), (6.3, 44.9), (6.3, 44.8), (6.2, 44.9)])
-        data_import = self.run_import(
+        data_import = self.make_import(
             gpkg(
                 [
                     line("ok"),
@@ -165,10 +167,44 @@ class OfferParserTests(OfferImportTestCase):
                 ]
             )
         )
+        parser = OfferParser(data_import)
+        parser.import_data()
         offers = self.offers()
         self.assertEqual(set(offers), {"ok", "bowtie"})
         self.assertEqual((data_import.line_numbers, data_import.error_numbers), (17, 15))
         self.assertEqual(offers["bowtie"].geom.geom_type, "MultiPolygon")
+        # Line number (from 1, in file order), id and reason.
+        for error in (
+            (3, "unknown-practice", "practice inconnue « Parapente »"),
+            (5, "", "id manquant"),
+            (13, "double", "id en double dans le fichier"),
+            (17, "uuid-taken", "uuid déjà utilisé par une offre d'une autre source"),
+        ):
+            self.assertIn(error, parser.errors)
+        self.assertEqual(len(parser.errors), 15)
+
+    def test_preview_writes_nothing(self):
+        first = self.run_import(gpkg([line("a"), line("b")]))
+        data_import = self.make_import(gpkg([line("a", name="A renamed"), line("c"), line("d", "unknown")]))
+        preview = OfferParser(data_import).preview()
+        self.assertEqual(preview, {"lines": 3, "created": 1, "updated": 1, "deleted": 1, "errors": 1})
+        self.assertEqual(set(self.offers()), {"a", "b"})
+        self.assertEqual(self.offers()["a"].name, "Offre a")
+        self.assertEqual(Offer.objects.filter(data_import=data_import).count(), 0)
+        self.assertEqual(first.offers.count(), 2)
+
+    def test_deleting_an_import_deletes_the_offers_it_created(self):
+        first = self.run_import(gpkg([line("a"), line("b")]))
+        second = self.run_import(gpkg([line("a", name="A renamed"), line("b"), line("c")]))
+        offers = self.offers()
+        # An update keeps the import that created the offer.
+        self.assertEqual(offers["a"].data_import, first)
+        self.assertEqual(offers["c"].data_import, second)
+
+        second.delete()
+        self.assertEqual(set(self.offers()), {"a", "b"})
+        first.delete()
+        self.assertEqual(self.offers(), {})
 
     def test_reimport_replaces_the_source_offers(self):
         first_uuid = uuid.uuid4()
@@ -218,26 +254,70 @@ class OfferImportAdminTests(OfferImportTestCase):
         super().setUp()
         self.client.force_login(get_user_model().objects.create_superuser("admin@example.org", "x"))
         self.url = reverse("admin:outdoor_offerimport_add")
+        self.changelist = reverse("admin:outdoor_offerimport_changelist")
 
-    def post(self, content):
+    def upload(self, content):
         return self.client.post(
-            self.url,
-            {"source": self.source.pk, "file": SimpleUploadedFile("offres.gpkg", content)},
-            follow=True,
+            self.url, {"source": self.source.pk, "file": SimpleUploadedFile("offres.gpkg", content)}
         )
 
-    def test_import_from_the_admin(self):
-        response = self.post(gpkg([line("a"), line("b", "unknown")]))
-        self.assertRedirects(response, reverse("admin:outdoor_offerimport_changelist"))
-        self.assertIn("1 offres importées, 1 lignes en erreur.", [str(m) for m in response.context["messages"]])
-        self.assertEqual(set(self.offers()), {"a"})
+    def confirm(self, preview, *button):
+        return self.client.post(self.url, {"token": preview.context["token"], **dict.fromkeys(button, "")}, follow=True)
 
-    def test_rejected_file_is_reported(self):
-        response = self.post(b"not a file")
-        self.assertRedirects(response, reverse("admin:outdoor_offerimport_changelist"))
-        [message] = response.context["messages"]
-        self.assertIn("Import refusé", str(message))
+    def messages(self, response):
+        return [str(m) for m in response.context["messages"]]
+
+    def stored_files(self):
+        return [p for p in Path(settings.MEDIA_ROOT).rglob("*") if p.is_file()]
+
+    def test_add_page_shows_the_expected_columns(self):
+        html = self.client.get(self.url).content.decode()
+        for column in ("id", "name", "practice", "uuid"):
+            self.assertIn(f"<code>{column}</code>", html)
+
+    def test_preview_then_apply(self):
+        self.run_import(gpkg([line("a"), line("gone")]))
+        preview = self.upload(gpkg([line("a"), line("b"), line("c", "unknown")]))
+        self.assertTemplateUsed(preview, "admin/outdoor/offerimport/preview.html")
+        self.assertEqual(
+            preview.context["preview"], {"lines": 3, "created": 1, "updated": 1, "deleted": 1, "errors": 1}
+        )
+        self.assertContains(preview, "practice inconnue « unknown »")
+        self.assertEqual(OfferImport.objects.count(), 1)  # only the first import
+        self.assertEqual(set(self.offers()), {"a", "gone"})
+
+        # No button name: import_loading.js disables the buttons on submit.
+        response = self.confirm(preview)
+        self.assertRedirects(response, self.changelist)
+        self.assertEqual(
+            self.messages(response),
+            ["2 offres importées, 1 lignes en erreur : ligne 3 (c) : practice inconnue « unknown »."],
+        )
+        self.assertEqual(set(self.offers()), {"a", "b"})
+        self.assertEqual(self.offers()["b"].data_import, OfferImport.objects.latest("pk"))
+
+    def test_preview_then_cancel(self):
+        response = self.confirm(self.upload(gpkg([line("a")])), "_cancel")
+        self.assertRedirects(response, self.changelist)
+        self.assertEqual(self.messages(response), ["Import annulé."])
+        self.assertFalse(OfferImport.objects.exists())
+        self.assertEqual(self.offers(), {})
+        self.assertEqual(self.stored_files(), [])
+
+    def test_invalid_token(self):
+        response = self.client.post(self.url, {"token": "forged"}, follow=True)
+        self.assertEqual(self.messages(response), ["Aperçu expiré ou invalide : recommencez l'import."])
+        self.assertFalse(OfferImport.objects.exists())
+
+    def test_rejected_file_is_kept_with_one_error(self):
+        response = self.client.post(
+            self.url, {"source": self.source.pk, "file": SimpleUploadedFile("offres.gpkg", b"not a file")}, follow=True
+        )
+        self.assertRedirects(response, self.changelist)
+        [message] = self.messages(response)
+        self.assertIn("Import refusé", message)
         self.assertEqual(OfferImport.objects.get().error_numbers, 1)
+        self.assertEqual(len(self.stored_files()), 1)
 
     def test_traffic_sources_are_left_out(self):
         sources = self.client.get(self.url).context["adminform"].form.fields["source"].queryset

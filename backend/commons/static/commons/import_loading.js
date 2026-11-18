@@ -1,9 +1,10 @@
 // The parser runs during the request: show that the import is running and block double submits.
 document.addEventListener("DOMContentLoaded", () => {
-  const form = document.getElementById("dataimport_form");
-  form?.addEventListener("submit", () => {
+  const form = document.querySelector("#dataimport_form, #offerimport_form");
+  form?.addEventListener("submit", (event) => {
+    if (event.submitter?.name === "_cancel") return;
     const file = form.querySelector("input[type=file]")?.files[0];
-    const what = file ? `${file.name} (${Math.round(file.size / 1e6)} Mo)` : "le fichier";
+    const what = file ? `${file.name} (${Math.round(file.size / 1e6)} Mo)` : form.dataset.file || "le fichier";
     form.querySelectorAll("[type=submit]").forEach((button) => (button.disabled = true));
 
     // Same markup as Django admin messages, so it gets their style.

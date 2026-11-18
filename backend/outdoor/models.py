@@ -43,6 +43,15 @@ class Offer(models.Model):
         on_delete=models.PROTECT,
         related_name="offers",
     )
+    # The import that created the offer: deleting the import deletes its offers.
+    # A re-import that only updates an offer keeps this link.
+    data_import = models.ForeignKey(
+        DataImport,
+        on_delete=models.CASCADE,
+        related_name="offers",
+        null=True,
+        blank=True,
+    )
     date_create = models.DateTimeField(auto_now_add=True)
     date_update = models.DateTimeField(auto_now=True)
 

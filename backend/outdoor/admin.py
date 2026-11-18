@@ -1,12 +1,21 @@
 from django.contrib import admin, messages
 from django.contrib.gis.forms import OSMWidget
+from django.core import signing
+from django.core.exceptions import PermissionDenied
+from django.db.models import Count
 from django.http import HttpResponseRedirect
+from django.template.response import TemplateResponse
 from django.urls import reverse
+from django.utils.html import format_html
 
 from commons.models import PARSERS, DataSource
 
 from .models import Offer, OfferImport
-from .parsers import OfferParser
+from .parsers import OfferParser, describe_errors
+
+PREVIEW_ERRORS = 20  # lines in error listed on the preview page
+TOKEN_SALT = "outdoor.offerimport"
+TOKEN_MAX_AGE = 24 * 3600  # seconds a preview can be applied
 
 
 class ReadOnlyMapWidget(OSMWidget):
@@ -54,16 +63,41 @@ class OfferAdmin(admin.ModelAdmin):
 class OfferImportAdmin(admin.ModelAdmin):
     """Import a GeoPackage of offers for a source (see parsers.OfferParser).
 
-    A source provides either offers or counts: the traffic sources, those with a
-    parser in commons.PARSERS, are left out.
+    Two steps: the uploaded file is stored and previewed (offers created,
+    updated, deleted, lines in error); the import is only created and applied
+    once confirmed. A source provides either offers or counts: the traffic
+    sources, those with a parser in commons.PARSERS, are left out.
     """
 
-    list_display = ("source", "date_import", "file", "line_numbers", "error_numbers")
+    list_display = ("source", "date_import", "file", "line_numbers", "error_numbers", "created_offers")
     list_filter = ("source",)
     fields = ("source", "file")
 
+    class Media:
+        js = ("commons/import_loading.js",)
+
     def get_queryset(self, request):
-        return super().get_queryset(request).exclude(source__code__in=PARSERS)
+        return (
+            super()
+            .get_queryset(request)
+            .exclude(source__code__in=PARSERS)
+            .annotate(created_offers=Count("offers"))
+        )
+
+    @admin.display(description="Offres créées", ordering="created_offers")
+    def created_offers(self, obj):
+        return obj.created_offers
+
+    def get_form(self, request, obj=None, **kwargs):
+        form = super().get_form(request, obj, **kwargs)
+        form.base_fields["file"].help_text = format_html(
+            "GeoPackage (.gpkg) à une seule couche, avec un système de coordonnées. "
+            "Colonnes : <code>id</code> (identifiant de l'offre dans la source), <code>name</code>, "
+            '<code>practice</code> (un <a href="{}">code de pratique</a>), <code>uuid</code> '
+            "(facultatif). Géométrie : points, lignes ou polygones. Les autres colonnes sont ignorées.",
+            reverse("admin:commons_practice_changelist"),
+        )
+        return form
 
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
         if db_field.name == "source":
@@ -73,18 +107,69 @@ class OfferImportAdmin(admin.ModelAdmin):
     def has_change_permission(self, request, obj=None):
         return False
 
-    def save_model(self, request, obj, form, change):
-        super().save_model(request, obj, form, change)
-        try:
-            count = OfferParser(obj).import_data()
-        except ValueError as exc:
-            obj.import_error = exc  # reported by response_add
-        else:
-            self.message_user(request, f"{count} offres importées, {obj.error_numbers} lignes en erreur.")
+    def add_view(self, request, form_url="", extra_context=None):
+        if request.method == "POST":
+            if not self.has_add_permission(request):
+                raise PermissionDenied
+            if "token" in request.POST:
+                return self.confirm(request)
+            form = self.get_form(request)(request.POST, request.FILES)
+            if form.is_valid():
+                return self.preview(request, form.save(commit=False))
+        return super().add_view(request, form_url, extra_context)
 
-    def response_add(self, request, obj, post_url_continue=None):
-        if not hasattr(obj, "import_error"):
-            return super().response_add(request, obj, post_url_continue)
-        # Rejected file: the reason instead of the success message.
-        self.message_user(request, f"Import refusé : {obj.import_error}", messages.ERROR)
+    def preview(self, request, data_import):
+        """Store the file and show what the import would do, with Apply and Cancel."""
+        upload = request.FILES["file"]
+        data_import.file.save(upload.name, upload, save=False)
+        parser = OfferParser(data_import)
+        try:
+            preview = parser.preview()
+        except ValueError as exc:
+            # Rejected file: kept as an import with one error, like the traffic imports.
+            data_import.error_numbers = 1
+            data_import.save()
+            self.log_addition(request, data_import, [{"added": {}}])
+            return self.done(request, f"Import refusé : {exc}", messages.ERROR)
+        pending = {"source": data_import.source_id, "file": data_import.file.name}
+        context = {
+            **self.admin_site.each_context(request),
+            "opts": self.opts,
+            "title": "Aperçu de l'import d'offres",
+            "media": self.media,
+            "data_import": data_import,
+            "file_name": upload.name,
+            "preview": preview,
+            "errors": parser.errors[:PREVIEW_ERRORS],
+            "more_errors": len(parser.errors) - PREVIEW_ERRORS,
+            "token": signing.dumps(pending, salt=TOKEN_SALT),
+        }
+        return TemplateResponse(request, "admin/outdoor/offerimport/preview.html", context)
+
+    def confirm(self, request):
+        """Apply or cancel a previewed import."""
+        try:
+            pending = signing.loads(request.POST["token"], salt=TOKEN_SALT, max_age=TOKEN_MAX_AGE)
+        except signing.BadSignature:
+            return self.done(request, "Aperçu expiré ou invalide : recommencez l'import.", messages.ERROR)
+        # Test _cancel, not _apply: import_loading.js disables the buttons on submit,
+        # so the Apply button's name is not sent.
+        if "_cancel" in request.POST:
+            OfferImport._meta.get_field("file").storage.delete(pending["file"])
+            return self.done(request, "Import annulé.", messages.INFO)
+
+        data_import = OfferImport.objects.create(source_id=pending["source"], file=pending["file"])
+        self.log_addition(request, data_import, [{"added": {}}])
+        parser = OfferParser(data_import)
+        try:
+            count = parser.import_data()
+        except ValueError as exc:
+            return self.done(request, f"Import refusé : {exc}", messages.ERROR)
+        message = f"{count} offres importées, {len(parser.errors)} lignes en erreur"
+        if parser.errors:
+            message += f" : {describe_errors(parser.errors)}"
+        return self.done(request, f"{message}.", messages.WARNING if parser.errors else messages.SUCCESS)
+
+    def done(self, request, message, level):
+        self.message_user(request, message, level)
         return HttpResponseRedirect(reverse("admin:outdoor_offerimport_changelist"))
