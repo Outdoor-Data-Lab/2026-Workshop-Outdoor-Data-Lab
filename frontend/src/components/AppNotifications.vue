@@ -18,7 +18,7 @@ const notifications = useNotificationsStore()
           {{ n.message }}
           <span v-if="n.count > 1" class="count">×{{ n.count }}</span>
         </p>
-        <button type="button" aria-label="Fermer" @click="notifications.dismiss(n.id)">×</button>
+        <button type="button" aria-label="Close" @click="notifications.dismiss(n.id)">×</button>
       </div>
     </TransitionGroup>
   </div>
@@ -28,8 +28,9 @@ const notifications = useNotificationsStore()
 .notifications {
   position: fixed;
   z-index: 1000; /* au-dessus de la carte */
-  top: 0.75rem;
-  left: 0.75rem;
+  /* En haut à gauche de la carte, sous la barre de navigation et à droite du panneau gauche. */
+  top: 4rem;
+  left: calc(var(--panel-width) + var(--space));
   display: flex;
   flex-direction: column;
   gap: 0.5rem;

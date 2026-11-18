@@ -16,7 +16,7 @@ const groups = computed(() => {
 </script>
 
 <template>
-  <div class="layer-switcher">
+  <div v-if="layers.definitions.length" class="layer-switcher">
     <fieldset v-for="[group, definitions] in groups" :key="group">
       <legend>{{ group }}</legend>
       <label v-for="definition in definitions" :key="definition.id">
@@ -35,10 +35,10 @@ const groups = computed(() => {
 
 <style scoped>
 .layer-switcher {
-  background: #fff;
-  border-radius: 4px;
-  box-shadow: 0 1px 4px rgb(0 0 0 / 0.3);
-  padding: 0.5rem;
+  background: var(--color-background);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: calc(var(--space) / 1.5);
 }
 
 fieldset {
