@@ -55,6 +55,8 @@ services:
       target: development
     ports:
       - "5173:5173"
+    environment:
+      - API_PROXY_TARGET=http://web:8000
     develop:
       watch:
         # Sync source changes so Vite's HMR picks them up.

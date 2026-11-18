@@ -150,3 +150,38 @@ class DataImport(models.Model):
 
     def __str__(self):
         return f"{self.source} {self.date_import:%Y-%m-%d %H:%M}"
+
+
+class ExternalLayer(models.Model):
+    """A GeoJSON layer of another site (Biodiv'Sports, a national park...), offered
+    on the map. The browser loads it when the user checks it, following the
+    ``next`` links of a paginated API.
+    """
+
+    label = models.CharField(max_length=255)
+    url = models.URLField(max_length=2000, help_text="FeatureCollection GeoJSON, en WGS84.")
+    description = models.TextField(
+        blank=True, help_text="Affichée au survol du nom de la couche (contenu, producteur…)."
+    )
+    properties = ArrayField(
+        models.CharField(max_length=100),
+        default=list,
+        blank=True,
+        help_text="Attributs affichés au clic, séparés par des virgules ; vide : tous.",
+    )
+    color = models.CharField(max_length=7, default="#3388ff")
+    color_property = models.CharField(
+        max_length=100, blank=True, help_text="Attribut dont la valeur choisit la couleur (facultatif)."
+    )
+    colors = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text='Valeur → couleur, ex. {"IC": "#2e9e5b", "PR": "#c0392b"} ; '
+        "les autres valeurs prennent la couleur ci-dessus.",
+    )
+
+    class Meta:
+        db_table = table("external_layers")
+
+    def __str__(self):
+        return self.label

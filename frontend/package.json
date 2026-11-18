@@ -13,10 +13,14 @@
     "lint": "run-s \"lint:*\"",
     "lint:oxlint": "oxlint . --fix",
     "lint:eslint": "eslint . --fix --cache",
-    "format": "prettier --write --experimental-cli src/"
+    "format": "prettier --write --experimental-cli src/",
+    "gen:api": "npx --yes openapi-typescript@7.13.0 ${API_SCHEMA_URL:-http://localhost:8000/api/schema/} -o src/api/schema.d.ts"
   },
   "dependencies": {
+    "maplibre-gl": "^6.19.0",
+    "pinia": "^4.1.0",
     "vue": "^3.5.42",
+    "vue-i18n": "^11.4.17",
     "vue-router": "^5.3.1"
   },
   "devDependencies": {

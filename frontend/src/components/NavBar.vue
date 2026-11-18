@@ -1,0 +1,19 @@
+<template>
+  <header class="navbar">
+    <span class="title">Outdoor Data Lab</span>
+  </header>
+</template>
+
+<style scoped>
+.navbar {
+  display: flex;
+  align-items: center;
+  padding: var(--space);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.title {
+  font-size: 1.25rem;
+  font-weight: bold;
+}
+</style>

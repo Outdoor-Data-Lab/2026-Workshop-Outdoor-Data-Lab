@@ -11,7 +11,7 @@ from django.utils.html import format_html
 from django.utils.http import urlencode
 from django.utils.module_loading import import_string
 
-from .models import DOMAINS, DataImport, DataSource, Practice
+from .models import DOMAINS, DataImport, DataSource, ExternalLayer, Practice
 from .tasks import run_import
 
 PREVIEW_ERRORS = 20  # lines in error listed on the preview page
@@ -44,6 +44,17 @@ class PracticeAdmin(admin.ModelAdmin):
     list_filter = ("parent",)
     list_select_related = ("parent",)
     search_fields = ("code", "label")
+
+
+@admin.register(ExternalLayer)
+class ExternalLayerAdmin(admin.ModelAdmin):
+    list_display = ("label", "url")
+    search_fields = ("label", "url")
+
+    def formfield_for_dbfield(self, db_field, request, **kwargs):
+        if db_field.name == "color":
+            kwargs["widget"] = forms.TextInput(attrs={"type": "color"})
+        return super().formfield_for_dbfield(db_field, request, **kwargs)
 
 
 @admin.register(DataImport)
