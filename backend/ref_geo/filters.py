@@ -46,7 +46,7 @@ class LiMunicipalityFilter(filters.FilterSet):
         fields = ["insee_com", "insee_dep", "insee_reg", "code_epci"]
 
 
-class LAreaCountFilter(LAreaFilter):
+class LAreaAreaFilter(LAreaFilter):
     """Filter for LArea that returns areas intersecting with a given area code,
     excluding other areas with the same type_code."""
 
