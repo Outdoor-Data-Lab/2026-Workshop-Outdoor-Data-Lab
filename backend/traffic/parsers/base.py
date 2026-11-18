@@ -14,8 +14,8 @@ leaves the others: a yearly and a daily measure of the same edge, or two
 practices over the same period, never replace each other. A measure missing
 from the new file is kept.
 
-Nothing in the database forbids two measures with the same key: only the
-parsers avoid creating them.
+The database forbids two measures with the same key (constraint
+counting_measure_unique_key).
 """
 
 from itertools import batched
@@ -118,7 +118,7 @@ class TrafficParser(ImportParser):
         """Delete the measures that the rows give again: same object, start, end, practice and unit."""
         table = connection.ops.quote_name(CountingMeasure._meta.db_table)
         # One query per batch: the keys are passed as arrays, and the lookup uses
-        # the (counting_object, start_datetime) index.
+        # the index of counting_measure_unique_key.
         sql = f"""
             DELETE FROM {table} AS m
             USING unnest(%s::bigint[], %s::timestamptz[], %s::timestamptz[], %s::bigint[])

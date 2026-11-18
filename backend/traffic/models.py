@@ -142,7 +142,8 @@ class CountingMeasure(models.Model):
     measures without choosing one length.
     """
 
-    # No standalone index: the (counting_object, start_datetime) index covers it.
+    # No standalone index: the index of counting_measure_unique_key, which starts
+    # with (counting_object, start_datetime), covers it.
     counting_object = models.ForeignKey(
         CountingObject,
         on_delete=models.CASCADE,
@@ -184,11 +185,12 @@ class CountingMeasure(models.Model):
                 condition=Q(end_datetime__gt=F("start_datetime")),
                 name="counting_measure_end_after_start",
             ),
-        ]
-        indexes = [
-            models.Index(
-                fields=["counting_object", "start_datetime"],
-                name="counting_measure_object_start",
+            # One measure per object, period, practice and unit: a re-import
+            # replaces it. A measure without practice counts as one value.
+            models.UniqueConstraint(
+                fields=["counting_object", "start_datetime", "end_datetime", "practice", "unit"],
+                nulls_distinct=False,
+                name="counting_measure_unique_key",
             ),
         ]
 

@@ -144,6 +144,21 @@ class CountingMeasureTests(TrafficTestCase):
         with self.assertRaises(IntegrityError), transaction.atomic():
             self.measure(end_datetime=dt(15, 10))
 
+    def test_one_measure_per_object_period_practice_and_unit(self):
+        self.measure()
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            self.measure()  # same key, without practice: no practice counts as one value
+        self.measure(practice=Practice.objects.get(code="hiking"))  # another practice
+
+    def test_the_unique_key_replaces_the_object_start_index(self):
+        # Dropping an index outside the public schema fails silently with Django's
+        # RemoveIndex: check that the old one is really gone.
+        with connection.cursor() as cursor:
+            cursor.execute("select indexname from pg_indexes where schemaname = 'traffic' and tablename = 'counting_measures'")
+            names = {row[0] for row in cursor.fetchall()}
+        self.assertIn("counting_measure_unique_key", names)
+        self.assertNotIn("counting_measure_object_start", names)
+
     def test_practice_is_optional(self):
         self.assertIsNone(self.measure().practice)
 
