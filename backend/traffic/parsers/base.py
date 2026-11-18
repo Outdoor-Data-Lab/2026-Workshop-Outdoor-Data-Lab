@@ -18,6 +18,8 @@ Nothing in the database forbids two measures with the same key: only the
 parsers avoid creating them.
 """
 
+from itertools import batched
+
 import pandas as pd
 from django.contrib.gis.geos import GEOSGeometry
 from django.db import connection
@@ -55,20 +57,21 @@ class TrafficParser(ImportParser):
 
         object_ids, known = self._save_objects(rows, object_type)
         self._delete_given_measures(rows[rows.external_id.isin(known)], object_ids, practices, unit)
-        CountingMeasure.objects.bulk_create(
-            (
-                CountingMeasure(
-                    counting_object_id=object_ids[row.external_id],
-                    start_datetime=row.start_datetime,
-                    end_datetime=row.end_datetime,
-                    count=row.count,
-                    unit=unit,
-                    practice=practices[row.activity],
-                )
-                for row in rows.itertuples()
-            ),
-            batch_size=BATCH_SIZE,
+        measures = (
+            CountingMeasure(
+                counting_object_id=object_ids[row.external_id],
+                start_datetime=row.start_datetime,
+                end_datetime=row.end_datetime,
+                count=row.count,
+                unit=unit,
+                practice=practices[row.activity],
+            )
+            for row in rows.itertuples()
         )
+        # One call per batch: bulk_create() builds all its objects before writing
+        # them, which does not fit in memory for millions of measures.
+        for batch in batched(measures, BATCH_SIZE):
+            CountingMeasure.objects.bulk_create(batch)
 
     def _practices(self, activities: pd.Series) -> dict[str, Practice]:
         unknown = set(activities).difference(self.PRACTICE_CODES)
@@ -96,18 +99,17 @@ class TrafficParser(ImportParser):
         objects = CountingObject.objects.filter(source=self.source)
         known = set(objects.values_list("external_id", flat=True))
         new = rows.drop_duplicates("external_id").loc[lambda r: ~r.external_id.isin(known)]
-        CountingObject.objects.bulk_create(
-            (
-                CountingObject(
-                    source=self.source,
-                    type=object_type,
-                    external_id=row.external_id,
-                    geom=GEOSGeometry(memoryview(row.geometry.wkb), srid=4326),
-                )
-                for row in new.itertuples()
-            ),
-            batch_size=BATCH_SIZE,
+        new_objects = (
+            CountingObject(
+                source=self.source,
+                type=object_type,
+                external_id=row.external_id,
+                geom=GEOSGeometry(memoryview(row.geometry.wkb), srid=4326),
+            )
+            for row in new.itertuples()
         )
+        for batch in batched(new_objects, BATCH_SIZE):
+            CountingObject.objects.bulk_create(batch)
         return dict(objects.values_list("external_id", "id")), known
 
     def _delete_given_measures(self, rows, object_ids, practices, unit) -> None:
