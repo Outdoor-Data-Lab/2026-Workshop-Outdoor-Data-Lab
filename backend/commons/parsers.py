@@ -4,13 +4,15 @@ A parser reads its file in `read()`, which returns the number of lines read and
 the rows to save; `save()` writes them, the way of its domain (traffic: objects
 and measures; biodiversity: taxon records; outdoor: offers). `import_data()` does
 both in one transaction, then records on the import the lines read and the lines
-in error. `preview()` reads the file and tells what `import_data()` would do,
+in error. A parser of files too big to read at once gives them by batches in
+`read_batches()`: each batch is then saved in turn. `preview()` reads the file and tells what `import_data()` would do,
 without writing: `plan()` counts the changes, by kind.
 
 A ValueError from `read()`, `plan()` or `save()` refuses the whole file.
 """
 
 from abc import ABC, abstractmethod
+from collections.abc import Iterator
 
 import pandas as pd
 from django.db import transaction
@@ -50,6 +52,10 @@ class ImportParser(ABC):
     def save(self, rows: pd.DataFrame) -> None:
         """Write the rows read; raise ValueError to refuse the file (nothing is kept)."""
 
+    def read_batches(self) -> Iterator[tuple[int, pd.DataFrame]]:
+        """read(), by batches that save() can write one after the other: a single one by default."""
+        yield self.read()
+
     def plan(self, rows: pd.DataFrame) -> dict[str, int]:
         """What save(rows) would change, by kind (label -> count), without writing."""
         return {}
@@ -69,11 +75,13 @@ class ImportParser(ABC):
         }
 
     def import_data(self) -> int:
-        """Save the rows read from the file; return their number."""
-        line_count, rows = self.read()
+        """Save the rows read from the file, batch by batch; return their number."""
+        self.data_import.line_numbers = self.data_import.error_numbers = saved = 0
         with transaction.atomic():
-            self.save(rows)
-            self.data_import.line_numbers = line_count
-            self.data_import.error_numbers = self.error_count(line_count, rows)
+            for line_count, rows in self.read_batches():
+                self.save(rows)
+                self.data_import.line_numbers += line_count
+                self.data_import.error_numbers += self.error_count(line_count, rows)
+                saved += len(rows)
             self.data_import.save(update_fields=["line_numbers", "error_numbers"])
-        return len(rows)
+        return saved

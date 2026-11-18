@@ -302,6 +302,12 @@ class OutdoorVisionParserTests(TrafficTestCase):
         self.assertEqual(measure.counting_object.geom.num_geom, 2)  # both pieces kept
         self.assertEqual(CountingMeasure.objects.get(counting_object__external_id="t2").practice.code, "cycling")
 
+    @patch("traffic.parsers.outdoorvision.BATCH_LINES", 1)
+    def test_a_batch_holds_whole_tracks(self):
+        data_import, count = self.run_import()
+        self.assertEqual((count, data_import.line_numbers), (2, 3))
+        self.assertEqual(CountingObject.objects.get(external_id="t1").geom.num_geom, 2)  # both pieces kept
+
     def test_reimport_does_not_duplicate(self):
         self.run_import()
         self.run_import()
