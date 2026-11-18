@@ -152,6 +152,14 @@ class SINPParserTests(BiodiversityTestCase):
             ("Polygon", None),
         )
 
+    def test_deleting_an_import_deletes_the_records_it_wrote_last(self):
+        first, _ = self.run_import(self.line(self.LYNX))
+        second, _ = self.run_import(self.line(self.LYNX, name="Lynx lynx"), self.line(self.FROG))
+        first.delete()  # both records were last written by the second import
+        self.assertEqual(TaxonRecord.objects.count(), 2)
+        second.delete()
+        self.assertFalse(TaxonRecord.objects.exists())
+
     def test_reimport_updates_records(self):
         self.run_import(self.line(self.LYNX))
         self.run_import(self.line(self.LYNX, name="Lynx lynx"))

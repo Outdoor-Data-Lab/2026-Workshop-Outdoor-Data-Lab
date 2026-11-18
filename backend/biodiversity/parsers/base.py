@@ -53,6 +53,7 @@ class BiodiversityRecordParser(ImportParser):
                         **record
                         | {
                             "source": self.source,
+                            "data_import": self.data_import,
                             "referential": referentials[record["referential"]],
                             "geom": GEOSGeometry(record["geom"], srid=4326),
                         }

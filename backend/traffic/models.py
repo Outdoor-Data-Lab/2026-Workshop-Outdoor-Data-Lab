@@ -89,6 +89,16 @@ class CountingObject(models.Model):
         blank=True,
     )
     geom = models.GeometryField(srid=4326)
+    # The import that created the object. Deleting it deletes the object when no
+    # measure of another import is left on it (see signals.py); otherwise the
+    # object stays, unlinked.
+    data_import = models.ForeignKey(
+        DataImport,
+        on_delete=models.SET_NULL,
+        related_name="counting_objects",
+        null=True,
+        blank=True,
+    )
     date_create = models.DateTimeField(auto_now_add=True)
     date_update = models.DateTimeField(auto_now=True)
     installation_date = models.DateField(null=True, blank=True)
@@ -152,6 +162,14 @@ class CountingMeasure(models.Model):
         Practice,
         on_delete=models.PROTECT,
         related_name="measures",
+        null=True,
+        blank=True,
+    )
+    # The import that wrote the measure: deleting it deletes the measure.
+    data_import = models.ForeignKey(
+        DataImport,
+        on_delete=models.CASCADE,
+        related_name="counting_measures",
         null=True,
         blank=True,
     )

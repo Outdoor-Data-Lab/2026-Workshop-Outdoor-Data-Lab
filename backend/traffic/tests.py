@@ -344,6 +344,23 @@ class StravaParserTests(TrafficTestCase):
         self.assertEqual(measure.end_datetime, datetime(2024, 12, 31, 23, tzinfo=timezone.utc))
         self.assertEqual(measure.counting_object.type.code, "segment")
 
+    def test_deleting_an_import_deletes_its_measures_and_the_objects_left_empty(self):
+        first, _ = self.run_import(2024)
+        second, _ = self.run_import(2025, counts=((10, 100), (30, 5)))  # edge 10 again, edge 30 new
+        second.delete()
+        self.assertEqual(set(CountingObject.objects.values_list("external_id", flat=True)), {"10", "20"})
+        self.assertEqual(sorted(CountingMeasure.objects.values_list("count", flat=True)), [15, 80])
+        first.delete()
+        self.assertFalse(CountingObject.objects.exists())
+
+    def test_an_object_still_measured_by_another_import_is_kept(self):
+        first, _ = self.run_import(2024)
+        self.run_import(2024, counts=((10, 90),))  # replaces the 2024 measure of edge 10
+        first.delete()
+        self.assertIsNone(CountingObject.objects.get(external_id="10").data_import)  # kept, unlinked
+        self.assertFalse(CountingObject.objects.filter(external_id="20").exists())
+        self.assertEqual(list(CountingMeasure.objects.values_list("count", flat=True)), [90])
+
     def test_reimport_replaces_the_year(self):
         self.run_import()
         self.run_import(counts=((10, 90), (20, 20)))

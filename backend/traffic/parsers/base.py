@@ -65,6 +65,7 @@ class TrafficParser(ImportParser):
                 count=row.count,
                 unit=unit,
                 practice=practices[row.activity],
+                data_import=self.data_import,
             )
             for row in rows.itertuples()
         )
@@ -105,6 +106,7 @@ class TrafficParser(ImportParser):
                 type=object_type,
                 external_id=row.external_id,
                 geom=GEOSGeometry(memoryview(row.geometry.wkb), srid=4326),
+                data_import=self.data_import,
             )
             for row in new.itertuples()
         )
