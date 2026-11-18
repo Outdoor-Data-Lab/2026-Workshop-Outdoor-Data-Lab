@@ -77,6 +77,24 @@ class PracticeTests(TestCase):
             practice.save()
 
 
+class PracticeApiTests(TestCase):
+    url = "/api/commons/practice"
+
+    def test_invalid_parent_id_is_400(self):
+        for query in ("parent_id=abc", "parent_id=abc&recursive=true"):
+            self.assertEqual(self.client.get(f"{self.url}?{query}").status_code, 400)
+
+    def test_recursive_terminates_on_a_cycle(self):
+        Practice.objects.filter(code="walking").update(
+            parent=Practice.objects.get(code="hiking")
+        )
+        with connection.cursor() as cursor:
+            # Fail instead of hanging if the query loops again.
+            cursor.execute("SET LOCAL statement_timeout = 2000")
+        response = self.client.get(f"{self.url}?parent_code=walking&recursive=true")
+        self.assertEqual(response.status_code, 200)
+
+
 class DataImportFileTests(TestCase):
     def test_uploaded_file_is_stored_under_media_imports(self):
         with tempfile.TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):

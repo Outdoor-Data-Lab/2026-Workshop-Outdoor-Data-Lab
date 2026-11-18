@@ -1,4 +1,5 @@
 from rest_framework import viewsets
+from rest_framework.exceptions import ValidationError
 
 from ..models import (
     DataSource,
@@ -87,6 +88,8 @@ class PracticeViewSet(viewsets.ReadOnlyModelViewSet):
             queryset = queryset.filter(code__icontains=code)
 
         parent_id = params.get("parent_id")
+        if parent_id is not None and not parent_id.isdigit():
+            raise ValidationError({"parent_id": "Un entier est attendu."})
         parent_code = params.get("parent_code")
 
         recursive = params.get("recursive", "false").lower() == "true"
@@ -112,7 +115,7 @@ class PracticeViewSet(viewsets.ReadOnlyModelViewSet):
                         FROM {table}
                         WHERE parent_id = %s
 
-                        UNION ALL
+                        UNION
 
                         SELECT p.id
                         FROM {table} p
