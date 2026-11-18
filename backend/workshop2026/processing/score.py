@@ -37,6 +37,11 @@ BTA_SOURCE_MATCHING = {
     "outdoorvision": (100, False),  # outings passing within 100 m
     "inaturalist": (500, False),  # observer-days within 500 m
 }
+# Eco-counters (external_id) left out of the weight estimation. CARRELET was
+# already excluded by the R code; PREMCARL (Pré de Madame Carle, reached by car)
+# counts 4 times more than any other counter for few Strava passages, and alone
+# brings the Strava correlation from 0.80 down to 0.04.
+BTA_EXCLUDED_COUNTERS = frozenset({"CARRELET", "PREMCARL"})
 BTA_SUMMER_MONTHS = (6, 7, 8, 9)
 BTA_FIRST_YEAR = 2021
 BTA_CORRELATION_THRESHOLD = 0.25
@@ -260,7 +265,12 @@ class CazalisFrequentationScore(Score):
 
     @classmethod
     def cached_source_weights(cls):
-        """``calculate_source_weights``, cached until measures or sources change.
+        """``calculate_source_weights``, cached (see ``cached_estimate``)."""
+        return cls.cached_estimate()["weights"]
+
+    @classmethod
+    def cached_estimate(cls):
+        """``estimate_source_weights``, cached until measures or sources change.
 
         The calculation takes seconds on real data (the Outdoorvision tracks
         around the counters), too long to run on every API request.
@@ -270,15 +280,28 @@ class CazalisFrequentationScore(Score):
         key = "cazalis-weights:{}:{}:{}:{}".format(
             measures["last"], measures["total"], sources["last"], sources["total"]
         )
-        weights = cache.get(key)
-        if weights is None:
-            weights = cls.calculate_source_weights()
-            cache.set(key, weights, timeout=None)
-        return weights
+        estimate = cache.get(key)
+        if estimate is None:
+            estimate = cls.estimate_source_weights()
+            cache.set(key, estimate, timeout=None)
+        return estimate
 
     @classmethod
     def calculate_source_weights(cls):
+        """``{source id: weight}``, see ``estimate_source_weights``."""
+        return cls.estimate_source_weights()["weights"]
+
+    @classmethod
+    def estimate_source_weights(cls):
         """Estimate BTA weights from correlations with the eco-counters.
+
+        Counters of ``BTA_EXCLUDED_COUNTERS`` are left out.
+
+        Returns ``{"weights": {source id: weight}, "counters": n, "correlations":
+        {source id: {"r": Pearson's r or None, "counters": n}}}``: ``counters``
+        is the number of eco-counters with enough data, and per source the
+        number of them matched to it (all of them, except for a nearest-only
+        source such as Strava). ``correlations`` holds the weighted sources only.
 
         Port of ``BTA_PrepareCorrelation`` + ``BTA_PoidsRaster``: one point per
         eco-counter. Its reference value is its mean daily count over the
@@ -302,8 +325,18 @@ class CazalisFrequentationScore(Score):
             if code in BTA_SOURCE_MATCHING
         }
         correlations = {}
+
+        def result(counters=0):
+            return {
+                "weights": cazalis_weights_from_correlations(
+                    {source_id: c["r"] for source_id, c in correlations.items()}, source_ids
+                ),
+                "counters": counters,
+                "correlations": correlations,
+            }
+
         if reference_id is None or not candidates:
-            return cazalis_weights_from_correlations(correlations, source_ids)
+            return result()
 
         half_months = (
             # Not measures_queryset: its one row per (measure, cell) would count
@@ -312,6 +345,7 @@ class CazalisFrequentationScore(Score):
                 counting_object__source_id=reference_id,
                 start_datetime__gte=_start_of_day(date(BTA_FIRST_YEAR, 1, 1)),
             )
+            .exclude(counting_object__external_id__in=BTA_EXCLUDED_COUNTERS)
             .annotate(
                 year=ExtractYear("start_datetime"),
                 month=ExtractMonth("start_datetime"),
@@ -331,18 +365,21 @@ class CazalisFrequentationScore(Score):
         for row in half_months:
             daily_means[row["counting_object_id"]].append(row["total"] / row["days"])
         if not daily_means:
-            return cazalis_weights_from_correlations(correlations, source_ids)
+            return result()
         reference = {station: fmean(values) for station, values in sorted(daily_means.items())}
 
         for source_id, (radius, nearest_only) in sorted(candidates.items()):
             near = _counts_near(reference, source_id, radius, nearest_only)
             matched = [station for station in reference if station in near]
-            correlations[source_id] = _pearson_correlation(
-                [reference[station] for station in matched],
-                [near[station] for station in matched],
-            )
+            correlations[source_id] = {
+                "r": _pearson_correlation(
+                    [reference[station] for station in matched],
+                    [near[station] for station in matched],
+                ),
+                "counters": len(matched),
+            }
 
-        return cazalis_weights_from_correlations(correlations, source_ids)
+        return result(counters=len(reference))
 
     @classmethod
     def compute_from(cls, queryset, source_weights=None, **params):

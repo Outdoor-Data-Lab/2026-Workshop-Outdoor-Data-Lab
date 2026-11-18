@@ -677,8 +677,9 @@ class CazalisWeightCalculationTests(AreasTestCase):
       and D's only edge (611 m) must be ignored, which drops D.
     - Outdoorvision (within 100 m): A 1, B 3, D 2; A's track at 222 m is ignored.
 
-    Both then correlate perfectly. C, next to B, has only 5 days of data and
-    must be ignored, or neither source would correlate.
+    Both then correlate perfectly. C, next to B, has only 5 days of data, and
+    PREMCARL, next to A, is excluded by name: both must be ignored, or neither
+    source would correlate.
     """
 
     @classmethod
@@ -693,10 +694,10 @@ class CazalisWeightCalculationTests(AreasTestCase):
         # Away from the AreasTestCase objects (cell centres), which are outdoorvision.
         a, b, d = (6.3, 44.3), (7.3, 44.3), (6.6, 44.3)
 
-        def counter(point, days, daily_count):
+        def counter(point, days, daily_count, external_id=""):
             obj = CountingObject.objects.create(
                 type=types["counter"], source_id=sources["ecocompteur"],
-                geom=Point(*point, srid=4326),
+                geom=Point(*point, srid=4326), external_id=external_id,
             )
             for day in range(1, days + 1):
                 start = datetime(2021, 7, day, 12, tzinfo=timezone.utc)
@@ -721,6 +722,7 @@ class CazalisWeightCalculationTests(AreasTestCase):
         counter(a, 11, 10)
         counter(b, 11, 30)
         counter(b, 5, 1)  # C
+        counter(a, 11, 1000, external_id="PREMCARL")
         counter(d, 11, 20)
         segment("strava", a, 0.001, 100)
         segment("strava", a, 0.003, 9999)
@@ -730,6 +732,23 @@ class CazalisWeightCalculationTests(AreasTestCase):
         segment("outdoorvision", a, 0.002, 50)
         segment("outdoorvision", b, 0.0005, 3)
         segment("outdoorvision", d, 0.0005, 2)
+
+    def test_weights_endpoint_details_the_estimate(self):
+        response = self.client.get("/api/traffic/cazalis-weights")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["counters"], 3)  # A, B, D (C has too few days)
+        self.assertEqual(data["excluded_counters"], ["CARRELET", "PREMCARL"])
+        self.assertEqual(data["threshold"], 0.25)
+        sources = {source["code"]: source for source in data["sources"]}
+        self.assertEqual(set(sources), {"strava", "outdoorvision", "inaturalist"})
+        self.assertEqual(sources["strava"]["weight"], 50)
+        self.assertAlmostEqual(sources["strava"]["correlation"], 1)
+        self.assertEqual(sources["strava"]["counters"], 2)  # D has no edge within 500 m
+        self.assertEqual((sources["strava"]["radius"], sources["strava"]["nearest"]), (500, True))
+        self.assertEqual(sources["outdoorvision"]["counters"], 3)
+        self.assertIsNone(sources["inaturalist"]["correlation"])
+        self.assertEqual(sources["inaturalist"]["weight"], 0)
 
     def test_calculates_weights_from_summer_ecocompteur_correlations(self):
         weights = CazalisFrequentationScore.calculate_source_weights()
