@@ -82,7 +82,7 @@ def remove_m500(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("traffic", "0004_trafficimport"),
+        ("traffic", "0007_sync_counting_object_areas_by_object"),
     ]
 
     operations = [
