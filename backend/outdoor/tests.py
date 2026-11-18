@@ -1,23 +1,22 @@
-import json
-import tempfile
+
 import uuid
-from pathlib import Path
 
-import geopandas as gpd
-import shapely
-from django.conf import settings
-from django.contrib.auth import get_user_model
 from django.contrib.gis.geos import LineString, Point
-from django.core.files.uploadedfile import SimpleUploadedFile
-from django.db import IntegrityError, connection
+from django.db import IntegrityError
 from django.db.models import ProtectedError
-from django.test import TestCase, override_settings
+import uuid
+from datetime import datetime, timedelta
+
+from django.test import TestCase
 from django.urls import reverse
+from rest_framework.test import APIClient
+from rest_framework import status
+from django.db import connection
 
-from commons.models import DataImport, DataSource, Practice
+from commons.models import DataSource, Practice
+from ref_geo.tests import RefGeoTestCase
 
-from .models import Offer, OfferImport
-from .parsers import OfferParser
+from .models import Offer
 
 class OutdoorTestCase(TestCase):
     @classmethod

@@ -3,6 +3,7 @@ from rest_framework import serializers
 from rest_framework_gis.serializers import GeoFeatureModelSerializer
 
 from ref_geo.models import LArea
+from workshop2026.api.mixins import DynamicFieldsMixin
 from ..models import Offer
 
 
@@ -89,7 +90,7 @@ class LAreaGeoWithOffersCountSerializer(DynamicFieldsMixin,OffersCountMixin, Geo
     Meta = LAreaGeoMeta
 
 
-class LAreaWithOffersCountAndByPracticeSerializer(DynamicFieldsMixin, gfjOffersCountByPracticeMixin, serializers.ModelSerializer):
+class LAreaWithOffersCountAndByPracticeSerializer(DynamicFieldsMixin, OffersCountByPracticeMixin, serializers.ModelSerializer):
     Meta = LAreaMeta
 
 
