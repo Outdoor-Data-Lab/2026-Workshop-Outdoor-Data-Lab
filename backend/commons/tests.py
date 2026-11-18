@@ -23,7 +23,7 @@ class CommonsTests(TestCase):
         self.assertEqual(
             set(DataSource.objects.values_list("code", flat=True)),
             {
-                "outdoorvision", "ecocompteur", "strava", "geotrek", "gbif", "inpn",
+                "outdoorvision", "ecocompteur", "strava", "geotrek", "gbif", "sinp",
                 "geonature", "inaturalist", "garmin", "komoot", "visorando",
             },
         )
@@ -189,10 +189,10 @@ class DataImportAdminTests(TestCase):
         self.assertContains(response, "Aucun parser n&#x27;est disponible pour la source « Geotrek ».")
         self.assertFalse(DataImport.objects.exists())
 
-    @patch("biodiversity.parsers.inpn.INPNParser")
+    @patch("biodiversity.parsers.sinp.SINPParser")
     def test_imported_count_is_shown(self, parser_class):
         parser_class.return_value.import_data.return_value = 12
-        response = self.add_import("inpn")
+        response = self.add_import("sinp")
         self.assertContains(response, "12 éléments importés.")
 
 

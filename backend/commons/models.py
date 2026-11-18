@@ -28,7 +28,7 @@ PARSERS = {
     "strava": "traffic.parsers.strava.StravaParser",
     "ecocompteur": "traffic.parsers.compteur.CompteurParser",
     "inaturalist": "traffic.parsers.inaturalist.INaturalistParser",
-    "inpn": "biodiversity.parsers.inpn.INPNParser",
+    "sinp": "biodiversity.parsers.sinp.SINPParser",
     "gbif": "biodiversity.parsers.gbif.GBIFParser",
 }
 

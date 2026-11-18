@@ -29,8 +29,8 @@ REQUIRED = [
 ]
 
 
-class INPNParser(BiodiversityRecordParser):
-    NAME = "INPN"
+class SINPParser(BiodiversityRecordParser):
+    NAME = "SINP"
     CONTENT = (
         "Contient des observations d'espèces (une géométrie par observation, le plus souvent un point), "
         "avec leur taxon TaxRef."
@@ -54,15 +54,15 @@ class INPNParser(BiodiversityRecordParser):
 
         missing = set(COLUMNS).difference(data.columns)
         if missing:
-            raise ValueError(f"Colonnes INPN manquantes : {', '.join(sorted(missing))}")
+            raise ValueError(f"Colonnes SINP manquantes : {', '.join(sorted(missing))}")
         if data.empty:
-            raise ValueError("Le fichier INPN ne contient aucune observation.")
+            raise ValueError("Le fichier SINP ne contient aucune observation.")
 
         rows = data.rename(columns=COLUMNS)
         incomplete = rows[REQUIRED].isna().any(axis=1)
         if incomplete.any():
             lines = ", ".join(str(i + 2) for i in rows.index[incomplete][:10])
-            raise ValueError(f"Observations INPN incomplètes (lignes {lines}).")
+            raise ValueError(f"Observations SINP incomplètes (lignes {lines}).")
 
         for column in ("record_start_date", "record_end_date"):
             rows[column] = pd.to_datetime(rows[column], format="ISO8601").dt.date

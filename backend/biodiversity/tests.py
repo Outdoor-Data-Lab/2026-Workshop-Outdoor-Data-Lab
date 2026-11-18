@@ -13,7 +13,7 @@ from commons.models import DataImport, DataSource
 
 from .models import HabitatRecord, HabitatStation, TaxonomicReferential, TaxonRecord
 from .parsers.gbif import GBIFParser
-from .parsers.inpn import INPNParser
+from .parsers.sinp import SINPParser
 
 
 class BiodiversityTestCase(TestCase):
@@ -101,7 +101,7 @@ class ReferenceDataTests(TestCase):
         )
 
 
-class INPNParserTests(BiodiversityTestCase):
+class SINPParserTests(BiodiversityTestCase):
     HEADER = "id_perm_sinp;cd_ref;cd_nom;nom_valide;nom_cite;date_debut;date_fin;wkt_4326;precision;jdd_uuid"
     LYNX = str(uuid.uuid4())
     FROG = str(uuid.uuid4())
@@ -125,7 +125,7 @@ class INPNParserTests(BiodiversityTestCase):
         content = "\r\n".join([header, *lines]).encode()
         data_import = DataImport(source=DataSource.objects.get(code="geonature"))
         data_import.file.save("synthese.csv", ContentFile(content))
-        return data_import, INPNParser(data_import).import_data()
+        return data_import, SINPParser(data_import).import_data()
 
     def test_one_record_per_line(self):
         polygon = "POLYGON((6.4 44.9, 6.5 44.9, 6.5 45, 6.4 44.9))"

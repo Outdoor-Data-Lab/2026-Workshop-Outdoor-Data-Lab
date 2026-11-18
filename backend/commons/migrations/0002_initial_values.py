@@ -11,7 +11,7 @@ DATA_SOURCES = [
     ("strava", "Strava"),
     ("geotrek", "Geotrek"),
     ("gbif", "GBIF"),
-    ("inpn", "INPN"),
+    ("inpn", "INPN"),  # renamed "sinp" by 0003
     ("geonature", "GeoNature"),
     ("inaturalist", "iNaturalist"),
     # Origin applications, behind a provider such as OutdoorVision
