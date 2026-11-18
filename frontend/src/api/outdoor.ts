@@ -1,6 +1,7 @@
 /** API outdoor (offres d'activités). Types générés par `npm run gen:api`. */
 import type { Feature, Geometry, MultiPolygon } from 'geojson'
 
+import { i18n } from '@/i18n'
 import { mapObjectKey, type LayerId, type MapObject } from '@/types/mapObject'
 
 import { apiFetch, withQuery, type GeoJsonPage, type LimitOffset, type Paginated } from './client'
@@ -145,8 +146,10 @@ export function offerToMapObject(feature: OfferFeature): MapObject {
     id: feature.id,
     domain: 'outdoor',
     layer: OFFER_LAYER,
-    label: `${feature.properties.practice_label} ${feature.properties.external_id}`.trim(),
+    // Sans nom (certaines sources n'en donnent pas) : l'identifiant de la source.
+    label: feature.properties.name || feature.properties.external_id,
     geometry: feature.geometry,
+    attributes: { [i18n.global.t('offer.practice')]: feature.properties.practice_label },
   }
 }
 

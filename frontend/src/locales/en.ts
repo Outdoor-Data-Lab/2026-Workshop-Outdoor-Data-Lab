@@ -40,6 +40,9 @@ export default {
     counters: 'Counters',
     trafficAreas: 'Traffic per grid cell (score)',
   },
+  offer: {
+    practice: 'Practice',
+  },
   detail: {
     title: 'Detail',
     empty: 'Select an object on the map.',
