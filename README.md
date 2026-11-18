@@ -97,6 +97,10 @@ docker compose exec web python backend/manage.py createsuperuser
 
 Voir [docs/imports.md](docs/imports.md).
 
+## Ajouter une couche externe
+
+Voir [docs/couches-externes.md](docs/couches-externes.md).
+
 ## Load demonstration traffic data
 
 Start the development stack, then load the sample traffic data with the Django management command:
