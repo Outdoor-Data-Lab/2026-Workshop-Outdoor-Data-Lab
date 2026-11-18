@@ -1,8 +1,10 @@
 """Shared logic of the traffic parsers: one imported file -> counting objects and measures.
 
-A parser only reads its file: `read()` returns the number of lines read and one
-row per measure, with the columns of MEASURE_COLUMNS. Lines it deliberately skips
-are counted in `skipped_lines` and saved as the import's error_numbers.
+A parser only reads its file (see commons.parsers.ImportParser): `read()` returns
+the number of lines read and one row per measure, with the columns of
+MEASURE_COLUMNS. A row may gather several lines (the pieces of a track), so the
+lines deliberately skipped are counted in `skipped_lines`, saved as the
+import's error_numbers.
 
 Saving is the same for every source: missing objects are created in bulk, and
 the measures the file gives again are replaced: those of an already known object
@@ -16,13 +18,12 @@ Nothing in the database forbids two measures with the same key: only the
 parsers avoid creating them.
 """
 
-from abc import ABC, abstractmethod
-
 import pandas as pd
 from django.contrib.gis.geos import GEOSGeometry
-from django.db import connection, transaction
+from django.db import connection
 
 from commons.models import DataImport, Practice
+from commons.parsers import ImportParser
 
 from ..models import CountingMeasure, CountingObject, CountingObjectType, Unit
 
@@ -30,26 +31,20 @@ MEASURE_COLUMNS = ["external_id", "geometry", "start_datetime", "end_datetime", 
 BATCH_SIZE = 5000
 
 
-class TrafficParser(ABC):
-    NAME = ""  # used in error messages
-    CONTENT = ""  # what the file holds (traces, points...), shown in the admin above EXAMPLE
-    EXAMPLE = ""  # expected file, shown in the admin when the source is selected
+class TrafficParser(ImportParser):
     PRACTICE_CODES: dict[str, str] = {}  # source activity -> Practice code
     OBJECT_TYPE = "segment"
     UNIT = "person"
 
     def __init__(self, data_import: DataImport):
-        self.data_import = data_import
-        self.source = data_import.source
+        super().__init__(data_import)
         self.skipped_lines = 0
 
-    @abstractmethod
-    def read(self) -> tuple[int, pd.DataFrame]:
-        """Read the file: return the number of lines read and the rows to save."""
+    def error_count(self, line_count: int, rows: pd.DataFrame) -> int:
+        return self.skipped_lines
 
-    def import_data(self) -> int:
-        """Save the measures read from the file; return their number."""
-        line_count, rows = self.read()
+    def save(self, rows: pd.DataFrame) -> None:
+        """Create the missing counting objects, then replace the measures the file gives again."""
         missing = set(MEASURE_COLUMNS).difference(rows.columns)
         if missing:
             raise ValueError(f"{type(self).__name__}.read() sans les colonnes : {', '.join(sorted(missing))}")
@@ -58,27 +53,22 @@ class TrafficParser(ABC):
         object_type = CountingObjectType.objects.get(code=self.OBJECT_TYPE)
         unit = Unit.objects.get(code=self.UNIT)
 
-        with transaction.atomic():
-            object_ids, known = self._save_objects(rows, object_type)
-            self._delete_given_measures(rows[rows.external_id.isin(known)], object_ids, practices, unit)
-            CountingMeasure.objects.bulk_create(
-                (
-                    CountingMeasure(
-                        counting_object_id=object_ids[row.external_id],
-                        start_datetime=row.start_datetime,
-                        end_datetime=row.end_datetime,
-                        count=row.count,
-                        unit=unit,
-                        practice=practices[row.activity],
-                    )
-                    for row in rows.itertuples()
-                ),
-                batch_size=BATCH_SIZE,
-            )
-            self.data_import.line_numbers = line_count
-            self.data_import.error_numbers = self.skipped_lines
-            self.data_import.save(update_fields=["line_numbers", "error_numbers"])
-        return len(rows)
+        object_ids, known = self._save_objects(rows, object_type)
+        self._delete_given_measures(rows[rows.external_id.isin(known)], object_ids, practices, unit)
+        CountingMeasure.objects.bulk_create(
+            (
+                CountingMeasure(
+                    counting_object_id=object_ids[row.external_id],
+                    start_datetime=row.start_datetime,
+                    end_datetime=row.end_datetime,
+                    count=row.count,
+                    unit=unit,
+                    practice=practices[row.activity],
+                )
+                for row in rows.itertuples()
+            ),
+            batch_size=BATCH_SIZE,
+        )
 
     def _practices(self, activities: pd.Series) -> dict[str, Practice]:
         unknown = set(activities).difference(self.PRACTICE_CODES)

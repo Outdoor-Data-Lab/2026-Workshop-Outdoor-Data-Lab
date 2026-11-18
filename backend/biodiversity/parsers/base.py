@@ -2,9 +2,8 @@
 
 import pandas as pd
 from django.contrib.gis.geos import GEOSGeometry
-from django.db import transaction
 
-from commons.models import DataImport
+from commons.parsers import ImportParser
 
 from ..models import TaxonomicReferential, TaxonRecord
 
@@ -17,8 +16,8 @@ UPDATED_FIELDS = [
 BATCH_SIZE = 5000
 
 
-class BiodiversityRecordParser:
-    """Base class of the parsers that import taxon records.
+class BiodiversityRecordParser(ImportParser):
+    """Base class of the parsers that import taxon records (see commons.parsers.ImportParser).
 
     A subclass only reads its file, in `read()`, which returns:
     - the number of lines read in the file (saved in DataImport.line_numbers);
@@ -32,49 +31,34 @@ class BiodiversityRecordParser:
       - `referential`: a TaxonomicReferential code, e.g. "taxref";
       - missing values (NaN, pd.NA) saved as NULL.
 
-    `import_data()` then saves the rows the same way for every source: records
+    `save()` then writes the rows the same way for every source: records
     are upserted on their uuid, so a re-import updates the observations
     already imported instead of duplicating them.
     """
 
-    NAME = ""  # used in error messages
-
-    def __init__(self, data_import: DataImport):
-        self.data_import = data_import
-        self.source = data_import.source
-
-    def read(self) -> tuple[int, pd.DataFrame]:
-        raise NotImplementedError
-
-    def import_data(self) -> int:
-        """Save the records read from the file; return their number."""
-        line_count, rows = self.read()
+    def save(self, rows: pd.DataFrame) -> None:
+        """Upsert the records on their uuid."""
         referentials = self._referentials(rows["referential"])
         # Missing values (NaN, pd.NA) become None, i.e. NULL.
         records = rows.astype(object).where(rows.notna(), None).to_dict("records")
 
-        with transaction.atomic():
-            TaxonRecord.objects.bulk_create(
-                (
-                    TaxonRecord(
-                        **record
-                        | {
-                            "source": self.source,
-                            "referential": referentials[record["referential"]],
-                            "geom": GEOSGeometry(record["geom"], srid=4326),
-                        }
-                    )
-                    for record in records
-                ),
-                batch_size=BATCH_SIZE,
-                update_conflicts=True,
-                unique_fields=["uuid"],
-                update_fields=UPDATED_FIELDS,
-            )
-            self.data_import.line_numbers = line_count
-            self.data_import.error_numbers = line_count - len(rows)
-            self.data_import.save(update_fields=["line_numbers", "error_numbers"])
-        return len(rows)
+        TaxonRecord.objects.bulk_create(
+            (
+                TaxonRecord(
+                    **record
+                    | {
+                        "source": self.source,
+                        "referential": referentials[record["referential"]],
+                        "geom": GEOSGeometry(record["geom"], srid=4326),
+                    }
+                )
+                for record in records
+            ),
+            batch_size=BATCH_SIZE,
+            update_conflicts=True,
+            unique_fields=["uuid"],
+            update_fields=UPDATED_FIELDS,
+        )
 
     def _referentials(self, codes: pd.Series) -> dict[str, TaxonomicReferential]:
         by_code = TaxonomicReferential.objects.in_bulk(set(codes), field_name="code")

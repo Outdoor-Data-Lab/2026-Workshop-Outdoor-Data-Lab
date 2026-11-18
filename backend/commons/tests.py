@@ -223,6 +223,15 @@ class RegisterParsersTests(SimpleTestCase):
     def test_every_domain_registered_its_parsers(self):
         self.assertLessEqual({"outdoorvision", "strava", "ecocompteur", "inaturalist", "sinp", "gbif"}, set(PARSERS))
 
+    def test_every_parser_shares_the_import_base(self):
+        from django.utils.module_loading import import_string
+
+        from .parsers import ImportParser
+
+        for code, path in PARSERS.items():
+            with self.subTest(code):
+                self.assertTrue(issubclass(import_string(path), ImportParser))
+
 
 class ParserExamplesTests(SimpleTestCase):
     def test_every_parser_describes_its_file(self):
