@@ -2,6 +2,7 @@ from rest_framework import serializers
 from rest_framework_gis.fields import GeometryField
 from rest_framework_gis.serializers import GeoFeatureModelSerializer
 
+from workshop2026.api.mixins import DynamicFieldsMixin
 from .models import (
     BibAreasType,
     BibLinearsType,
@@ -15,25 +16,25 @@ from .models import (
 )
 
 
-class BibAreasTypeSerializer(serializers.ModelSerializer):
+class BibAreasTypeSerializer(DynamicFieldsMixin, serializers.ModelSerializer):
     class Meta:
         model = BibAreasType
         fields = "__all__"
 
 
-class BibLinearsTypeSerializer(serializers.ModelSerializer):
+class BibLinearsTypeSerializer(DynamicFieldsMixin, serializers.ModelSerializer):
     class Meta:
         model = BibLinearsType
         fields = "__all__"
 
 
-class BibPointsTypeSerializer(serializers.ModelSerializer):
+class BibPointsTypeSerializer(DynamicFieldsMixin, serializers.ModelSerializer):
     class Meta:
         model = BibPointsType
         fields = "__all__"
 
 
-class LAreaSerializer(serializers.ModelSerializer):
+class LAreaSerializer(DynamicFieldsMixin, serializers.ModelSerializer):
     type_code = serializers.CharField(source="type.type_code", read_only=True)
 
     class Meta:
@@ -41,7 +42,7 @@ class LAreaSerializer(serializers.ModelSerializer):
         exclude = ("geom", "centroid", "geom_4326", "type")
 
 
-class LLinearSerializer(serializers.ModelSerializer):
+class LLinearSerializer(DynamicFieldsMixin, serializers.ModelSerializer):
     type_code = serializers.CharField(source="type.type_code", read_only=True)
 
     class Meta:
@@ -49,7 +50,7 @@ class LLinearSerializer(serializers.ModelSerializer):
         exclude = ("geom", "geojson_4326", "type")
 
 
-class LPointSerializer(serializers.ModelSerializer):
+class LPointSerializer(DynamicFieldsMixin, serializers.ModelSerializer):
     type_code = serializers.CharField(source="type.type_code", read_only=True)
 
     class Meta:
@@ -60,7 +61,7 @@ class LPointSerializer(serializers.ModelSerializer):
 # GeoJSON variants (``?format=geojson``), geometry in WGS84.
 
 
-class LAreaGeoSerializer(GeoFeatureModelSerializer):
+class LAreaGeoSerializer(DynamicFieldsMixin, GeoFeatureModelSerializer):
     type_code = serializers.CharField(source="type.type_code", read_only=True)
 
     class Meta:
@@ -69,7 +70,7 @@ class LAreaGeoSerializer(GeoFeatureModelSerializer):
         exclude = ("geom", "centroid", "type")
 
 
-class LLinearGeoSerializer(GeoFeatureModelSerializer):
+class LLinearGeoSerializer(DynamicFieldsMixin, GeoFeatureModelSerializer):
     type_code = serializers.CharField(source="type.type_code", read_only=True)
     # annotated in SQL by the viewset (Transform(geom, 4326))
     geom_4326 = GeometryField(read_only=True)
@@ -80,7 +81,7 @@ class LLinearGeoSerializer(GeoFeatureModelSerializer):
         exclude = ("geom", "geojson_4326", "type")
 
 
-class LPointGeoSerializer(GeoFeatureModelSerializer):
+class LPointGeoSerializer(DynamicFieldsMixin, GeoFeatureModelSerializer):
     type_code = serializers.CharField(source="type.type_code", read_only=True)
     geom_4326 = GeometryField(read_only=True)
 
@@ -90,19 +91,19 @@ class LPointGeoSerializer(GeoFeatureModelSerializer):
         exclude = ("geom", "geojson_4326", "type")
 
 
-class LiMunicipalitySerializer(serializers.ModelSerializer):
+class LiMunicipalitySerializer(DynamicFieldsMixin, serializers.ModelSerializer):
     class Meta:
         model = LiMunicipality
         fields = "__all__"
 
 
-class LiGridSerializer(serializers.ModelSerializer):
+class LiGridSerializer(DynamicFieldsMixin, serializers.ModelSerializer):
     class Meta:
         model = LiGrid
         fields = "__all__"
 
 
-class TLinearGroupSerializer(serializers.ModelSerializer):
+class TLinearGroupSerializer(DynamicFieldsMixin, serializers.ModelSerializer):
     class Meta:
         model = TLinearGroup
         fields = ("id_group", "name", "code")

@@ -3,15 +3,16 @@ from rest_framework_gis.fields import GeometryField
 from rest_framework_gis.serializers import GeoFeatureModelSerializer
 
 from ref_geo.models import LArea
+from workshop2026.api.mixins import DynamicFieldsMixin
 
 
-class TaxonConservationStatusSerializer(serializers.Serializer):
+class TaxonConservationStatusSerializer(DynamicFieldsMixin, serializers.Serializer):
     lb_type_statut =  serializers.CharField(allow_null=True)
     code_statut = serializers.CharField(allow_null=True)
     label_statut = serializers.CharField(allow_null=True)
 
 
-class AreaTaxonSerializer(serializers.Serializer):
+class AreaTaxonSerializer(DynamicFieldsMixin, serializers.Serializer):
     cd_ref = serializers.IntegerField()
     lb_nom = serializers.CharField(allow_null=True)
     nom_vern = serializers.CharField(allow_null=True)
@@ -22,7 +23,7 @@ class AreaTaxonSerializer(serializers.Serializer):
     date_max = serializers.DateField()
 
 
-class TaxonStatusAreaSerializer(GeoFeatureModelSerializer):
+class TaxonStatusAreaSerializer(DynamicFieldsMixin, GeoFeatureModelSerializer):
     """GeoJSON representation of an area and its taxon status counters."""
 
     geom_4326 = GeometryField(read_only=True)
@@ -46,7 +47,7 @@ class TaxonStatusAreaSerializer(GeoFeatureModelSerializer):
         )
 
 
-class TaxonListAreaSerializer(GeoFeatureModelSerializer):
+class TaxonListAreaSerializer(DynamicFieldsMixin, GeoFeatureModelSerializer):
     """GeoJSON area containing its nested protected or threatened taxa."""
 
     geom_4326 = GeometryField(read_only=True)

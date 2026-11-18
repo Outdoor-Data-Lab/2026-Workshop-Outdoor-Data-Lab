@@ -4,6 +4,7 @@ from rest_framework import serializers
 from rest_framework_gis.serializers import GeoFeatureModelSerializer
 
 from commons.api.geo import code_field
+from workshop2026.api.mixins import DynamicFieldsMixin
 from workshop2026.processing.score import SCORES
 
 from ref_geo.models import LArea
@@ -16,13 +17,13 @@ from ..models import (
 )
 
 
-class UnitSerializer(serializers.ModelSerializer):
+class UnitSerializer(DynamicFieldsMixin, serializers.ModelSerializer):
     class Meta:
         model = Unit
         fields = ["id", "code", "label"]
 
 
-class CountingObjectTypeSerializer(serializers.ModelSerializer):
+class CountingObjectTypeSerializer(DynamicFieldsMixin, serializers.ModelSerializer):
     class Meta:
         model = CountingObjectType
         fields = ["id", "code", "label"]
@@ -47,7 +48,7 @@ COUNTING_OBJECT_FIELDS = [
 ]
 
 
-class CountingObjectSerializer(serializers.ModelSerializer):
+class CountingObjectSerializer(DynamicFieldsMixin, serializers.ModelSerializer):
     type_code = code_field("type")
     source_code = code_field("source")
     origin_code = code_field("origin")
@@ -68,7 +69,7 @@ class CountingObjectGeoSerializer(GeoFeatureModelSerializer, CountingObjectSeria
         fields = [*COUNTING_OBJECT_FIELDS, "geom"]
 
 
-class CountingMeasureSerializer(serializers.ModelSerializer):
+class CountingMeasureSerializer(DynamicFieldsMixin, serializers.ModelSerializer):
     unit_code = code_field("unit")
     practice_code = code_field("practice")
 
@@ -89,7 +90,7 @@ class CountingMeasureSerializer(serializers.ModelSerializer):
         ]
 
 
-class AreasQuerySerializer(serializers.Serializer):
+class AreasQuerySerializer(DynamicFieldsMixin, serializers.Serializer):
     """Query parameters of the areas route."""
 
     source = serializers.ListField(
@@ -133,7 +134,7 @@ class AreasQuerySerializer(serializers.Serializer):
         return data
 
 
-class AreaCountsSerializer(GeoFeatureModelSerializer):
+class AreaCountsSerializer(DynamicFieldsMixin, GeoFeatureModelSerializer):
     """A grid cell with its counts (``context["counts"]``:
     ``{id_area: {"counts", "count_segment", "count_presence"}}``) and its scores
     (``context["scores"]``: ``{score name: {id_area: value}}``), both computed
