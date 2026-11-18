@@ -17,10 +17,20 @@ export interface MapFeatureProperties {
   label: string
 }
 
-/** Objets de la carte, rangés par couche. */
+/** Couche proposée à l'utilisateur. `load` est appelé au premier affichage. */
+export interface LayerDefinition {
+  id: LayerId
+  label: string
+  group: string
+  load: () => Promise<MapObject[]>
+}
+
+/** Couches de la carte : définitions, visibilité et objets chargés. */
 export const useLayersStore = defineStore('layers', () => {
   const notifications = useNotificationsStore()
 
+  const definitions = shallowRef<LayerDefinition[]>([])
+  const visible = ref<Partial<Record<LayerId, boolean>>>({})
   // shallowRef + remplacement : pas de réactivité profonde sur les géométries.
   const objectsByLayer = shallowRef<Partial<Record<LayerId, MapObject[]>>>({})
   const status = ref<Partial<Record<LayerId, LayerStatus>>>({})
@@ -45,6 +55,7 @@ export const useLayersStore = defineStore('layers', () => {
       LayerId,
       MapObject[],
     ][]) {
+      if (!visible.value[layer]) continue
       collections[layer] = {
         type: 'FeatureCollection',
         features: objects.map((o) => ({
@@ -88,7 +99,20 @@ export const useLayersStore = defineStore('layers', () => {
     } catch (error) {
       if (call !== lastCall[layer]) return
       status.value[layer] = { loading: false, error }
-      notifications.notifyError(error, `Impossible de charger ${label}`)
+      notifications.notifyError(error, `Could not load ${label}`)
+    }
+  }
+
+  function addDefinitions(added: LayerDefinition[]) {
+    definitions.value = [...definitions.value, ...added]
+  }
+
+  /** Affiche ou masque une couche ; la charge au premier affichage, ou après un échec. */
+  function setVisible(layer: LayerId, on: boolean) {
+    visible.value[layer] = on
+    const definition = definitions.value.find((d) => d.id === layer)
+    if (on && definition && !(layer in objectsByLayer.value) && !status.value[layer]?.loading) {
+      loadLayer(layer, definition.load, { label: definition.label })
     }
   }
 
@@ -97,6 +121,8 @@ export const useLayersStore = defineStore('layers', () => {
   }
 
   return {
+    definitions,
+    visible,
     objectsByLayer,
     status,
     selectedKey,
@@ -105,6 +131,8 @@ export const useLayersStore = defineStore('layers', () => {
     setLayer,
     removeLayer,
     loadLayer,
+    addDefinitions,
+    setVisible,
     select,
   }
 })
