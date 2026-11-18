@@ -11,6 +11,7 @@ from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
 
 from .models import PARSERS, DataImport, DataSource, ExternalLayer, Practice, register_parsers
+from .tasks import run_import
 
 
 class CommonsTests(TestCase):
@@ -237,15 +238,14 @@ class ImportAdminTests(TestCase):
         self.assertContains(response, "&quot;strava&quot;: {&quot;content&quot;: &quot;Holds trail and road edges")
         self.assertContains(response, "&quot;example&quot;: &quot;Yearly or daily Strava Metro zip")
 
-    def test_refused_file_shows_the_error_and_keeps_nothing(self):
-        strava = DataSource.objects.get(code="strava")
-        response = self.add_import(self.traffic_url, "strava", "strava", b"not a zip", "export.zip")
+    def test_file_refused_by_the_worker_is_kept_as_failed(self):
+        self.add_import(self.traffic_url, "strava", "strava", b"not a zip", "export.zip")
+        data_import = DataImport.objects.get()
+        self.assertEqual(data_import.status, DataImport.Status.FAILED)
+        self.assertIn("File refused, nothing imported: The Strava file must be a zip", data_import.message)
+        # The file is deleted.
+        self.assertEqual(data_import.file.name, "")
         self.assertEqual(list(self.media.rglob("*.*")), [])
-        # Back to the form with the same format and source, and the parser's message.
-        self.assertEqual(response.redirect_chain, [(f"{self.traffic_url}?format=strava&source={strava.pk}", 302)])
-        self.assertContains(response, "Import refused, nothing was saved")
-        self.assertContains(response, "The Strava file must be a zip")
-        self.assertFalse(DataImport.objects.exists())
 
     def test_form_asks_only_for_the_format_the_source_and_the_file(self):
         # The parser fills line_numbers and error_numbers: the user must not set them.
@@ -260,15 +260,23 @@ class ImportAdminTests(TestCase):
         self.assertFalse(DataImport.objects.exists())
 
     @patch("biodiversity.parsers.sinp.SINPParser")
-    def test_imported_at_once_without_preview(self, parser_class):
+    def test_sent_to_the_worker_without_preview(self, parser_class):
         # Texts of the class: shown in the format choice, and they must be strings.
         parser_class.LABEL = parser_class.CONTENT = parser_class.EXAMPLE = "SINP"
         parser_class.return_value.errors = []
         parser_class.return_value.import_data.return_value = 12
-        response = self.add_import(self.biodiversity_url, "sinp", "sinp")
+        with patch("commons.admin.run_import.delay") as delay:
+            response = self.add_import(self.biodiversity_url, "sinp", "sinp")
+        data_import = DataImport.objects.get()
+        delay.assert_called_once_with(data_import.pk)
+        self.assertContains(response, "Import queued")
+        self.assertEqual((data_import.source.code, data_import.status), ("sinp", DataImport.Status.PENDING))
+
+        run_import(data_import.pk)  # what the worker does
         parser_class.return_value.preview.assert_not_called()  # the file is read once
-        self.assertContains(response, "12 item(s) imported, 0 line(s) in error.")
-        self.assertEqual(DataImport.objects.get().source.code, "sinp")
+        data_import.refresh_from_db()
+        self.assertEqual(data_import.status, DataImport.Status.DONE)
+        self.assertEqual(data_import.message, "12 item(s) imported, 0 line(s) in error.")
 
 
 class DataSourceAdminTests(TestCase):

@@ -104,7 +104,16 @@ class Practice(models.Model):
 
 
 class DataImport(models.Model):
-    """One run of an import: a file, in a format, provided by a source (see DataSource)."""
+    """One run of an import: a file, in a format, provided by a source (see DataSource).
+
+    The file is imported by the Celery worker (commons.tasks.run_import), which
+    records the outcome in `status` and `message`.
+    """
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        DONE = "done", "Done"
+        FAILED = "failed", "Failed"
 
     date_import = models.DateTimeField(auto_now_add=True)
     # How the file is read: a key of PARSERS.
@@ -119,6 +128,9 @@ class DataImport(models.Model):
     file = models.FileField(upload_to="imports", max_length=500)
     line_numbers = models.IntegerField(default=0)
     error_numbers = models.IntegerField(default=0)
+    status = models.CharField(max_length=10, choices=Status, default=Status.PENDING)
+    # Outcome of the import: counts and lines in error, or why the file was refused.
+    message = models.TextField(blank=True)
 
     class Meta:
         db_table = table("data_imports")
