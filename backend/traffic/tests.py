@@ -18,6 +18,7 @@ from django.test import Client, TestCase, override_settings
 from commons.models import DataImport, DataSource, Practice
 
 from .models import CountingMeasure, CountingObject, CountingObjectType, Unit
+from .parsers.compteur import CompteurParser
 from .parsers.outdoorvision import OutdoorVisionParser
 from .parsers.strava import StravaParser
 
@@ -313,3 +314,37 @@ class StravaParserTests(TrafficTestCase):
         with self.assertRaisesMessage(ValueError, "inconnues : Ride"):
             self.run_import(activity="Ride")
         self.assertFalse(CountingObject.objects.exists())
+
+
+class CompteurParserTests(TrafficTestCase):
+    def setUp(self):
+        self.tmp = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self.enterContext(override_settings(MEDIA_ROOT=self.tmp / "media"))
+
+    def run_import(self, counts=(("A", 5), ("A", 0), ("B", 3), ("B", 2))):
+        # Two hours per counter, plus a counter at 0 all year and one without position.
+        hours = ["2024-07-01 10:00:00", "2024-07-01 11:00:00"]
+        rows = [(hours[i % 2], name, n, "POINT (6.4 44.9)") for i, (name, n) in enumerate(counts)]
+        rows += [(h, "EMPTY", 0, "POINT (6.5 44.8)") for h in hours]
+        rows += [(h, "NOWHERE", 7, None) for h in hours]
+        csv = pd.DataFrame(rows, columns=["date_debut", "object_name", "count", "geom"]).assign(activity="hiking")
+        data_import = DataImport(source=DataSource.objects.get(code="ecocompteur"))
+        data_import.file.save("eco.csv", ContentFile(csv.to_csv(index=False).encode()))
+        return data_import, CompteurParser(data_import).import_data()
+
+    def test_one_counter_object_and_one_measure_per_hour(self):
+        data_import, count = self.run_import()
+        self.assertEqual((count, data_import.line_numbers, data_import.error_numbers), (4, 8, 4))
+        self.assertEqual(set(CountingObject.objects.values_list("external_id", "type__code")), {("A", "counter"), ("B", "counter")})
+        measure = CountingMeasure.objects.get(counting_object__external_id="A", count=5)
+        # 10:00 in Paris (summer time) = 08:00 UTC, measures last one hour.
+        self.assertEqual(measure.start_datetime, datetime(2024, 7, 1, 8, tzinfo=timezone.utc))
+        self.assertEqual(measure.end_datetime, datetime(2024, 7, 1, 9, tzinfo=timezone.utc))
+        self.assertEqual(measure.practice.code, "hiking")
+        self.assertTrue(CountingMeasure.objects.filter(counting_object__external_id="A", count=0).exists())
+
+    def test_reimport_replaces_measures(self):
+        self.run_import()
+        self.run_import(counts=(("A", 9), ("A", 1), ("B", 3), ("B", 2)))
+        self.assertEqual(CountingMeasure.objects.count(), 4)
+        self.assertEqual(sorted(CountingMeasure.objects.filter(counting_object__external_id="A").values_list("count", flat=True)), [1, 9])

@@ -1,5 +1,5 @@
 """Standalone script, not an import parser: merges the raw hourly counter CSVs
-(wide format) into one long CSV."""
+(wide format) into the long CSV imported by compteur.py (CompteurParser)."""
 
 import argparse
 from pathlib import Path

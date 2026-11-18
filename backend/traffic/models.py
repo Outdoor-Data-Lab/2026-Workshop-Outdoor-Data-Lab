@@ -62,7 +62,7 @@ class CountingObjectQuerySet(models.QuerySet):
 
 
 class CountingObject(models.Model):
-    """A counter (eco-counter, camera, ticketing...) installed somewhere."""
+    """A counter (automatic counter, camera, ticketing...) installed somewhere."""
 
     uuid = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     external_id = models.CharField(max_length=255, blank=True)

@@ -4,7 +4,7 @@ This repository contains a web application for publishing and displaying visitor
 
 
 The data served are :
-- **Frequentation data.** From outdoor traces, hike trails to _eco-compteur_ data
+- **Frequentation data.** From outdoor traces, hike trails to automatic counter data
 - **Naturalist data** Observation of species, natural habitats
 
 
