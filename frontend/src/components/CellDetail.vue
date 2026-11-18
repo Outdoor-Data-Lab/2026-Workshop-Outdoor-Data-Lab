@@ -42,6 +42,22 @@ function countText(source: SourceCount) {
   return t(key, { n: n(source.count) }, source.count)
 }
 
+type Cazalis = {
+  source_weights?: Record<string, number>
+  reference_counters?: number
+}
+
+/** Détail du score cazalis : poids de chaque source (clés = id de source). */
+const cazalis = computed<Cazalis>(() => {
+  const score = data.value?.traffic.score.cazalis
+  return typeof score === 'object' ? (score as Cazalis) : {}
+})
+
+/** Poids de la source dans le score, en points sur 100 ; `undefined` si inconnu. */
+function weight(source: SourceCount) {
+  return cazalis.value.source_weights?.[source.id]
+}
+
 /** Années couvertes, ex. « 2021–2024 ». */
 function years(from: string, to: string) {
   const [first, last] = [from, to].map((d) => new Date(d).getFullYear())
@@ -67,7 +83,7 @@ function taxonText(taxon: AreaTaxon) {
   <div v-else-if="data" class="cell">
     <dl>
       <dt>{{ $t('cell.traffic') }}</dt>
-      <dd>{{ score }}/100</dd>
+      <dd>{{ score }} <span class="hint">{{ $t('cell.scoreRange') }}</span></dd>
       <dt>{{ $t('cell.biodiversity') }}</dt>
       <dd>{{ $t('cell.taxa', data.taxa.length) }}</dd>
       <dt>{{ $t('cell.outdoor') }}</dt>
@@ -84,9 +100,30 @@ function taxonText(taxon: AreaTaxon) {
           {{ source.absolute ? $t('cell.absolute') : $t('cell.relative') }} ·
           {{ years(source.first_data, source.latest_data) }}
         </div>
+        <div v-if="source.code === 'ecocompteur'" class="hint">
+          {{ $t('cell.score.reference') }}
+        </div>
+        <div v-else-if="weight(source) !== undefined" class="weight">
+          {{ $t('cell.score.weight', { weight: weight(source) }) }}
+        </div>
       </li>
     </ul>
     <p class="hint note">{{ $t('cell.countsNote') }}</p>
+
+    <details class="formula">
+      <summary>{{ $t('cell.score.title') }}</summary>
+      <p>{{ $t('cell.score.intro') }}</p>
+      <ol>
+        <li>{{ $t('cell.score.step1') }}</li>
+        <li>{{ $t('cell.score.step2') }}</li>
+        <li>{{ $t('cell.score.step3') }}</li>
+        <li>{{ $t('cell.score.step4') }}</li>
+      </ol>
+      <p class="formula-eq">{{ $t('cell.score.equation') }}</p>
+      <p v-if="cazalis.reference_counters" class="hint">
+        {{ $t('cell.score.counters', { n: cazalis.reference_counters }) }}
+      </p>
+    </details>
 
     <h3>{{ $t('cell.biodiversity') }}</h3>
     <p>{{ $t('cell.taxa', data.taxa.length) }}</p>
@@ -138,7 +175,7 @@ h3 {
   margin: var(--space) 0 calc(var(--space) / 2);
   padding-top: calc(var(--space) / 2);
   border-top: 1px solid var(--color-border);
-  font-size: 1rem;
+  font-size: 1.2rem;
 }
 
 p {
@@ -152,6 +189,23 @@ p {
 
 .sources li + li {
   margin-top: calc(var(--space) / 2);
+}
+
+.weight {
+  font-weight: 600;
+}
+
+.formula {
+  margin-top: calc(var(--space) / 2);
+  font-size: 0.85rem;
+}
+
+.formula ol {
+  margin: calc(var(--space) / 3) 0;
+}
+
+.formula-eq {
+  font-family: monospace;
 }
 
 .note {

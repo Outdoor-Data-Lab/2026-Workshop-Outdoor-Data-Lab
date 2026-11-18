@@ -39,7 +39,7 @@ function text(value: unknown): string {
 <style scoped>
 h2 {
   margin: 0 0 var(--space);
-  font-size: 1.1rem;
+  font-size: 1.4rem;
 }
 
 p {

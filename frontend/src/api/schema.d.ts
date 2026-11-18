@@ -1537,6 +1537,8 @@ export interface components {
             readonly parent_code: string;
         };
         SourceCount: {
+            /** @description Data source id, the key of the score's source_weights. */
+            id: number;
             code: string;
             label: string;
             /** @description Counts every passage, not a sample of users. */

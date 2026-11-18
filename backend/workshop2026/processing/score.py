@@ -217,7 +217,7 @@ def counts_by_area(measures):
     """``{id_area: {"counts", "count_segment", "count_presence", "sources"}}`` for ``measures``.
 
     count_segment: measures of "segment" objects; count_presence: measures of
-    "counter" objects (presence counters); sources: ``[{"code", "label",
+    "counter" objects (presence counters); sources: ``[{"id", "code", "label",
     "absolute", "count", "first_data", "latest_data"}]``, the counts per data
     source and the start of their first and last measures.
     """
@@ -230,6 +230,7 @@ def counts_by_area(measures):
     by_source = (
         measures.values(
             "id_area",
+            "id_source",
             code=F("counting_object__source__code"),
             label=F("counting_object__source__label"),
             absolute=F("counting_object__source__absolute_counts"),
@@ -241,6 +242,7 @@ def counts_by_area(measures):
     )
     for row in by_source:
         row["count"] = row.pop("total")
+        row["id"] = row.pop("id_source")
         counts[row.pop("id_area")]["sources"].append(row)
     return counts
 

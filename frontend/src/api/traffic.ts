@@ -159,9 +159,9 @@ export function getTrafficByArea(filters: TrafficAreaFilters = {}, page: LimitOf
   return apiFetch<TrafficAreaPage>(trafficAreasUrl(filters, page))
 }
 
-/** Une maille, avec ses comptages par source (404 si elle n'a pas de mesure). */
+/** Une maille, avec ses comptages par source et le détail du score cazalis (404 si elle n'a pas de mesure). */
 export function getTrafficArea(id: number) {
-  return apiFetch<TrafficAreaFeature>(`${BASE}/areas/${id}`)
+  return apiFetch<TrafficAreaFeature>(withQuery(`${BASE}/areas/${id}`, { scores: ['cazalis'] }))
 }
 
 // Adaptateur vers MapObject

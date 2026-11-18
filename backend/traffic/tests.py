@@ -826,9 +826,11 @@ class AreasApiTests(AreasTestCase):
         self.assertEqual(features[12]["properties"], {
             "counts": 15, "count_segment": 9, "count_presence": 6,
             "sources": [
-                {"code": "ecocompteur", "label": "Eco-Compteur", "absolute": True, "count": 5,
+                {"id": self.s2, "code": "ecocompteur", "label": "Eco-Compteur", "absolute": True,
+                 "count": 5,
                  "first_data": JAN, "latest_data": JAN},
-                {"code": "outdoorvision", "label": "OutdoorVision", "absolute": False, "count": 10,
+                {"id": self.s1, "code": "outdoorvision", "label": "OutdoorVision", "absolute": False,
+                 "count": 10,
                  "first_data": JAN, "latest_data": JAN},
             ],
             "score": {"basic": 15, "cazalis": {
@@ -838,7 +840,8 @@ class AreasApiTests(AreasTestCase):
         self.assertEqual(features[13]["properties"], {
             "counts": 4, "count_segment": 0, "count_presence": 4,
             "sources": [
-                {"code": "outdoorvision", "label": "OutdoorVision", "absolute": False, "count": 4,
+                {"id": self.s1, "code": "outdoorvision", "label": "OutdoorVision", "absolute": False,
+                 "count": 4,
                  "first_data": JAN, "latest_data": JAN},
             ],
             "score": {"basic": 4, "cazalis": {
@@ -928,7 +931,8 @@ class AreasApiTests(AreasTestCase):
         self.assertEqual(data["properties"], {
             "counts": 17, "count_segment": 4, "count_presence": 13,
             "sources": [
-                {"code": "outdoorvision", "label": "OutdoorVision", "absolute": False, "count": 17,
+                {"id": self.s1, "code": "outdoorvision", "label": "OutdoorVision", "absolute": False,
+                 "count": 17,
                  "first_data": JAN, "latest_data": "2023-02-10T00:00:00Z"},
             ],
             "score": {"basic": 17},

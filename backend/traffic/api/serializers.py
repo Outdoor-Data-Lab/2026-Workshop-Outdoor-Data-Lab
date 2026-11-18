@@ -138,6 +138,7 @@ class AreasQuerySerializer(DynamicFieldsMixin, serializers.Serializer):
 
 
 class SourceCountSerializer(serializers.Serializer):
+    id = serializers.IntegerField(help_text="Data source id, the key of the score's source_weights.")
     code = serializers.CharField()
     label = serializers.CharField()
     absolute = serializers.BooleanField(help_text="Counts every passage, not a sample of users.")

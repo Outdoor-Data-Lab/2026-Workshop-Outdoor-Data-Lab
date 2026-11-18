@@ -202,7 +202,7 @@ MIGRATION_MODULES = {"ref_geo": None, "taxhub": None}
 CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", "redis://localhost:6379/0")
 TEST_RUNNER = "workshop2026.test_runner.TestRunner"
 
-DEFAULT_GRID_AREA_TYPE = os.environ.get("DEFAULT_GRID_AREA_TYPE", "M1")
+DEFAULT_GRID_AREA_TYPE = os.environ.get("DEFAULT_GRID_AREA_TYPE", "M0.5")
 # ref_geo grids the counting objects are linked to (traffic.counting_object_areas)
 # and that the API accepts as ``area_type``. After changing it, run
 # ``manage.py sync_counting_object_areas``.

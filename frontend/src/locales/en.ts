@@ -58,6 +58,7 @@ export default {
     biodiversity: 'Biodiversity',
     outdoor: 'Outdoor',
     zonings: 'Regulatory zoning',
+    scoreRange: '(between 0 and 100)',
     soon: 'coming soon',
     taxa: 'no protected or threatened taxon | {n} protected or threatened taxon | {n} protected or threatened taxa',
     taxaList: 'List of taxa',
@@ -80,6 +81,23 @@ export default {
     },
     countsNote:
       'Absolute: the counter counts every passage. Relative: only the users of an app are counted; these figures compare cells with each other. The score combines the sources, weighted by how well they match the eco-counters.',
+    score: {
+      title: 'How the score is computed',
+      reference: 'Reference source: it is used to weight the others and is not part of the score.',
+      weight: 'Weight in the score: {weight}%',
+      intro:
+        'The score (0 to 100) combines the frequentation sources, each counting more the better it matches the eco-counters (BiodivTourAlps method, V. Cazalis).',
+      step1:
+        "Weights: for each source, its counts around the eco-counters are correlated (Pearson) with the eco-counters' mean daily count in summer (June to September, since 2021, half-months with more than 10 days of data).",
+      step2:
+        'A source whose correlation r does not exceed 0.25 gets a zero weight; otherwise its raw weight is 1 / (1 − r). Raw weights are scaled to a total of 100.',
+      step3:
+        'Each source is standardised: for each cell, the mean over all cells is subtracted and the result divided by the standard deviation (z-score; a cell with no data from the source counts as 0).',
+      step4:
+        'The z-scores are summed with their weights, values above the 98th percentile are capped, and the result is rescaled to 0–100.',
+      equation: 'score = normalise 0-100( Σ weight(source) × z-score(source, cell) )',
+      counters: 'Weights estimated on {n} eco-counters.',
+    },
   },
   notifications: {
     close: 'Close',
