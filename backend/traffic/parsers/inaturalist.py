@@ -9,6 +9,11 @@ Only the observers are kept: one observer on one day = one outing = one
 passage (count = 1, the day in Europe/Paris), whose geometry gathers the points
 of their observations that day. Species are not imported.
 
+The geometry stays a multipoint, not a track: iNaturalist records no route, the
+observations are few and often without a reliable time, so a line between them
+would invent a path (across a slope, off the trails). Matching the points to the
+trail network, if needed, belongs to the analysis, not to the import.
+
 The observer is recognised by their name, the only identifier both files share
 (GBIF recordedBy = the iNaturalist user name, or login when the user has no
 name), so importing both files does not count an observer-day twice. The name is
@@ -56,7 +61,9 @@ class INaturalistParser(TrafficParser):
     NAME = "iNaturalist"
     CONTENT = (
         "Contient des observations naturalistes (points), dont seuls les observateurs sont gardés : "
-        "un observateur un jour donné compte comme un passage. Les espèces ne sont pas importées."
+        "un observateur un jour donné compte comme un passage, localisé par les points de ses observations "
+        "de la journée. Ces points ne sont pas reliés en trace : le trajet réel n'est pas connu. "
+        "Les espèces ne sont pas importées."
     )
     EXAMPLE = (
         "Export du site iNaturalist (zip contenant observations-*.csv, même si son nom finit par .csv) ou "
