@@ -2,7 +2,6 @@ import io
 import re
 import tempfile
 import zipfile
-from calendar import monthrange
 from datetime import date, datetime, timedelta, timezone
 from io import StringIO
 from pathlib import Path
@@ -27,6 +26,8 @@ from ref_geo.models import BibAreasType, LArea
 from workshop2026.processing.score import (
     BasicFrequentationScore,
     CazalisFrequentationScore,
+    _standardize,
+    _winsorize_and_rescale,
     cazalis_weights_from_correlations,
 )
 
@@ -611,21 +612,50 @@ class BasicFrequentationScoreTests(AreasTestCase):
 
 
 class CazalisFrequentationScoreTests(AreasTestCase):
-    def test_applies_source_weights_per_area(self):
+    def test_standardises_weights_and_rescales_per_area(self):
         score_grid = CazalisFrequentationScore.compute(
             date_from=date(2023, 1, 1), date_to=date(2023, 12, 31),
             source_weights={self.s1: 2, self.s2: 3},
         )
-        # cell 12: (10 + 7) * 2 + 5 * 3; cell 13: 4 * 2
-        self.assertEqual(score_grid, {12: 49, 13: 8})
+        # s1 {12: 17, 13: 4} and s2 {12: 5, 13: 0 (no data)}: both z-scores are
+        # +-0.71, so cell 12 is the maximum and cell 13 the minimum.
+        self.assertEqual(score_grid, {12: 100.0, 13: 0.0})
+
+    def test_ignores_sources_with_zero_weight(self):
+        # A single cell: nothing to standardise against.
+        score_grid = CazalisFrequentationScore.compute(
+            date_from=date(2024, 1, 1), source_weights={self.s1: 0, self.s2: 1},
+        )
+        self.assertEqual(score_grid, {13: 0.0})
+        score_grid = CazalisFrequentationScore.compute(source_weights={self.s1: 1, self.s2: 0})
+        self.assertEqual(score_grid, {12: 100.0, 13: 0.0})
 
     def test_rejects_missing_source_weight(self):
         with self.assertRaisesRegex(ValueError, f"Missing weight for source ID {self.s2}"):
             CazalisFrequentationScore.compute(source_weights={self.s1: 1})
 
     def test_calculates_source_weights_when_not_provided(self):
-        # No summer measures: every estimated weight is 0.
+        # No eco-counter half-month with enough days: every estimated weight is 0.
         self.assertEqual(CazalisFrequentationScore.compute(), {12: 0, 13: 0})
+
+
+class CazalisScoreHelperTests(SimpleTestCase):
+    def test_standardize_matches_r_scale(self):
+        # R: scale(c(1, 2, 3)) -> -1, 0, 1 (sample standard deviation).
+        self.assertEqual(_standardize([1, 2, 3]), [-1.0, 0.0, 1.0])
+        self.assertEqual(_standardize([5, 5]), [0.0, 0.0])
+        self.assertEqual(_standardize([5]), [0.0])
+
+    def test_winsorizes_at_98th_percentile_then_rescales(self):
+        # R: quantile(c(1, 2, 3, 4, 100), 0.98) == 92.32, so 100 is capped there.
+        scores = _winsorize_and_rescale({1: 1, 2: 2, 3: 3, 4: 4, 5: 100})
+        self.assertEqual(scores[1], 0)
+        self.assertAlmostEqual(scores[5], 100)
+        self.assertAlmostEqual(scores[4], 100 * 3 / 91.32)
+
+    def test_rescale_of_constant_scores_is_zero(self):
+        self.assertEqual(_winsorize_and_rescale({1: 2.0, 2: 2.0}), {1: 0.0, 2: 0.0})
+        self.assertEqual(_winsorize_and_rescale({}), {})
 
 
 class CazalisWeightFormulaTests(SimpleTestCase):
@@ -640,6 +670,17 @@ class CazalisWeightFormulaTests(SimpleTestCase):
 
 
 class CazalisWeightCalculationTests(AreasTestCase):
+    """Eco-counters A, B and D with 11 days of data in July 2021 (daily 10, 30
+    and 20). Around them, at latitude 44.3, 0.001 degree north is 111 m:
+
+    - Strava (nearest edge within 500 m): A 100, B 300. A's farther edge (333 m)
+      and D's only edge (611 m) must be ignored, which drops D.
+    - Outdoorvision (within 100 m): A 1, B 3, D 2; A's track at 222 m is ignored.
+
+    Both then correlate perfectly. C, next to B, has only 5 days of data and
+    must be ignored, or neither source would correlate.
+    """
+
     @classmethod
     def setUpTestData(cls):
         super().setUpTestData()
@@ -647,48 +688,58 @@ class CazalisWeightCalculationTests(AreasTestCase):
             code: DataSource.objects.get(code=code).pk
             for code in ("ecocompteur", "strava", "outdoorvision")
         }
-        counter = CountingObjectType.objects.get(code="counter")
+        types = {t.code: t for t in CountingObjectType.objects.all()}
         person = Unit.objects.get(code="person")
-        centers = {12: (6.2, 44.2), 13: (7.2, 44.2)}
-        # (cell, month, daily ecocompteur, daily strava, daily outdoorvision)
-        source_daily_counts = [
-            (12, 6, 10, 1, 1),
-            (12, 7, 20, 3, 2),
-            (13, 6, 30, 2, 4),
-            (13, 7, 40, 5, 3),
-        ]
-        objects = {
-            (id_area, code): CountingObject.objects.create(
-                type=counter, source_id=source, geom=Point(*centers[id_area], srid=4326)
+        # Away from the AreasTestCase objects (cell centres), which are outdoorvision.
+        a, b, d = (6.3, 44.3), (7.3, 44.3), (6.6, 44.3)
+
+        def counter(point, days, daily_count):
+            obj = CountingObject.objects.create(
+                type=types["counter"], source_id=sources["ecocompteur"],
+                geom=Point(*point, srid=4326),
             )
-            for id_area in centers
-            for code, source in sources.items()
-        }
-        for id_area, month, eco_daily, strava_daily, outdoor_daily in source_daily_counts:
-            days = monthrange(2021, month)[1]
-            start = datetime(2021, month, 10, tzinfo=timezone.utc)
-            for code, daily_count in (
-                ("ecocompteur", eco_daily),
-                ("strava", strava_daily),
-                ("outdoorvision", outdoor_daily),
-            ):
+            for day in range(1, days + 1):
+                start = datetime(2021, 7, day, 12, tzinfo=timezone.utc)
                 CountingMeasure.objects.create(
-                    counting_object=objects[(id_area, code)], start_datetime=start,
-                    end_datetime=start + timedelta(days=1), count=daily_count * days,
-                    unit=person,
+                    counting_object=obj, start_datetime=start,
+                    end_datetime=start + timedelta(hours=1), count=daily_count, unit=person,
                 )
+
+        def segment(code, point, north, count):
+            """East-west segment ``north`` degrees north of ``point``."""
+            x, y = point
+            obj = CountingObject.objects.create(
+                type=types["segment"], source_id=sources[code],
+                geom=LineString((x - 0.001, y + north), (x + 0.001, y + north), srid=4326),
+            )
+            start = datetime(2025, 1, 1, tzinfo=timezone.utc)
+            CountingMeasure.objects.create(
+                counting_object=obj, start_datetime=start,
+                end_datetime=start + timedelta(days=365), count=count, unit=person,
+            )
+
+        counter(a, 11, 10)
+        counter(b, 11, 30)
+        counter(b, 5, 1)  # C
+        counter(d, 11, 20)
+        segment("strava", a, 0.001, 100)
+        segment("strava", a, 0.003, 9999)
+        segment("strava", b, 0.001, 300)
+        segment("strava", d, 0.0055, 9999)
+        segment("outdoorvision", a, 0.0005, 1)
+        segment("outdoorvision", a, 0.002, 50)
+        segment("outdoorvision", b, 0.0005, 3)
+        segment("outdoorvision", d, 0.0005, 2)
 
     def test_calculates_weights_from_summer_ecocompteur_correlations(self):
         weights = CazalisFrequentationScore.calculate_source_weights()
-        strava = DataSource.objects.get(code="strava")
-        outdoor = DataSource.objects.get(code="outdoorvision")
-        inaturalist = DataSource.objects.get(code="inaturalist")
-        ecocompteur = DataSource.objects.get(code="ecocompteur")
+        codes = dict(DataSource.objects.values_list("code", "id"))
 
+        self.assertEqual(weights[codes["strava"]], 50)
+        self.assertEqual(weights[codes["outdoorvision"]], 50)
+        self.assertEqual(weights[codes["inaturalist"]], 0)
+        self.assertEqual(weights[codes["ecocompteur"]], 0)
         self.assertEqual(sum(weights.values()), 100)
-        self.assertGreater(weights[strava.id], weights[outdoor.id])
-        self.assertEqual(weights[inaturalist.id], 0)
-        self.assertEqual(weights[ecocompteur.id], 0)
 
 
 class AreasApiTests(AreasTestCase):
@@ -707,11 +758,11 @@ class AreasApiTests(AreasTestCase):
         self.assertEqual(features[12]["geometry"]["type"], "MultiPolygon")
         self.assertEqual(features[12]["properties"], {
             "counts": 15, "count_segment": 9, "count_presence": 6,
-            "score": {"basic": 15, "cazalis": 35.0},
+            "score": {"basic": 15, "cazalis": 100.0},
         })
         self.assertEqual(features[13]["properties"], {
             "counts": 4, "count_segment": 0, "count_presence": 4,
-            "score": {"basic": 4, "cazalis": 8.0},
+            "score": {"basic": 4, "cazalis": 0.0},
         })
 
     def test_filters_on_source_and_bbox(self):

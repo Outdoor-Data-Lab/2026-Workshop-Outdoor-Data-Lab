@@ -129,7 +129,7 @@ class AreasViewSet(viewsets.ReadOnlyModelViewSet):
         """Weights of the "cazalis" score: given, or estimated (BTA) when omitted."""
         weights = self.params.get("source_weights")
         if weights is None and "cazalis" in self.params.get("scores", ()):
-            weights = SCORES["cazalis"].calculate_source_weights()
+            weights = SCORES["cazalis"].cached_source_weights()
         return weights
 
     def compute_scores(self, measures):
@@ -143,12 +143,17 @@ class AreasViewSet(viewsets.ReadOnlyModelViewSet):
             raise serializers.ValidationError({"source_weights": [str(error)]})
 
     def serialize(self, areas, many):
-        """Serializer of ``areas`` with the counts and scores of these cells only."""
+        """Serializer of ``areas`` with the counts of these cells.
+
+        Scores are computed over every cell matching source and period, not
+        only ``areas``: the "cazalis" score is standardised across cells, so it
+        must not depend on pagination or on the spatial filters.
+        """
         measures = self.measures.filter(id_area__in=[area.id_area for area in areas])
         context = {
             **self.get_serializer_context(),
             "counts": counts_by_area(measures),
-            "scores": self.compute_scores(measures),
+            "scores": self.compute_scores(self.measures),
         }
         return self.get_serializer(areas if many else areas[0], many=many, context=context)
 
