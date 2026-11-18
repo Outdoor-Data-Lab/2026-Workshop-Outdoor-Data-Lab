@@ -69,7 +69,7 @@ class OfferImportAdmin(admin.ModelAdmin):
     sources, those with a parser in commons.PARSERS, are left out.
     """
 
-    list_display = ("source", "date_import", "file", "line_numbers", "error_numbers", "created_offers")
+    list_display = ("source", "date_import", "file", "line_numbers", "error_numbers", "offer_count")
     list_filter = ("source",)
     fields = ("source", "file")
 
@@ -81,20 +81,21 @@ class OfferImportAdmin(admin.ModelAdmin):
             super()
             .get_queryset(request)
             .exclude(source__code__in=PARSERS)
-            .annotate(created_offers=Count("offers"))
+            .annotate(offer_count=Count("offers"))
         )
 
-    @admin.display(description="Offres créées", ordering="created_offers")
-    def created_offers(self, obj):
-        return obj.created_offers
+    # Offers whose last import is this one: those its deletion would delete.
+    @admin.display(description="Offers", ordering="offer_count")
+    def offer_count(self, obj):
+        return obj.offer_count
 
     def get_form(self, request, obj=None, **kwargs):
         form = super().get_form(request, obj, **kwargs)
         form.base_fields["file"].help_text = format_html(
-            "GeoPackage (.gpkg) à une seule couche, avec un système de coordonnées. "
-            "Colonnes : <code>id</code> (identifiant de l'offre dans la source), <code>name</code>, "
-            '<code>practice</code> (un <a href="{}">code de pratique</a>), <code>uuid</code> '
-            "(facultatif). Géométrie : points, lignes ou polygones. Les autres colonnes sont ignorées.",
+            "GeoPackage (.gpkg) with a single layer and a coordinate reference system. "
+            "Columns: <code>id</code> (the offer's id in its source), <code>name</code>, "
+            '<code>practice</code> (a <a href="{}">practice code</a>), <code>uuid</code> '
+            "(optional). Geometry: points, lines or polygons. Other columns are ignored.",
             reverse("admin:commons_practice_changelist"),
         )
         return form
@@ -130,12 +131,12 @@ class OfferImportAdmin(admin.ModelAdmin):
             data_import.error_numbers = 1
             data_import.save()
             self.log_addition(request, data_import, [{"added": {}}])
-            return self.done(request, f"Import refusé : {exc}", messages.ERROR)
+            return self.done(request, f"Import rejected: {exc}", messages.ERROR)
         pending = {"source": data_import.source_id, "file": data_import.file.name}
         context = {
             **self.admin_site.each_context(request),
             "opts": self.opts,
-            "title": "Aperçu de l'import d'offres",
+            "title": "Offer import preview",
             "media": self.media,
             "data_import": data_import,
             "file_name": upload.name,
@@ -151,12 +152,12 @@ class OfferImportAdmin(admin.ModelAdmin):
         try:
             pending = signing.loads(request.POST["token"], salt=TOKEN_SALT, max_age=TOKEN_MAX_AGE)
         except signing.BadSignature:
-            return self.done(request, "Aperçu expiré ou invalide : recommencez l'import.", messages.ERROR)
+            return self.done(request, "Preview expired or invalid: start the import again.", messages.ERROR)
         # Test _cancel, not _apply: import_loading.js disables the buttons on submit,
         # so the Apply button's name is not sent.
         if "_cancel" in request.POST:
             OfferImport._meta.get_field("file").storage.delete(pending["file"])
-            return self.done(request, "Import annulé.", messages.INFO)
+            return self.done(request, "Import cancelled.", messages.INFO)
 
         data_import = OfferImport.objects.create(source_id=pending["source"], file=pending["file"])
         self.log_addition(request, data_import, [{"added": {}}])
@@ -164,10 +165,10 @@ class OfferImportAdmin(admin.ModelAdmin):
         try:
             count = parser.import_data()
         except ValueError as exc:
-            return self.done(request, f"Import refusé : {exc}", messages.ERROR)
-        message = f"{count} offres importées, {len(parser.errors)} lignes en erreur"
+            return self.done(request, f"Import rejected: {exc}", messages.ERROR)
+        message = f"{count} offer(s) imported, {len(parser.errors)} line(s) in error"
         if parser.errors:
-            message += f" : {describe_errors(parser.errors)}"
+            message += f": {describe_errors(parser.errors)}"
         return self.done(request, f"{message}.", messages.WARNING if parser.errors else messages.SUCCESS)
 
     def done(self, request, message, level):

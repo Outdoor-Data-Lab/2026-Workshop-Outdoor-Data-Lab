@@ -17,8 +17,9 @@ An offer whose line is in error is kept unchanged. A problem with the whole file
 (format, layers, CRS, columns, no valid line) rejects it: no offer changes and
 the import gets error_numbers = 1.
 
-preview() tells what import_data() would do, without writing. A created offer
-is linked to its import (Offer.data_import): deleting the import deletes it.
+preview() tells what import_data() would do, without writing. An offer is
+linked to the last import that wrote it, created or updated (Offer.data_import):
+deleting that import deletes the offer.
 """
 
 import uuid
@@ -76,13 +77,13 @@ def geometry(geom):
 
 
 def describe_errors(errors: list[tuple[int, str, str]], limit: int = 10) -> str:
-    """The first lines in error, as "ligne 3 (id) : reason ; ..."."""
-    described = " ; ".join(
-        f"ligne {number}{f' ({line_id})' if line_id else ''} : {reason}"
+    """The first lines in error, as "line 3 (id): reason; ..."."""
+    described = "; ".join(
+        f"line {number}{f' ({line_id})' if line_id else ''}: {reason}"
         for number, line_id, reason in errors[:limit]
     )
     if len(errors) > limit:
-        described += f" ; et {len(errors) - limit} autres"
+        described += f"; and {len(errors) - limit} more"
     return described
 
 
@@ -117,7 +118,7 @@ class OfferParser:
                 self.data_import.save(update_fields=["line_numbers", "error_numbers"])
         except IntegrityError as exc:
             self._reject()
-            raise ValueError("Conflit d'uuid avec des offres existantes.") from exc
+            raise ValueError("uuid conflict with existing offers.") from exc
         except ValueError:
             self._reject()
             raise
@@ -144,18 +145,18 @@ class OfferParser:
             layers = pyogrio.list_layers(path)
             driver = pyogrio.read_info(path)["driver"]
         except DataSourceError as exc:
-            raise ValueError("Le fichier n'est pas un GeoPackage lisible.") from exc
+            raise ValueError("The file is not a readable GeoPackage.") from exc
         if driver != "GPKG":
-            raise ValueError("Seuls les fichiers GeoPackage (.gpkg) sont acceptés.")
+            raise ValueError("Only GeoPackage files (.gpkg) are accepted.")
         if len(layers) != 1:
-            raise ValueError(f"Le GeoPackage doit avoir une seule couche, il en a {len(layers)}.")
+            raise ValueError(f"The GeoPackage must have a single layer, it has {len(layers)}.")
 
         lines = gpd.read_file(path)
         missing = REQUIRED_COLUMNS.difference(lines.columns)
         if missing:
-            raise ValueError(f"Colonnes manquantes : {', '.join(sorted(missing))}.")
+            raise ValueError(f"Missing columns: {', '.join(sorted(missing))}.")
         if lines.crs is None:
-            raise ValueError("Le fichier ne définit aucun système de coordonnées.")
+            raise ValueError("The file defines no coordinate reference system.")
         return lines.to_crs(4326)
 
     def check_lines(self, lines) -> tuple[list[dict], set[str]]:
@@ -188,25 +189,25 @@ class OfferParser:
         ):
             valid_uuid = parse_uuid(line_uuid) if line_uuid else None
             if not line_id:
-                error = "id manquant"
+                error = "missing id"
             elif id_double:
-                error = "id en double dans le fichier"
+                error = "id given twice in the file"
             elif not name:
-                error = "name manquant"
+                error = "missing name"
             elif max(len(line_id), len(name)) > MAX_LENGTH:
-                error = f"id ou name de plus de {MAX_LENGTH} caractères"
+                error = f"id or name longer than {MAX_LENGTH} characters"
             elif not practice:
-                error = "practice manquante"
+                error = "missing practice"
             elif practice.lower() not in practices:
-                error = f"practice inconnue « {practice} »"
+                error = f"unknown practice \"{practice}\""
             elif geom is None:
-                error = "géométrie absente, vide, ou ni point, ni ligne, ni polygone"
+                error = "missing or empty geometry, or not a point, line or polygon"
             elif line_uuid and valid_uuid is None:
-                error = "uuid invalide"
+                error = "invalid uuid"
             elif uuid_double:
-                error = "uuid en double dans le fichier"
+                error = "uuid given twice in the file"
             elif valid_uuid in taken:
-                error = "uuid déjà utilisé par une offre d'une autre source"
+                error = "uuid already used by an offer of another source"
             else:
                 offers.append(
                     {
@@ -221,7 +222,7 @@ class OfferParser:
             self.errors.append((number, line_id, error))
         if not offers:
             raise ValueError(
-                f"Le fichier ne contient aucune ligne valide ({describe_errors(self.errors, 3)})."
+                f"The file has no valid line ({describe_errors(self.errors, 3)})."
             )
         return offers, set(ids) - {""}
 
@@ -232,14 +233,13 @@ class OfferParser:
             Offer.objects.filter(pk__in=gone[i : i + BATCH_SIZE]).delete()
 
         now = timezone.now()
-        # Updated offers keep the import that created them.
         Offer.objects.bulk_update(
             [
-                Offer(pk=known[offer["external_id"]], date_update=now, **offer)
+                Offer(pk=known[offer["external_id"]], data_import=self.data_import, date_update=now, **offer)
                 for offer in offers
                 if offer["external_id"] in known
             ],
-            ["name", "practice", "uuid", "geom", "date_update"],
+            ["name", "practice", "uuid", "geom", "data_import", "date_update"],
             batch_size=BATCH_SIZE,
         )
         Offer.objects.bulk_create(

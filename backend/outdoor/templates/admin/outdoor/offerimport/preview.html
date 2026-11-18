@@ -14,31 +14,31 @@
 
 {% block content %}
 <div id="content-main">
-  <p>Source : <strong>{{ data_import.source }}</strong>. Fichier : <strong>{{ file_name }}</strong>, {{ preview.lines }} lignes.</p>
+  <p>Source: <strong>{{ data_import.source }}</strong>. File: <strong>{{ file_name }}</strong>, {{ preview.lines }} lines.</p>
   <table>
-    <tr><th scope="row">Offres créées</th><td>{{ preview.created }}</td></tr>
-    <tr><th scope="row">Offres mises à jour</th><td>{{ preview.updated }}</td></tr>
-    <tr><th scope="row">Offres supprimées, absentes du fichier</th><td>{{ preview.deleted }}</td></tr>
-    <tr><th scope="row">Lignes en erreur, ignorées</th><td>{{ preview.errors }}</td></tr>
+    <tr><th scope="row">Offers created</th><td>{{ preview.created }}</td></tr>
+    <tr><th scope="row">Offers updated</th><td>{{ preview.updated }}</td></tr>
+    <tr><th scope="row">Offers deleted, missing from the file</th><td>{{ preview.deleted }}</td></tr>
+    <tr><th scope="row">Lines in error, skipped</th><td>{{ preview.errors }}</td></tr>
   </table>
   {% if errors %}
-  <h2>Lignes en erreur</h2>
+  <h2>Lines in error</h2>
   <table>
-    <thead><tr><th>Ligne</th><th>id</th><th>Motif</th></tr></thead>
+    <thead><tr><th>Line</th><th>id</th><th>Reason</th></tr></thead>
     <tbody>
       {% for number, line_id, reason in errors %}
       <tr><td>{{ number }}</td><td>{{ line_id }}</td><td>{{ reason }}</td></tr>
       {% endfor %}
     </tbody>
   </table>
-  {% if more_errors > 0 %}<p>Et {{ more_errors }} autres lignes en erreur.</p>{% endif %}
+  {% if more_errors > 0 %}<p>And {{ more_errors }} more lines in error.</p>{% endif %}
   {% endif %}
   <form method="post" id="offerimport_form" data-file="{{ file_name }}">
     {% csrf_token %}
     <input type="hidden" name="token" value="{{ token }}">
     <div class="submit-row">
-      <input type="submit" name="_apply" value="Appliquer l'import" class="default">
-      <input type="submit" name="_cancel" value="Annuler">
+      <input type="submit" name="_apply" value="Apply the import" class="default">
+      <input type="submit" name="_cancel" value="Cancel">
     </div>
   </form>
 </div>

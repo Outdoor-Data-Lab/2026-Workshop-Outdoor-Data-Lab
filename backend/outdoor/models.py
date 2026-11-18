@@ -43,8 +43,8 @@ class Offer(models.Model):
         on_delete=models.PROTECT,
         related_name="offers",
     )
-    # The import that created the offer: deleting the import deletes its offers.
-    # A re-import that only updates an offer keeps this link.
+    # The last import that wrote the offer (created or updated it): deleting
+    # that import deletes the offer. Empty for an offer not imported.
     data_import = models.ForeignKey(
         DataImport,
         on_delete=models.CASCADE,

@@ -175,10 +175,10 @@ class OfferParserTests(OfferImportTestCase):
         self.assertEqual(offers["bowtie"].geom.geom_type, "MultiPolygon")
         # Line number (from 1, in file order), id and reason.
         for error in (
-            (3, "unknown-practice", "practice inconnue « Parapente »"),
-            (5, "", "id manquant"),
-            (13, "double", "id en double dans le fichier"),
-            (17, "uuid-taken", "uuid déjà utilisé par une offre d'une autre source"),
+            (3, "unknown-practice", 'unknown practice "Parapente"'),
+            (5, "", "missing id"),
+            (13, "double", "id given twice in the file"),
+            (17, "uuid-taken", "uuid already used by an offer of another source"),
         ):
             self.assertIn(error, parser.errors)
         self.assertEqual(len(parser.errors), 15)
@@ -193,17 +193,17 @@ class OfferParserTests(OfferImportTestCase):
         self.assertEqual(Offer.objects.filter(data_import=data_import).count(), 0)
         self.assertEqual(first.offers.count(), 2)
 
-    def test_deleting_an_import_deletes_the_offers_it_created(self):
+    def test_deleting_an_import_deletes_the_offers_it_wrote_last(self):
         first = self.run_import(gpkg([line("a"), line("b")]))
-        second = self.run_import(gpkg([line("a", name="A renamed"), line("b"), line("c")]))
-        offers = self.offers()
-        # An update keeps the import that created the offer.
-        self.assertEqual(offers["a"].data_import, first)
-        self.assertEqual(offers["c"].data_import, second)
-
-        second.delete()
-        self.assertEqual(set(self.offers()), {"a", "b"})
+        second = self.run_import(gpkg([line("a", name="A renamed"), line("b", "unknown"), line("c")]))
+        # a updated and c created by the second import; b, in error, unchanged.
+        self.assertEqual(
+            {k: o.data_import for k, o in self.offers().items()},
+            {"a": second, "b": first, "c": second},
+        )
         first.delete()
+        self.assertEqual(set(self.offers()), {"a", "c"})
+        second.delete()
         self.assertEqual(self.offers(), {})
 
     def test_reimport_replaces_the_source_offers(self):
@@ -236,12 +236,12 @@ class OfferParserTests(OfferImportTestCase):
         self.run_import(gpkg([line("a")]))
         geojson = json.dumps({"type": "FeatureCollection", "features": []}).encode()
         for content, reason in (
-            (b"not a file", "lisible"),
-            (geojson, "GeoPackage"),
-            (gpkg([line("a")], other_layer=True), "une seule couche"),
-            (gpkg([{k: v for k, v in line("a").items() if k != "practice"}]), "Colonnes manquantes : practice"),
-            (gpkg([line("a")], crs=None), "système de coordonnées"),
-            (gpkg([line("a", "unknown"), line("")]), "aucune ligne valide"),
+            (b"not a file", "readable GeoPackage"),
+            (geojson, "Only GeoPackage"),
+            (gpkg([line("a")], other_layer=True), "single layer"),
+            (gpkg([{k: v for k, v in line("a").items() if k != "practice"}]), "Missing columns: practice"),
+            (gpkg([line("a")], crs=None), "coordinate reference system"),
+            (gpkg([line("a", "unknown"), line("")]), "no valid line"),
         ):
             with self.subTest(reason), self.assertRaisesMessage(ValueError, reason):
                 self.run_import(content)
@@ -282,7 +282,7 @@ class OfferImportAdminTests(OfferImportTestCase):
         self.assertEqual(
             preview.context["preview"], {"lines": 3, "created": 1, "updated": 1, "deleted": 1, "errors": 1}
         )
-        self.assertContains(preview, "practice inconnue « unknown »")
+        self.assertContains(preview, "unknown practice &quot;unknown&quot;")
         self.assertEqual(OfferImport.objects.count(), 1)  # only the first import
         self.assertEqual(set(self.offers()), {"a", "gone"})
 
@@ -291,7 +291,7 @@ class OfferImportAdminTests(OfferImportTestCase):
         self.assertRedirects(response, self.changelist)
         self.assertEqual(
             self.messages(response),
-            ["2 offres importées, 1 lignes en erreur : ligne 3 (c) : practice inconnue « unknown »."],
+            ['2 offer(s) imported, 1 line(s) in error: line 3 (c): unknown practice "unknown".'],
         )
         self.assertEqual(set(self.offers()), {"a", "b"})
         self.assertEqual(self.offers()["b"].data_import, OfferImport.objects.latest("pk"))
@@ -299,14 +299,14 @@ class OfferImportAdminTests(OfferImportTestCase):
     def test_preview_then_cancel(self):
         response = self.confirm(self.upload(gpkg([line("a")])), "_cancel")
         self.assertRedirects(response, self.changelist)
-        self.assertEqual(self.messages(response), ["Import annulé."])
+        self.assertEqual(self.messages(response), ["Import cancelled."])
         self.assertFalse(OfferImport.objects.exists())
         self.assertEqual(self.offers(), {})
         self.assertEqual(self.stored_files(), [])
 
     def test_invalid_token(self):
         response = self.client.post(self.url, {"token": "forged"}, follow=True)
-        self.assertEqual(self.messages(response), ["Aperçu expiré ou invalide : recommencez l'import."])
+        self.assertEqual(self.messages(response), ["Preview expired or invalid: start the import again."])
         self.assertFalse(OfferImport.objects.exists())
 
     def test_rejected_file_is_kept_with_one_error(self):
@@ -315,7 +315,7 @@ class OfferImportAdminTests(OfferImportTestCase):
         )
         self.assertRedirects(response, self.changelist)
         [message] = self.messages(response)
-        self.assertIn("Import refusé", message)
+        self.assertIn("Import rejected", message)
         self.assertEqual(OfferImport.objects.get().error_numbers, 1)
         self.assertEqual(len(self.stored_files()), 1)
 
