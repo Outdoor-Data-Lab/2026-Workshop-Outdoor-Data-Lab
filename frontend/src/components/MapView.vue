@@ -9,8 +9,10 @@ import {
   type GeoJSONSource,
   type LayerSpecification,
   type PointLike,
+  setWorkerUrl,
 } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
+import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
 
 import { useLayersStore, type MapFeatureProperties, type SelectedArea } from '@/stores/layers'
 import { DOMAIN_COLORS, VALUE_COLORS, layerDomain, valueMax, type LayerId } from '@/types/mapObject'
@@ -20,6 +22,8 @@ const props = defineProps<{
   center?: [number, number]
   zoom?: number
 }>()
+
+setWorkerUrl(workerUrl)
 
 const store = useLayersStore()
 

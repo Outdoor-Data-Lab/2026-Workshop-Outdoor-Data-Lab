@@ -24,5 +24,7 @@ RUN npm run build-only
 FROM nginx:alpine AS production
 COPY --from=build /app/dist /usr/share/nginx/html
 # SPA fallback so vue-router history mode works on refresh.
-RUN printf 'server {\n  listen 80;\n  root /usr/share/nginx/html;\n  location / { try_files $uri $uri/ /index.html; }\n}\n' > /etc/nginx/conf.d/default.conf
+# .mjs (MapLibre worker) is missing from nginx's mime.types: browsers refuse a
+# module script served as application/octet-stream.
+RUN printf 'server {\n  listen 80;\n  root /usr/share/nginx/html;\n  location ~ \\.mjs$ { default_type application/javascript; }\n  location / { try_files $uri $uri/ /index.html; }\n}\n' > /etc/nginx/conf.d/default.conf
 EXPOSE 80
