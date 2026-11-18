@@ -69,7 +69,11 @@ USER app
 # Static files (admin, API docs) are served by WhiteNoise.
 RUN python backend/manage.py collectstatic --noinput
 
+# Persist uploaded and imported media outside the container writable layer.
+VOLUME ["/app/media"]
+
 EXPOSE 8000
 
-# Run Gunicorn as the production WSGI server.
+# Run Gunicorn as the production WSGI server. Gunicorn automatically reads
+# additional CLI options from GUNICORN_CMD_ARGS at runtime.
 CMD ["gunicorn", "--chdir", "backend", "--bind", "0.0.0.0:8000", "workshop2026.wsgi:application"]

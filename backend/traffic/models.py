@@ -89,6 +89,16 @@ class CountingObject(models.Model):
         blank=True,
     )
     geom = models.GeometryField(srid=4326)
+    # The import that created the object. Deleting it deletes the object when no
+    # measure of another import is left on it (see signals.py); otherwise the
+    # object stays, unlinked.
+    data_import = models.ForeignKey(
+        DataImport,
+        on_delete=models.SET_NULL,
+        related_name="counting_objects",
+        null=True,
+        blank=True,
+    )
     date_create = models.DateTimeField(auto_now_add=True)
     date_update = models.DateTimeField(auto_now=True)
     installation_date = models.DateField(null=True, blank=True)
@@ -132,7 +142,8 @@ class CountingMeasure(models.Model):
     measures without choosing one length.
     """
 
-    # No standalone index: the (counting_object, start_datetime) index covers it.
+    # No standalone index: the index of counting_measure_unique_key, which starts
+    # with (counting_object, start_datetime), covers it.
     counting_object = models.ForeignKey(
         CountingObject,
         on_delete=models.CASCADE,
@@ -155,6 +166,14 @@ class CountingMeasure(models.Model):
         null=True,
         blank=True,
     )
+    # The import that wrote the measure: deleting it deletes the measure.
+    data_import = models.ForeignKey(
+        DataImport,
+        on_delete=models.CASCADE,
+        related_name="counting_measures",
+        null=True,
+        blank=True,
+    )
     date_create = models.DateTimeField(auto_now_add=True)
     date_update = models.DateTimeField(auto_now=True)
     processed = models.BooleanField(default=False)
@@ -166,11 +185,12 @@ class CountingMeasure(models.Model):
                 condition=Q(end_datetime__gt=F("start_datetime")),
                 name="counting_measure_end_after_start",
             ),
-        ]
-        indexes = [
-            models.Index(
-                fields=["counting_object", "start_datetime"],
-                name="counting_measure_object_start",
+            # One measure per object, period, practice and unit: a re-import
+            # replaces it. A measure without practice counts as one value.
+            models.UniqueConstraint(
+                fields=["counting_object", "start_datetime", "end_datetime", "practice", "unit"],
+                nulls_distinct=False,
+                name="counting_measure_unique_key",
             ),
         ]
 
@@ -212,7 +232,7 @@ class CountingObjectArea(models.Model):
 
 class TrafficImport(DataImport):
     """An import of counting objects and measures (see traffic.parsers): the admin page
-    of the traffic imports, which lists the sources of the traffic parsers only."""
+    of the traffic imports, which offers the traffic formats and sources only."""
 
     class Meta:
         proxy = True

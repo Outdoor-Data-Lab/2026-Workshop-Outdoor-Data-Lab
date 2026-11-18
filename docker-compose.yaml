@@ -8,10 +8,25 @@ x-db-env: &db-env
   POSTGRES_USER: ${POSTGRES_USER:-postgres}
   POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
 
+# Django settings shared by web and the Celery worker.
+x-django-env: &django-env
+  <<: *db-env
+  POSTGRES_HOST: db
+  POSTGRES_PORT: "5432"
+  DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?DJANGO_SECRET_KEY must be set in .env}
+  # Uploaded files (data imports), kept in the media-data volume.
+  MEDIA_ROOT: /app/media
+  CELERY_BROKER_URL: redis://redis:6379/0
+
 services:
   db:
     image: postgis/postgis:18-3.7
     restart: unless-stopped
+    # An init process as PID 1 reaps the processes left by the healthcheck. Without it,
+    # Postgres is PID 1: the psql of a healthcheck timed out under load (big import)
+    # dies as its orphan, is taken for a crashed server process, and every
+    # connection is reset ("untracked child process ... was terminated by signal").
+    init: true
     environment:
       <<: *db-env
     volumes:
@@ -65,17 +80,38 @@ services:
     build:
       context: .
     environment:
-      <<: *db-env
-      POSTGRES_HOST: db
-      POSTGRES_PORT: "5432"
-      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?DJANGO_SECRET_KEY must be set in .env}
-      # Uploaded files (data imports), kept in the media-data volume.
-      MEDIA_ROOT: /app/media
+      <<: *django-env
     volumes:
       - media-data:/app/media
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_started
+
+  # Broker of the Celery tasks sent by web.
+  redis:
+    image: redis:8.2-alpine
+    restart: unless-stopped
+    expose:
+      - 6379
+
+  # Runs the imports sent by web (commons.tasks), out of the request.
+  worker:
+    build:
+      context: .
+    environment:
+      <<: *django-env
+    # One import at a time, in a new process each time: an import may take
+    # gigabytes of memory, given back when its process ends.
+    command: celery --workdir backend -A workshop2026 worker --loglevel INFO --concurrency 1 --max-tasks-per-child 1
+    volumes:
+      - media-data:/app/media
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
 
   frontend:
     build:

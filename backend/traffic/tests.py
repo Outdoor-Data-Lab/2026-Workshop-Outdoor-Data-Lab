@@ -18,6 +18,7 @@ from django.core.files.base import ContentFile
 from django.core.management import CommandError, call_command
 from django.db import IntegrityError, connection, transaction
 from django.db.models import ProtectedError
+from django.db.models.signals import pre_delete
 from django.test import Client, SimpleTestCase, TestCase, override_settings
 from rest_framework.test import APIRequestFactory
 
@@ -36,6 +37,7 @@ from .models import (
     CountingObject,
     CountingObjectArea,
     CountingObjectType,
+    TrafficImport,
     Unit,
 )
 from .parsers.compteur import CompteurParser
@@ -143,6 +145,21 @@ class CountingMeasureTests(TrafficTestCase):
     def test_end_must_follow_start(self):
         with self.assertRaises(IntegrityError), transaction.atomic():
             self.measure(end_datetime=dt(15, 10))
+
+    def test_one_measure_per_object_period_practice_and_unit(self):
+        self.measure()
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            self.measure()  # same key, without practice: no practice counts as one value
+        self.measure(practice=Practice.objects.get(code="hiking"))  # another practice
+
+    def test_the_unique_key_replaces_the_object_start_index(self):
+        # Dropping an index outside the public schema fails silently with Django's
+        # RemoveIndex: check that the old one is really gone.
+        with connection.cursor() as cursor:
+            cursor.execute("select indexname from pg_indexes where schemaname = 'traffic' and tablename = 'counting_measures'")
+            names = {row[0] for row in cursor.fetchall()}
+        self.assertIn("counting_measure_unique_key", names)
+        self.assertNotIn("counting_measure_object_start", names)
 
     def test_practice_is_optional(self):
         self.assertIsNone(self.measure().practice)
@@ -258,7 +275,7 @@ class OutdoorVisionParserTests(TrafficTestCase):
         self.tmp = Path(self.enterContext(tempfile.TemporaryDirectory()))
         self.enterContext(override_settings(MEDIA_ROOT=self.tmp / "media"))
 
-    def run_import(self, rows=ROWS, drop=()):
+    def run_import(self, rows=ROWS, drop=(), providers=None):
         frame = gpd.GeoDataFrame(
             [
                 dict(id=i, track_id=t, activity=a, date_start=f"{s}+02:00", date_end=f"{e}+02:00")
@@ -267,6 +284,8 @@ class OutdoorVisionParserTests(TrafficTestCase):
             geometry=[shapely.LineString(c) for *_, c in rows],
             crs=4326,
         ).drop(columns=list(drop))
+        if providers is not None:
+            frame["provider"] = providers
         path = self.tmp / "export.gpkg"
         frame.to_file(path)
         data_import = DataImport(source=self.source)
@@ -283,24 +302,45 @@ class OutdoorVisionParserTests(TrafficTestCase):
         self.assertEqual(measure.counting_object.geom.num_geom, 2)  # both pieces kept
         self.assertEqual(CountingMeasure.objects.get(counting_object__external_id="t2").practice.code, "cycling")
 
+    @patch("traffic.parsers.outdoorvision.BATCH_LINES", 1)
+    def test_a_batch_holds_whole_tracks(self):
+        data_import, count = self.run_import()
+        self.assertEqual((count, data_import.line_numbers), (2, 3))
+        self.assertEqual(CountingObject.objects.get(external_id="t1").geom.num_geom, 2)  # both pieces kept
+
     def test_reimport_does_not_duplicate(self):
         self.run_import()
         self.run_import()
         self.assertEqual((CountingObject.objects.count(), CountingMeasure.objects.count()), (2, 2))
 
+    def test_provider_becomes_the_origin(self):
+        self.run_import(providers=["Garmin", "Garmin", " Openrunner "])
+        origins = dict(CountingObject.objects.values_list("external_id", "origin__code"))
+        self.assertEqual(origins, {"t1": "garmin", "t2": "openrunner"})  # Garmin: existing source
+        openrunner = DataSource.objects.get(code="openrunner")
+        self.assertEqual((openrunner.label, openrunner.domains), ("Openrunner", []))  # an origin only
+
+    def test_without_provider_there_is_no_origin(self):
+        for providers in (None, [None, None, None], ["", " ", ""]):  # no column, or no value
+            with self.subTest(providers):
+                CountingObject.objects.all().delete()  # an existing object keeps its origin
+                self.run_import(providers=providers)
+                self.assertEqual(CountingObject.objects.count(), 2)
+                self.assertFalse(CountingObject.objects.filter(origin__isnull=False).exists())
+
     def test_unknown_activity_imports_nothing(self):
-        with self.assertRaisesMessage(ValueError, "inconnues : swimming"):
+        with self.assertRaisesMessage(ValueError, "activities: swimming"):
             self.run_import([(1, "t1", "swimming", *self.ROWS[0][3:])])
         self.assertFalse(CountingObject.objects.exists())
 
     def test_missing_column_is_rejected(self):
-        with self.assertRaisesMessage(ValueError, "manquantes : track_id"):
+        with self.assertRaisesMessage(ValueError, "columns: track_id"):
             self.run_import(drop=["track_id"])
 
     def test_unreadable_file_is_rejected(self):
         data_import = DataImport(source=self.source)
         data_import.file.save("export.gpkg", ContentFile(b"not a GeoPackage"))
-        with self.assertRaisesMessage(ValueError, "pas un GPKG lisible"):
+        with self.assertRaisesMessage(ValueError, "not a readable GPKG"):
             OutdoorVisionParser(data_import).import_data()
 
 
@@ -344,6 +384,28 @@ class StravaParserTests(TrafficTestCase):
         self.assertEqual(measure.end_datetime, datetime(2024, 12, 31, 23, tzinfo=timezone.utc))
         self.assertEqual(measure.counting_object.type.code, "segment")
 
+    def test_deleting_an_import_deletes_its_measures_and_the_objects_left_empty(self):
+        first, _ = self.run_import(2024)
+        second, _ = self.run_import(2025, counts=((10, 100), (30, 5)))  # edge 10 again, edge 30 new
+        second.delete()
+        self.assertEqual(set(CountingObject.objects.values_list("external_id", flat=True)), {"10", "20"})
+        self.assertEqual(sorted(CountingMeasure.objects.values_list("count", flat=True)), [15, 80])
+        TrafficImport.objects.get(pk=first.pk).delete()  # as from the traffic import page
+        self.assertFalse(CountingObject.objects.exists())
+
+    def test_an_object_still_measured_by_another_import_is_kept(self):
+        first, _ = self.run_import(2024)
+        self.run_import(2024, counts=((10, 90),))  # replaces the 2024 measure of edge 10
+        first.delete()
+        self.assertIsNone(CountingObject.objects.get(external_id="10").data_import)  # kept, unlinked
+        self.assertFalse(CountingObject.objects.filter(external_id="20").exists())
+        self.assertEqual(list(CountingMeasure.objects.values_list("count", flat=True)), [90])
+
+    def test_measures_are_deleted_without_being_loaded(self):
+        # With a pre_delete receiver on CountingMeasure, Django would load every
+        # measure of a deleted import instead of deleting them in one query.
+        self.assertFalse(pre_delete.has_listeners(CountingMeasure))
+
     def test_reimport_replaces_the_year(self):
         self.run_import()
         self.run_import(counts=((10, 90), (20, 20)))
@@ -380,20 +442,19 @@ class StravaParserTests(TrafficTestCase):
         self.assertEqual(sorted(practices), ["cycling", "cycling", "walking", "walking"])
 
     def test_duplicate_measures_are_refused(self):
-        with self.assertRaisesMessage(ValueError, "Mesures Strava en double (même objet, période et pratique) : 1"):
+        with self.assertRaisesMessage(ValueError, "Duplicate Strava measures (same object, period and practice): 1"):
             self.run_import(counts=((10, 80), (10, 5)))
         self.assertFalse(CountingObject.objects.exists())
 
     def test_archive_with_several_exports_is_refused(self):
-        with self.assertRaisesMessage(ValueError,
-                                      "un seul export, soit un .shp et un .csv (trouvé : 1 .shp et 2 .csv)"):
+        with self.assertRaisesMessage(ValueError, "a single export, i.e. one .shp and one .csv (found: 1 .shp and 2 .csv)"):
             self.run_import(extra=[("other.csv", "edge_uid,activity_type,year,total_trip_count\n")])
-        with self.assertRaisesMessage(ValueError, "contient d'autres zips"):
+        with self.assertRaisesMessage(ValueError, "holds other zips"):
             self.run_import(extra=[("all_edges_yearly_2023_is.zip", b"")])
         self.assertFalse(CountingObject.objects.exists())
 
     def test_unknown_activity_imports_nothing(self):
-        with self.assertRaisesMessage(ValueError, "inconnues : Ride"):
+        with self.assertRaisesMessage(ValueError, "activities: Ride"):
             self.run_import(activity="Ride")
         self.assertFalse(CountingObject.objects.exists())
 
@@ -510,7 +571,7 @@ class INaturalistParserTests(TrafficTestCase):
         self.assertEqual((CountingObject.objects.count(), CountingMeasure.objects.count()), (4, 4))
 
     def test_unknown_columns_are_refused(self):
-        with self.assertRaisesMessage(ValueError, "Colonnes iNaturalist non reconnues"):
+        with self.assertRaisesMessage(ValueError, "Unrecognised iNaturalist columns"):
             self.import_file("other.zip", zip_bytes({"data.csv": "a,b\n1,2\n"}))
 
     def run_export(self):
@@ -521,7 +582,7 @@ class ParserDescriptionTests(SimpleTestCase):
     def test_every_parser_says_what_its_file_holds(self):
         for parser in (OutdoorVisionParser, StravaParser, CompteurParser, INaturalistParser):
             with self.subTest(parser.__name__):
-                self.assertTrue(parser.CONTENT.startswith("Contient des "))
+                self.assertTrue(parser.CONTENT.startswith("Holds "))
 
 
 def cell(xmin, ymin, xmax, ymax):
@@ -861,6 +922,12 @@ class CountingObjectAreasTests(AreasTestCase):
         CountingObjectArea.objects.all().delete()
         call_command("sync_counting_object_areas", stdout=StringIO())
         self.assertEqual(CountingObjectArea.objects.count(), 5)
+
+    def test_an_object_moved_leaves_the_cells_of_the_others(self):
+        others = set(CountingObjectArea.objects.exclude(counting_object=self.moving).values_list("counting_object", "area"))
+        self.moving.geom = Point(8.0, 44.2, srid=4326)
+        self.moving.save()
+        self.assertEqual(set(CountingObjectArea.objects.values_list("counting_object", "area")), others)
 
     def test_deleting_an_object_deletes_its_cells(self):
         pk = self.moving.pk  # delete() sets self.moving.pk to None

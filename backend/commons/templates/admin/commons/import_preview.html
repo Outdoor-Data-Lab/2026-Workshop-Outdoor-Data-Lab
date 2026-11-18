@@ -14,11 +14,12 @@
 
 {% block content %}
 <div id="content-main">
-  <p>Source: <strong>{{ data_import.source }}</strong>. File: <strong>{{ file_name }}</strong>, {{ preview.lines }} lines.</p>
+  <p>Format: <strong>{{ format }}</strong>. Source: <strong>{{ source }}</strong>. File: <strong>{{ file_name }}</strong>, {{ preview.lines }} lines read.</p>
   <table>
-    <tr><th scope="row">Offers created</th><td>{{ preview.created }}</td></tr>
-    <tr><th scope="row">Offers updated</th><td>{{ preview.updated }}</td></tr>
-    <tr><th scope="row">Offers deleted, missing from the file</th><td>{{ preview.deleted }}</td></tr>
+    <tr><th scope="row">Items to import</th><td>{{ preview.rows }}</td></tr>
+    {% for label, count in preview.changes.items %}
+    <tr><th scope="row">{{ label }}</th><td>{{ count }}</td></tr>
+    {% endfor %}
     <tr><th scope="row">Lines in error, skipped</th><td>{{ preview.errors }}</td></tr>
   </table>
   {% if errors %}
@@ -33,7 +34,7 @@
   </table>
   {% if more_errors > 0 %}<p>And {{ more_errors }} more lines in error.</p>{% endif %}
   {% endif %}
-  <form method="post" id="offerimport_form" data-file="{{ file_name }}">
+  <form method="post" id="{{ opts.model_name }}_form" data-file="{{ file_name }}">
     {% csrf_token %}
     <input type="hidden" name="token" value="{{ token }}">
     <div class="submit-row">

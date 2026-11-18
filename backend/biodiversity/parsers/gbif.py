@@ -104,13 +104,14 @@ def name_candidates(taxon: dict) -> list[str]:
 
 
 class GBIFParser(BiodiversityRecordParser):
+    LABEL = "GBIF occurrences (CSV)"
     NAME = "GBIF"
     CONTENT = (
-        "Contient des occurrences d'espèces (points), une par ligne, rattachées à TaxRef d'après leur nom scientifique."
+        "Holds species occurrences (points), one per line, matched to TaxRef by their scientific name."
     )
     EXAMPLE = (
-        "Téléchargement GBIF au format simple, dézippé (CSV séparé par des tabulations). Ex. : "
-        "0012597-261110092616502.csv. Pour ne garder que les observateurs iNaturalist, choisir la source iNaturalist."
+        "GBIF download in simple format, unzipped (tab-separated CSV). E.g. "
+        "0012597-261110092616502.csv. To keep only the iNaturalist observers, choose the iNaturalist source."
     )
 
     def read(self) -> tuple[int, pd.DataFrame]:
@@ -131,9 +132,9 @@ class GBIFParser(BiodiversityRecordParser):
 
         missing = set(COLUMNS).difference(data.columns)
         if missing:
-            raise ValueError(f"Colonnes GBIF manquantes : {', '.join(sorted(missing))}")
+            raise ValueError(f"Missing GBIF columns: {', '.join(sorted(missing))}")
         if data.empty:
-            raise ValueError("Le fichier GBIF ne contient aucune occurrence.")
+            raise ValueError("The GBIF file holds no occurrence.")
 
         dates = data["eventDate"].map(date_range)
         valid = dates.notna() & data[REQUIRED].notna().all(axis=1)

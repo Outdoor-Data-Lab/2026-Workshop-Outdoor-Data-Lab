@@ -30,11 +30,11 @@ class CountingObjectAdmin(GISModelAdmin):
     def get_queryset(self, request):
         return super().get_queryset(request).with_data_range()
 
-    @admin.display(description="Première donnée")
+    @admin.display(description="First data")
     def first_data(self, obj):
         return obj.first_data
 
-    @admin.display(description="Dernière donnée")
+    @admin.display(description="Latest data")
     def latest_data(self, obj):
         return obj.latest_data
 

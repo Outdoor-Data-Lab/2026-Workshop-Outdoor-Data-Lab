@@ -4,7 +4,10 @@ A parser only reads its file (see commons.parsers.ImportParser): `read()` return
 the number of lines read and one row per measure, with the columns of
 MEASURE_COLUMNS. A row may gather several lines (the pieces of a track), so the
 lines deliberately skipped are counted in `skipped_lines`, saved as the
-import's error_numbers.
+import's error_numbers. An optional `origin` column names the application that
+produced the row (OutdoorVision's provider): it becomes the origin of the
+object it creates, a DataSource found by code or label, or created with no
+domain (an origin only).
 
 Saving is the same for every source: missing objects are created in bulk, and
 the measures the file gives again are replaced: those of an already known object
@@ -14,8 +17,8 @@ leaves the others: a yearly and a daily measure of the same edge, or two
 practices over the same period, never replace each other. A measure missing
 from the new file is kept.
 
-Nothing in the database forbids two measures with the same key: only the
-parsers avoid creating them.
+The database forbids two measures with the same key (constraint
+counting_measure_unique_key).
 """
 
 from itertools import batched
@@ -23,8 +26,10 @@ from itertools import batched
 import pandas as pd
 from django.contrib.gis.geos import GEOSGeometry
 from django.db import connection
+from django.db.models import Q
+from django.utils.text import slugify
 
-from commons.models import DataImport, Practice
+from commons.models import DataImport, DataSource, Practice
 from commons.parsers import ImportParser
 
 from ..models import CountingMeasure, CountingObject, CountingObjectType, Unit
@@ -49,13 +54,13 @@ class TrafficParser(ImportParser):
         """Create the missing counting objects, then replace the measures the file gives again."""
         missing = set(MEASURE_COLUMNS).difference(rows.columns)
         if missing:
-            raise ValueError(f"{type(self).__name__}.read() sans les colonnes : {', '.join(sorted(missing))}")
+            raise ValueError(f"{type(self).__name__}.read() without the columns: {', '.join(sorted(missing))}")
         practices = self._practices(rows["activity"])
         self._check_no_duplicates(rows)
         object_type = CountingObjectType.objects.get(code=self.OBJECT_TYPE)
         unit = Unit.objects.get(code=self.UNIT)
 
-        object_ids, known = self._save_objects(rows, object_type)
+        object_ids, known = self._save_objects(rows, object_type, self._origins(rows))
         self._delete_given_measures(rows[rows.external_id.isin(known)], object_ids, practices, unit)
         measures = (
             CountingMeasure(
@@ -65,6 +70,7 @@ class TrafficParser(ImportParser):
                 count=row.count,
                 unit=unit,
                 practice=practices[row.activity],
+                data_import=self.data_import,
             )
             for row in rows.itertuples()
         )
@@ -76,7 +82,7 @@ class TrafficParser(ImportParser):
     def _practices(self, activities: pd.Series) -> dict[str, Practice]:
         unknown = set(activities).difference(self.PRACTICE_CODES)
         if unknown:
-            raise ValueError(f"Activités {self.NAME} inconnues : {', '.join(sorted(unknown))}")
+            raise ValueError(f"Unknown {self.NAME} activities: {', '.join(sorted(unknown))}")
         by_code = Practice.objects.in_bulk(set(self.PRACTICE_CODES.values()), field_name="code")
         return {activity: by_code[code] for activity, code in self.PRACTICE_CODES.items()}
 
@@ -89,11 +95,23 @@ class TrafficParser(ImportParser):
         if duplicated.any():
             first = rows[duplicated].iloc[0]
             raise ValueError(
-                f"Mesures {self.NAME} en double (même objet, période et pratique) : {duplicated.sum()}, "
-                f"par exemple {first.external_id} à partir du {first.start_datetime}."
+                f"Duplicate {self.NAME} measures (same object, period and practice): {duplicated.sum()}, "
+                f"e.g. {first.external_id} from {first.start_datetime}."
             )
 
-    def _save_objects(self, rows, object_type) -> tuple[dict[str, int], set[str]]:
+    def _origins(self, rows: pd.DataFrame) -> dict[str, DataSource]:
+        """The DataSource of each name of the `origin` column, created if missing."""
+        if "origin" not in rows:
+            return {}
+        origins = {}
+        for name in rows["origin"].dropna().unique():
+            code = slugify(name).replace("-", "_")
+            origins[name] = DataSource.objects.filter(Q(code=code) | Q(label__iexact=name)).first()
+            if origins[name] is None:
+                origins[name] = DataSource.objects.create(code=code, label=name)
+        return origins
+
+    def _save_objects(self, rows, object_type, origins) -> tuple[dict[str, int], set[str]]:
         """Create the objects not imported yet; return the ids of all objects by
         external id, and the external ids of the objects that already existed."""
         objects = CountingObject.objects.filter(source=self.source)
@@ -104,7 +122,9 @@ class TrafficParser(ImportParser):
                 source=self.source,
                 type=object_type,
                 external_id=row.external_id,
+                origin=origins.get(getattr(row, "origin", None)),
                 geom=GEOSGeometry(memoryview(row.geometry.wkb), srid=4326),
+                data_import=self.data_import,
             )
             for row in new.itertuples()
         )
@@ -116,7 +136,7 @@ class TrafficParser(ImportParser):
         """Delete the measures that the rows give again: same object, start, end, practice and unit."""
         table = connection.ops.quote_name(CountingMeasure._meta.db_table)
         # One query per batch: the keys are passed as arrays, and the lookup uses
-        # the (counting_object, start_datetime) index.
+        # the index of counting_measure_unique_key.
         sql = f"""
             DELETE FROM {table} AS m
             USING unnest(%s::bigint[], %s::timestamptz[], %s::timestamptz[], %s::bigint[])

@@ -12,7 +12,8 @@ concurrency:
 jobs:
   test:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    # Margin for a run without cache (first run, new version).
+    timeout-minutes: 20
 
     services:
       db:
@@ -39,11 +40,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # GeoDjango needs the GDAL/GEOS/PROJ shared libraries.
+      # GeoDjango needs the GDAL/GEOS/PROJ shared libraries. Cached: the Ubuntu
+      # mirror sometimes serves these 72 MB at under 100 kB/s.
       - name: Install system libraries
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends gdal-bin libgdal-dev libgeos-dev libproj-dev
+        uses: awalsh128/cache-apt-pkgs-action@v1
+        with:
+          packages: gdal-bin libgdal-dev libgeos-dev libproj-dev
+          # Bump to refresh the cache.
+          version: 1
+          # Runs ldconfig, so that Django finds libgdal and libgeos_c.
+          execute_install_scripts: true
 
       - uses: astral-sh/setup-uv@v6
         with:
