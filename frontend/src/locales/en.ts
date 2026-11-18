@@ -20,6 +20,7 @@ export default {
     loading: '(loading)',
     failed: '(failed)',
     trafficAreas: 'Traffic per grid cell',
+    fromZoom: 'Visible from zoom {zoom}: zoom in on the map.',
     trafficArea: 'Cell {id}: score {score}',
     outdoorOffers: 'Outdoor offers',
     loadError: 'Could not load {label}',
@@ -38,6 +39,7 @@ export default {
   legend: {
     title: 'Legend',
     counters: 'Counters',
+    tracks: 'Outings (tracks)',
     trafficAreas: 'Traffic per grid cell (score)',
   },
   detail: {
