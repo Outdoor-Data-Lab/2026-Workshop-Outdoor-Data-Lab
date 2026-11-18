@@ -10,7 +10,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!select.value) return;
     const parser = parsers[select.value];
     if (!parser) {
-      help.textContent = "Aucun parser pour cette source : le fichier sera enregistré sans être importé.";
+      help.textContent = "Aucun parser pour cette source : l'import sera refusé.";
       return;
     }
     if (parser.content) {

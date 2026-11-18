@@ -1,5 +1,6 @@
 import json
 
+from django import forms
 from django.contrib import admin, messages
 from django.http import HttpResponseRedirect
 from django.utils.html import format_html
@@ -27,8 +28,23 @@ class PracticeAdmin(admin.ModelAdmin):
     search_fields = ("code", "label")
 
 
+class DataImportForm(forms.ModelForm):
+    class Meta:
+        model = DataImport
+        fields = "__all__"
+
+    def clean_source(self):
+        source = self.cleaned_data["source"]
+        if not self.instance.pk and source.code not in PARSERS:
+            raise forms.ValidationError(
+                f"Aucun parser n'est disponible pour la source « {source} »."
+            )
+        return source
+
+
 @admin.register(DataImport)
 class DataImportAdmin(admin.ModelAdmin):
+    form = DataImportForm
     list_display = ("source", "date_import", "file", "line_numbers", "error_numbers")
     list_filter = ("source",)
     readonly_fields = ("date_import",)
@@ -68,9 +84,11 @@ class DataImportAdmin(admin.ModelAdmin):
 
     def save_model(self, request, obj, form, change):
         super().save_model(request, obj, form, change)
-        if not change:
-            try:
-                obj.run_parser()
-            except ValueError as error:
-                obj.file.delete(save=False)  # the rollback does not remove the stored file
-                raise ImportRefused(error) from error
+        if change:
+            return
+        try:
+            count = obj.run_parser()
+        except ValueError as error:
+            obj.file.delete(save=False)  # the rollback does not remove the stored file
+            raise ImportRefused(error) from error
+        self.message_user(request, f"{count} éléments importés.", messages.SUCCESS)

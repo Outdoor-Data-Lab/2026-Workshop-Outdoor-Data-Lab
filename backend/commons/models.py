@@ -28,6 +28,8 @@ PARSERS = {
     "strava": "traffic.parsers.strava.StravaParser",
     "ecocompteur": "traffic.parsers.compteur.CompteurParser",
     "inaturalist": "traffic.parsers.inaturalist.INaturalistParser",
+    "inpn": "biodiversity.parsers.inpn.INPNParser",
+    "gbif": "biodiversity.parsers.gbif.GBIFParser",
 }
 
 
@@ -104,7 +106,7 @@ class DataImport(models.Model):
         if not self.file:
             raise ValueError("Aucun fichier n'est associé au DataImport.")
 
-        # Imported by path: the traffic parsers themselves import DataImport.
+        # Imported by path: the parsers themselves import DataImport.
         return import_string(parser)(self).import_data()
 
     def __str__(self):
