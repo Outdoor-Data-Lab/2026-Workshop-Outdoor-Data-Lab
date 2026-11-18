@@ -2,7 +2,8 @@ import { defineStore } from 'pinia'
 import { computed, ref, shallowRef } from 'vue'
 import type { FeatureCollection, Geometry } from 'geojson'
 
-import type { LayerId, MapObject } from '@/types/mapObject'
+import { CONCEPTS, type Concept } from '@/types/concept'
+import { layerDomain, type LayerId, type MapObject } from '@/types/mapObject'
 
 import { useNotificationsStore } from './notifications'
 
@@ -29,6 +30,7 @@ export interface LayerDefinition {
 export const useLayersStore = defineStore('layers', () => {
   const notifications = useNotificationsStore()
 
+  const concept = ref<Concept>('global')
   const definitions = shallowRef<LayerDefinition[]>([])
   const visible = ref<Partial<Record<LayerId, boolean>>>({})
   // shallowRef + remplacement : pas de réactivité profonde sur les géométries.
@@ -103,8 +105,22 @@ export const useLayersStore = defineStore('layers', () => {
     }
   }
 
+  function inConcept(layer: LayerId) {
+    return CONCEPTS.find((c) => c.id === concept.value)!.domains.includes(layerDomain(layer))
+  }
+
+  /** Les couches ajoutées sont affichées si elles relèvent du concept actif. */
   function addDefinitions(added: LayerDefinition[]) {
     definitions.value = [...definitions.value, ...added]
+    for (const definition of added) setVisible(definition.id, inConcept(definition.id))
+  }
+
+  /** Change de concept et réinitialise la visibilité de toutes les couches. */
+  function setConcept(value: Concept) {
+    concept.value = value
+    for (const definition of definitions.value) {
+      setVisible(definition.id, inConcept(definition.id))
+    }
   }
 
   /** Affiche ou masque une couche ; la charge au premier affichage, ou après un échec. */
@@ -121,6 +137,7 @@ export const useLayersStore = defineStore('layers', () => {
   }
 
   return {
+    concept,
     definitions,
     visible,
     objectsByLayer,
@@ -132,6 +149,7 @@ export const useLayersStore = defineStore('layers', () => {
     removeLayer,
     loadLayer,
     addDefinitions,
+    setConcept,
     setVisible,
     select,
   }

@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 
-import { useLayersStore } from '@/stores/layers'
-import type { MapObject } from '@/types/mapObject'
+import { useLayersStore, type LayerDefinition } from '@/stores/layers'
+import type { LayerId, MapObject } from '@/types/mapObject'
 
 const point: MapObject = {
   key: 'traffic/counter:1',
@@ -13,15 +13,18 @@ const point: MapObject = {
   geometry: { type: 'Point', coordinates: [6, 45] },
 }
 
+function definition(id: LayerId, load = vi.fn().mockResolvedValue([])): LayerDefinition {
+  return { id, label: id, group: 'Group', load }
+}
+
 describe('layers store', () => {
   beforeEach(() => setActivePinia(createPinia()))
 
   it('loads a layer the first time it is shown, and only then', async () => {
     const layers = useLayersStore()
     const load = vi.fn().mockResolvedValue([point])
-    layers.addDefinitions([{ id: 'traffic/counter', label: 'Counter', group: 'Traffic', load }])
 
-    layers.setVisible('traffic/counter', true)
+    layers.addDefinitions([definition('traffic/counter', load)])
     await vi.waitFor(() => expect(layers.objectsByLayer['traffic/counter']).toEqual([point]))
     layers.setVisible('traffic/counter', false)
     layers.setVisible('traffic/counter', true)
@@ -36,5 +39,17 @@ describe('layers store', () => {
     expect(layers.featureCollections['traffic/counter']).toBeUndefined()
     layers.setVisible('traffic/counter', true)
     expect(layers.featureCollections['traffic/counter']?.features).toHaveLength(1)
+  })
+
+  it('shows the layers of the selected concept only', () => {
+    const layers = useLayersStore()
+    layers.addDefinitions([definition('traffic/counter'), definition('biodiversity/taxon')])
+    expect(layers.visible).toEqual({ 'traffic/counter': true, 'biodiversity/taxon': true })
+
+    layers.setConcept('traffic')
+    expect(layers.visible).toEqual({ 'traffic/counter': true, 'biodiversity/taxon': false })
+
+    layers.setConcept('biodiversity')
+    expect(layers.visible).toEqual({ 'traffic/counter': false, 'biodiversity/taxon': true })
   })
 })

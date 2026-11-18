@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import ConceptTabs from '@/components/ConceptTabs.vue'
 import DetailPanel from '@/components/DetailPanel.vue'
 import LayerSwitcher from '@/components/LayerSwitcher.vue'
 import MapView from '@/components/MapView.vue'
@@ -8,15 +9,14 @@ import { useLayersStore } from '@/stores/layers'
 const layers = useLayersStore()
 
 // Un échec est notifié par le gestionnaire global des promesses rejetées (main.ts).
-trafficLayers().then((definitions) => {
-  layers.addDefinitions(definitions)
-  for (const definition of definitions) layers.setVisible(definition.id, true)
-})
+trafficLayers().then(layers.addDefinitions)
 </script>
 
 <template>
   <main class="home">
-    <aside class="panel left"></aside>
+    <aside class="panel left">
+      <ConceptTabs />
+    </aside>
     <div class="map">
       <MapView />
       <LayerSwitcher class="layer-switcher" />
