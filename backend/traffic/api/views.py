@@ -1,5 +1,6 @@
 from functools import cached_property
 
+from django.conf import settings
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework import serializers, viewsets
@@ -74,7 +75,7 @@ class CountingMeasureViewSet(ReadOnlyViewSet):
     retrieve=extend_schema(parameters=[AreasQuerySerializer]),
 )
 class AreasViewSet(viewsets.ReadOnlyModelViewSet):
-    """Counts and scores per 1 km grid cell (ref_geo "M1"), as GeoJSON.
+    """Counts and scores per grid cell (ref_geo ``area_type``, "M1" 1 km by default), as GeoJSON.
 
     Only the cells with measures matching ``source`` and the period
     ``date_from`` / ``date_to`` (YYYY-MM-DD, both included, on the start of
@@ -104,6 +105,10 @@ class AreasViewSet(viewsets.ReadOnlyModelViewSet):
         serializer.is_valid(raise_exception=True)
         return serializer.validated_data
 
+    @property
+    def area_type(self):
+        return self.params.get("area_type") or settings.DEFAULT_GRID_AREA_TYPE
+
     @cached_property
     def measures(self):
         """Measures matching source and period, one row per (measure, cell)."""
@@ -111,6 +116,7 @@ class AreasViewSet(viewsets.ReadOnlyModelViewSet):
             sources=self.params.get("source"),
             date_from=self.params.get("date_from"),
             date_to=self.params.get("date_to"),
+            area_type=self.area_type,
         )
 
     def get_queryset(self):
@@ -118,19 +124,44 @@ class AreasViewSet(viewsets.ReadOnlyModelViewSet):
             return LArea.objects.none()
         return (
             LArea.objects.filter(
-                type__type_code="M1", id_area__in=self.measures.values("id_area")
+                type__type_code=self.area_type, id_area__in=self.measures.values("id_area")
             )
             .only("id_area", "geom_4326")
             .order_by("id_area")
         )
 
     @cached_property
+    def estimate(self):
+        """BTA estimate of the "cazalis" weights (``weights``, ``correlations``,
+        ``counters``), or None when the weights are given or the score is not requested."""
+        if self.params.get("source_weights") is None and "cazalis" in self.params.get("scores", ()):
+            return SCORES["cazalis"].cached_estimate()
+        return None
+
+    @cached_property
     def source_weights(self):
         """Weights of the "cazalis" score: given, or estimated (BTA) when omitted."""
-        weights = self.params.get("source_weights")
-        if weights is None and "cazalis" in self.params.get("scores", ()):
-            weights = SCORES["cazalis"].cached_source_weights()
-        return weights
+        if self.estimate is not None:
+            return self.estimate["weights"]
+        return self.params.get("source_weights")
+
+    @cached_property
+    def score_details(self):
+        """``{score name: dict}``: what goes next to the value of that score in
+        every cell (``score[name]`` becomes ``{"score": value, **dict}``).
+
+        "cazalis": the weight of each source (``source_weights``) and, when
+        estimated, its correlation with the eco-counters (``source_correlations``:
+        ``{source id: {"r": Pearson's r or null, "counters": n}}``) and the
+        number of eco-counters used (``reference_counters``).
+        """
+        details = {}
+        if "cazalis" in self.params.get("scores", ()):
+            details["cazalis"] = {"source_weights": self.source_weights}
+            if self.estimate is not None:
+                details["cazalis"]["source_correlations"] = self.estimate["correlations"]
+                details["cazalis"]["reference_counters"] = self.estimate["counters"]
+        return details
 
     def compute_scores(self, measures):
         """``{score name: {id_area: value}}`` for the requested scores."""
@@ -154,6 +185,7 @@ class AreasViewSet(viewsets.ReadOnlyModelViewSet):
             **self.get_serializer_context(),
             "counts": counts_by_area(measures),
             "scores": self.compute_scores(self.measures),
+            "score_details": self.score_details,
         }
         return self.get_serializer(areas if many else areas[0], many=many, context=context)
 

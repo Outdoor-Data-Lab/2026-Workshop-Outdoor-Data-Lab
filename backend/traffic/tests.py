@@ -821,11 +821,15 @@ class AreasApiTests(AreasTestCase):
         self.assertEqual(features[12]["geometry"]["type"], "MultiPolygon")
         self.assertEqual(features[12]["properties"], {
             "counts": 15, "count_segment": 9, "count_presence": 6,
-            "score": {"basic": 15, "cazalis": 100.0},
+            "score": {"basic": 15, "cazalis": {
+                "score": 100.0, "source_weights": {str(self.s1): 2, str(self.s2): 3},
+            }},
         })
         self.assertEqual(features[13]["properties"], {
             "counts": 4, "count_segment": 0, "count_presence": 4,
-            "score": {"basic": 4, "cazalis": 0.0},
+            "score": {"basic": 4, "cazalis": {
+                "score": 0.0, "source_weights": {str(self.s1): 2, str(self.s2): 3},
+            }},
         })
 
     def test_filters_on_source_and_bbox(self):
@@ -840,6 +844,13 @@ class AreasApiTests(AreasTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("source_weights", response.json())
         self.assertEqual(sum(response.json()["source_weights"].values()), 0)
+        # Estimated: every cell carries the weights, correlations and counters.
+        for feature in response.json()["features"]:
+            cazalis = feature["properties"]["score"]["cazalis"]
+            self.assertEqual(set(cazalis), {
+                "score", "source_weights", "source_correlations", "reference_counters",
+            })
+            self.assertEqual(cazalis["source_weights"], response.json()["source_weights"])
 
         response = self.client.get(self.url, {"scores": "cazalis", "source_weights": f"{self.s1}:2"})
         self.assertEqual(response.status_code, 400)

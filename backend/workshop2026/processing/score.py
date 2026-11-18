@@ -1,4 +1,4 @@
-"""Counts and scores per 1 km grid cell (ref_geo "M1"), computed on the fly
+"""Counts and scores per grid cell (ref_geo type ``area_type``, DEFAULT_GRID_AREA_TYPE by default), computed on the fly
 from the measures.
 
 A measure belongs to the cells its counting object intersects
@@ -18,6 +18,7 @@ from math import isfinite
 from statistics import StatisticsError, fmean, quantiles, stdev
 from statistics import correlation as pearson_r
 
+from django.conf import settings
 from django.contrib.gis.geos import GEOSGeometry
 from django.core.cache import cache
 from django.db import connection
@@ -173,24 +174,30 @@ def _start_of_day(date):
     return datetime.combine(date, time.min, tzinfo=timezone.get_current_timezone())
 
 
-def measures_queryset(geoms=None, geom_ids=None, sources=None, date_from=None, date_to=None):
+def measures_queryset(
+    geoms=None, geom_ids=None, sources=None, date_from=None, date_to=None, area_type=None
+):
     """Measures, one row per (measure, cell), annotated with ``id_area`` and ``id_source``.
 
     geoms: keep the cells intersecting this geometry (any SRID, default 2154).
     geom_ids: keep these cells. With both, the union is kept; with neither,
     every cell is kept.
     date_from, date_to: ``datetime.date``, both included.
+    area_type: ref_geo type_code of the grid (default ``settings.DEFAULT_GRID_AREA_TYPE``).
     """
+    area_type = area_type or settings.DEFAULT_GRID_AREA_TYPE
     queryset = CountingMeasure.objects.annotate(
         id_area=F("counting_object__areas__area_id"),
         id_source=F("counting_object__source_id"),
-    ).filter(id_area__isnull=False)
+        # Same join as id_area: counting_object_areas holds every grid of AREA_TYPES.
+        area_type_code=F("counting_object__areas__area__type__type_code"),
+    ).filter(id_area__isnull=False, area_type_code=area_type)
     if geoms is not None or geom_ids is not None:
         cells = Q(id_area__in=list(geom_ids or []))
         if geoms is not None:
             cells |= Q(
                 id_area__in=LArea.objects.filter(
-                    type__type_code="M1",
+                    type__type_code=area_type,
                     geom__intersects=_to_lambert93(geoms),
                 ).values("id_area")
             )
@@ -227,11 +234,12 @@ class Score:
 
     @classmethod
     def compute(
-        cls, geoms=None, geom_ids=None, sources=None, date_from=None, date_to=None, **params
+        cls, geoms=None, geom_ids=None, sources=None, date_from=None, date_to=None,
+        area_type=None, **params
     ):
         queryset = measures_queryset(
             geoms=geoms, geom_ids=geom_ids, sources=sources,
-            date_from=date_from, date_to=date_to,
+            date_from=date_from, date_to=date_to, area_type=area_type,
         )
         return cls.compute_from(queryset, **params)
 
