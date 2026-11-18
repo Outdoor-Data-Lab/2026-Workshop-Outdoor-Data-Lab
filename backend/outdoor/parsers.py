@@ -14,12 +14,11 @@ A line in error is skipped, counted in error_numbers and described in
 OfferParser.errors. The file is the reference for its source: offers it no
 longer lists are deleted, the others are replaced by their line, uuid included.
 An offer whose line is in error is kept unchanged. A problem with the whole file
-(format, layers, CRS, columns, no valid line) rejects it: no offer changes and
-the import gets error_numbers = 1.
+(format, layers, CRS, columns, no valid line) refuses it (ValueError, see
+commons.parsers.ImportParser).
 
-preview() tells what import_data() would do, without writing. An offer is
-linked to the last import that wrote it, created or updated (Offer.data_import):
-deleting that import deletes the offer.
+An offer is linked to the last import that wrote it, created or updated
+(Offer.data_import): deleting that import deletes the offer.
 """
 
 import uuid
@@ -30,11 +29,12 @@ import pandas as pd
 import pyogrio
 import shapely
 from django.contrib.gis.geos import GEOSGeometry
-from django.db import IntegrityError, transaction
+from django.db import IntegrityError
 from django.utils import timezone
 from pyogrio.errors import DataSourceError
 
-from commons.models import DataImport, Practice
+from commons.models import Practice
+from commons.parsers import ImportParser, describe_errors
 
 from .models import Offer
 
@@ -75,69 +75,47 @@ def geometry(geom):
     return None if geom.is_empty else geom
 
 
-def describe_errors(errors: list[tuple[int, str, str]], limit: int = 10) -> str:
-    """The first lines in error, as "line 3 (id): reason; ..."."""
-    described = "; ".join(
-        f"line {number}{f' ({line_id})' if line_id else ''}: {reason}"
-        for number, line_id, reason in errors[:limit]
+class OfferParser(ImportParser):
+    LABEL = "Offers (GPKG)"
+    NAME = "Offers"
+    CONTENT = (
+        "Holds offers (trails, climbing sites, take-offs...). The file is the reference for "
+        "its source: the offers it no longer lists are deleted."
     )
-    if len(errors) > limit:
-        described += f"; and {len(errors) - limit} more"
-    return described
+    EXAMPLE = (
+        "GeoPackage (.gpkg) with a single layer and a coordinate reference system. "
+        "Columns: id (the offer's id in its source), name, practice (a practice code, "
+        "e.g. hiking), uuid (optional). Geometry: points, lines, polygons or collections. "
+        "Other columns are ignored."
+    )
 
+    def read(self) -> tuple[int, pd.DataFrame]:
+        """The valid offers of the file; sets self.errors and self.listed_ids."""
+        lines = self._read_layer()
+        return len(lines), pd.DataFrame(self._check_lines(lines))
 
-class OfferParser:
-    def __init__(self, data_import: DataImport):
-        self.data_import = data_import
-        self.source = data_import.source
-        # Lines in error, filled by check(): (line number, id, reason).
-        self.errors: list[tuple[int, str, str]] = []
-
-    def preview(self) -> dict[str, int]:
-        """What import_data() would do, without writing anything."""
-        lines, offers, listed_ids = self.check()
-        known = self.known()
-        created = sum(offer["external_id"] not in known for offer in offers)
+    def plan(self, rows: pd.DataFrame) -> dict[str, int]:
+        known = self._known()
+        created = int((~rows["external_id"].isin(list(known))).sum())
         return {
-            "lines": len(lines),
-            "created": created,
-            "updated": len(offers) - created,
-            "deleted": sum(external_id not in listed_ids for external_id in known),
-            "errors": len(self.errors),
+            "Offers created": created,
+            "Offers updated": len(rows) - created,
+            "Offers deleted, missing from the file": sum(
+                external_id not in self.listed_ids for external_id in known
+            ),
         }
 
-    def import_data(self) -> int:
-        """Replace the source's offers by those of the file; return their number."""
+    def save(self, rows: pd.DataFrame) -> None:
         try:
-            lines, offers, listed_ids = self.check()
-            with transaction.atomic():
-                self.save(offers, listed_ids)
-                self.data_import.line_numbers = len(lines)
-                self.data_import.error_numbers = len(self.errors)
-                self.data_import.save(update_fields=["line_numbers", "error_numbers"])
+            self._save(rows.to_dict("records"))
         except IntegrityError as exc:
-            self._reject()
             raise ValueError("uuid conflict with existing offers.") from exc
-        except ValueError:
-            self._reject()
-            raise
-        return len(offers)
 
-    def _reject(self):
-        self.data_import.error_numbers = 1
-        self.data_import.save(update_fields=["error_numbers"])
-
-    def check(self) -> tuple[gpd.GeoDataFrame, list[dict], set[str]]:
-        """The file's lines, the valid offers, and the ids listed (lines in error included)."""
-        lines = self.read()
-        offers, listed_ids = self.check_lines(lines)
-        return lines, offers, listed_ids
-
-    def known(self) -> dict[str, int]:
+    def _known(self) -> dict[str, int]:
         """The source's offers: pk by external id."""
         return dict(Offer.objects.filter(source=self.source).values_list("external_id", "pk"))
 
-    def read(self) -> gpd.GeoDataFrame:
+    def _read_layer(self) -> gpd.GeoDataFrame:
         """The single layer of the file, in WGS84."""
         path = self.data_import.file.path
         try:
@@ -158,8 +136,8 @@ class OfferParser:
             raise ValueError("The file defines no coordinate reference system.")
         return lines.to_crs(4326)
 
-    def check_lines(self, lines) -> tuple[list[dict], set[str]]:
-        """The valid offers, and the ids listed by the file; fills self.errors."""
+    def _check_lines(self, lines) -> list[dict]:
+        """The valid offers; sets self.errors and self.listed_ids (lines in error included)."""
         ids = lines["id"].map(text)
         uuids = lines["uuid"].map(text) if "uuid" in lines else pd.Series("", index=lines.index)
         # An id or uuid given twice puts all its lines in error.
@@ -173,7 +151,7 @@ class OfferParser:
             .values_list("uuid", flat=True)
         )
 
-        offers, self.errors = [], []
+        offers = []
         lines_data = zip(
             ids,
             lines["name"].map(text),
@@ -198,7 +176,7 @@ class OfferParser:
             elif not practice:
                 error = "missing practice"
             elif practice.lower() not in practices:
-                error = f"unknown practice \"{practice}\""
+                error = f'unknown practice "{practice}"'
             elif geom is None:
                 error = "missing or empty geometry"
             elif line_uuid and valid_uuid is None:
@@ -219,15 +197,14 @@ class OfferParser:
                 )
                 continue
             self.errors.append((number, line_id, error))
+        self.listed_ids = set(ids) - {""}
         if not offers:
-            raise ValueError(
-                f"The file has no valid line ({describe_errors(self.errors, 3)})."
-            )
-        return offers, set(ids) - {""}
+            raise ValueError(f"The file has no valid line ({describe_errors(self.errors, 3)}).")
+        return offers
 
-    def save(self, offers: list[dict], listed_ids: set[str]) -> None:
-        known = self.known()
-        gone = [pk for external_id, pk in known.items() if external_id not in listed_ids]
+    def _save(self, offers: list[dict]) -> None:
+        known = self._known()
+        gone = [pk for external_id, pk in known.items() if external_id not in self.listed_ids]
         for i in range(0, len(gone), BATCH_SIZE):
             Offer.objects.filter(pk__in=gone[i : i + BATCH_SIZE]).delete()
 

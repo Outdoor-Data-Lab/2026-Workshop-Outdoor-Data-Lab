@@ -145,9 +145,10 @@ class DataImportFileTests(TestCase):
 
 
 class DataImportParserTests(SimpleTestCase):
-    def make_import(self, source_code="outdoorvision"):
+    def make_import(self, format_code="outdoorvision"):
         data_import = DataImport(
-            source=DataSource(code=source_code, label=source_code),
+            format=format_code,
+            source=DataSource(code="geotrek", label="Geotrek"),
             file="imports/outdoorvision.gpkg",
         )
         data_import.pk = 1
@@ -164,8 +165,8 @@ class DataImportParserTests(SimpleTestCase):
         parser_class.return_value.import_data.assert_called_once_with()
         self.assertEqual(result, 2)
 
-    def test_source_without_parser_is_ignored(self):
-        self.assertIsNone(self.make_import("geotrek").run_parser())
+    def test_format_without_parser_is_ignored(self):
+        self.assertIsNone(self.make_import("unknown").run_parser())
 
 
 class ImportAdminTests(TestCase):
@@ -178,14 +179,13 @@ class ImportAdminTests(TestCase):
         self.traffic_url = reverse("admin:traffic_trafficimport_add")
         self.biodiversity_url = reverse("admin:biodiversity_observationimport_add")
 
-    def add_import(self, url, source_code, content=b"content", name="data.csv"):
+    def add_import(self, url, format_code, source_code, content=b"content", name="data.csv"):
         return self.client.post(
             url,
             {
+                "format": format_code,
                 "source": DataSource.objects.get(code=source_code).pk,
                 "file": SimpleUploadedFile(name, content),
-                "line_numbers": 0,
-                "error_numbers": 0,
             },
             follow=True,
         )
@@ -198,40 +198,77 @@ class ImportAdminTests(TestCase):
         self.assertContains(biodiversity, ">SINP</option>")
         self.assertNotContains(biodiversity, ">Strava</option>")
 
-    def test_expected_file_of_each_source_is_shown(self):
+    def test_a_source_may_serve_several_domains(self):
+        # iNaturalist: observers for traffic, occurrences for biodiversity.
+        for url in (self.traffic_url, self.biodiversity_url):
+            with self.subTest(url):
+                self.assertContains(self.client.get(url), ">iNaturalist</option>")
+
+    def test_each_page_offers_the_formats_of_its_domain(self):
+        formats = self.client.get(self.traffic_url).context["adminform"].form.fields["format"]
+        self.assertEqual(
+            [code for code, _ in formats.choices], ["", "outdoorvision", "strava", "counter", "inaturalist"]
+        )
+        offers = self.client.get(reverse("admin:outdoor_offerimport_add")).context["adminform"].form
+        self.assertEqual(offers["format"].initial, "offers")  # a single format is preselected
+
+    def test_expected_file_of_each_format_is_shown(self):
         response = self.client.get(self.traffic_url)
-        strava = DataSource.objects.get(code="strava")
         self.assertContains(response, 'id="import-example"')
-        self.assertContains(response, f"&quot;{strava.pk}&quot;: {{&quot;content&quot;: &quot;Contient des tron")
-        self.assertContains(response, "&quot;example&quot;: &quot;Zip Strava Metro")
+        self.assertContains(response, "&quot;strava&quot;: {&quot;content&quot;: &quot;Holds trail and road edges")
+        self.assertContains(response, "&quot;example&quot;: &quot;Yearly or daily Strava Metro zip")
 
     def test_refused_file_shows_the_error_and_keeps_nothing(self):
         strava = DataSource.objects.get(code="strava")
-        response = self.add_import(self.traffic_url, "strava", b"not a zip", "export.zip")
+        response = self.add_import(self.traffic_url, "strava", "strava", b"not a zip", "export.zip")
         self.assertEqual(list(self.media.rglob("*.*")), [])
-        # Back to the form with the same source, and the parser's message.
-        self.assertEqual(response.redirect_chain, [(f"{self.traffic_url}?source={strava.pk}", 302)])
-        self.assertContains(response, "Import refusé")
-        self.assertContains(response, "Le fichier Strava doit être un zip")
+        # Back to the form with the same format and source, and the parser's message.
+        self.assertEqual(response.redirect_chain, [(f"{self.traffic_url}?format=strava&source={strava.pk}", 302)])
+        self.assertContains(response, "Import refused, nothing was saved")
+        self.assertContains(response, "The Strava file must be a zip")
         self.assertFalse(DataImport.objects.exists())
 
+    def test_form_asks_only_for_the_format_the_source_and_the_file(self):
+        # The parser fills line_numbers and error_numbers: the user must not set them.
+        for url in (self.traffic_url, self.biodiversity_url, reverse("admin:outdoor_offerimport_add")):
+            with self.subTest(url):
+                form = self.client.get(url).context["adminform"].form
+                self.assertEqual(list(form.fields), ["format", "source", "file"])
+
     def test_source_of_another_domain_is_rejected(self):
-        response = self.add_import(self.biodiversity_url, "strava")
+        response = self.add_import(self.biodiversity_url, "sinp", "strava")
         self.assertContains(response, "Select a valid choice")
         self.assertFalse(DataImport.objects.exists())
 
     @patch("biodiversity.parsers.sinp.SINPParser")
-    def test_imported_count_is_shown(self, parser_class):
+    def test_imported_at_once_without_preview(self, parser_class):
+        # Texts of the class: shown in the format choice, and they must be strings.
+        parser_class.LABEL = parser_class.CONTENT = parser_class.EXAMPLE = "SINP"
+        parser_class.return_value.errors = []
         parser_class.return_value.import_data.return_value = 12
-        response = self.add_import(self.biodiversity_url, "sinp")
-        self.assertContains(response, "12 éléments importés.")
+        response = self.add_import(self.biodiversity_url, "sinp", "sinp")
+        parser_class.return_value.preview.assert_not_called()  # the file is read once
+        self.assertContains(response, "12 item(s) imported, 0 line(s) in error.")
+        self.assertEqual(DataImport.objects.get().source.code, "sinp")
+
+
+class DataSourceAdminTests(TestCase):
+    def test_a_new_source_is_offered_on_the_pages_of_its_domains(self):
+        self.client.force_login(get_user_model().objects.create_superuser("admin@example.com", "password"))
+        self.client.post(
+            reverse("admin:commons_datasource_add"),
+            {"code": "geotrek_pne", "label": "Geotrek PNE", "domains": ["outdoor"]},
+        )
+        self.assertEqual(DataSource.objects.get(code="geotrek_pne").domains, ["outdoor"])
+        self.assertContains(self.client.get(reverse("admin:outdoor_offerimport_add")), ">Geotrek PNE</option>")
+        self.assertNotContains(self.client.get(reverse("admin:traffic_trafficimport_add")), ">Geotrek PNE</option>")
 
 
 class DataImportHistoryTests(TestCase):
     def setUp(self):
         self.client.force_login(get_user_model().objects.create_superuser("admin@example.com", "password"))
         for code in ("strava", "sinp"):
-            DataImport.objects.create(source=DataSource.objects.get(code=code), file=f"imports/{code}.csv")
+            DataImport.objects.create(format=code, source=DataSource.objects.get(code=code), file=f"imports/{code}.csv")
 
     def test_history_lists_every_import_but_adds_none(self):
         response = self.client.get(reverse("admin:commons_dataimport_changelist"))
@@ -246,13 +283,15 @@ class DataImportHistoryTests(TestCase):
 
 
 class RegisterParsersTests(SimpleTestCase):
-    def test_a_source_has_a_single_parser(self):
+    def test_a_format_has_a_single_parser(self):
         with self.assertRaises(ImproperlyConfigured):
             register_parsers({"strava": "biodiversity.parsers.gbif.GBIFParser"})
         register_parsers({"strava": PARSERS["strava"]})  # registering it again changes nothing
 
     def test_every_domain_registered_its_parsers(self):
-        self.assertLessEqual({"outdoorvision", "strava", "ecocompteur", "inaturalist", "sinp", "gbif"}, set(PARSERS))
+        self.assertEqual(
+            set(PARSERS), {"outdoorvision", "strava", "counter", "inaturalist", "sinp", "gbif", "offers"}
+        )
 
     def test_every_parser_shares_the_import_base(self):
         from django.utils.module_loading import import_string
@@ -272,4 +311,5 @@ class ParserExamplesTests(SimpleTestCase):
 
         for code, path in PARSERS.items():
             with self.subTest(code):
-                self.assertTrue(import_string(path).EXAMPLE)
+                parser = import_string(path)
+                self.assertTrue(parser.LABEL and parser.EXAMPLE)

@@ -53,6 +53,7 @@ class BiodiversityRecordParser(ImportParser):
                         **record
                         | {
                             "source": self.source,
+                            "data_import": self.data_import,
                             "referential": referentials[record["referential"]],
                             "geom": GEOSGeometry(record["geom"], srid=4326),
                         }
@@ -69,6 +70,6 @@ class BiodiversityRecordParser(ImportParser):
         unknown = set(codes).difference(by_code)
         if unknown:
             raise ValueError(
-                f"Référentiels {self.NAME} inconnus : {', '.join(sorted(unknown))}"
+                f"Unknown {self.NAME} referentials: {', '.join(sorted(unknown))}"
             )
         return by_code

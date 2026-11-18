@@ -37,7 +37,7 @@ def find_cd_refs(
         cursor.execute("select to_regclass(%s)", [TAXREF_TABLE])
         if cursor.fetchone()[0] is None:
             raise ValueError(
-                "TaxRef n'est pas chargé (table taxonomie.taxref absente) : lancer le service taxhub."
+                "TaxRef is not loaded (no taxonomie.taxref table): start the taxhub service."
             )
         cursor.execute(
             f"""
