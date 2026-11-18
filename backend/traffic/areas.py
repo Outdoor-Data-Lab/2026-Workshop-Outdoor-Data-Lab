@@ -1,4 +1,4 @@
-"""Synchronisation of traffic.counting_object_areas (see migration 0004)."""
+"""Synchronisation of traffic.counting_object_areas (see migration 0003)."""
 
 from django.db import connections
 

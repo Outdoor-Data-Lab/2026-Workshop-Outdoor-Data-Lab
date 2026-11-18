@@ -219,7 +219,7 @@ def cell(xmin, ymin, xmax, ymax):
 class AreasTestCase(TestCase):
     """The view needs ref_geo, which the test database does not have. Its
     tables are created inside the test transaction, before the counting
-    objects, so the trigger of migration 0004 fills counting_object_areas.
+    objects, so the trigger of migration 0003 fills counting_object_areas.
 
     Sources s1 / s2, two M1 cells (12 and 13), one object per (cell, source, type):
         cell 12: 2023-01 s1 10 (4 segment, 6 presence), 2023-01 s2 5 (5, 0),

@@ -1,6 +1,6 @@
 -- Fake traffic data to test the counts and scores per 1 km grid cell.
 -- The cells of the objects (traffic.counting_object_areas) are filled by
--- the triggers of migration traffic 0004.
+-- the triggers of migration traffic 0003.
 -- Re-runnable: the demo rows (external_id 'demo_m1_%') are deleted first.
 --
 -- Run (from the repo root):

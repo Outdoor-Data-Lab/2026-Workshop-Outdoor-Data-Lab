@@ -177,7 +177,7 @@ class CountingObjectArea(models.Model):
     """A 1 km grid cell (ref_geo "M1") intersected by a counting object.
 
     Filled by a trigger on traffic.counting_objects (insert, update of geom),
-    see migration 0004, and rebuilt with ``manage.py sync_counting_object_areas``
+    see migration 0003, and rebuilt with ``manage.py sync_counting_object_areas``
     (e.g. after loading ref_geo). A segment crossing several cells gets a row
     per cell: its measures count in each of them.
 

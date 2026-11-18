@@ -1,11 +1,9 @@
-"""Replace the materialized view of migration 0003 by a correspondence table.
+"""Correspondence table between the counting objects and the 1 km grid cells.
 
-Refreshing traffic.materialized_view_counts redid the spatial join of every
-counting object with the whole M1 grid after each statement on the measures
-(about 3.6 s for 1,000 objects and 1.1 M measures), once per imported line.
-The costly part is the object -> cell join, which only changes when an object
-is created or moved; the measures are cheap to aggregate on the fly through
-traffic.counting_object_areas (see workshop2026/processing/score.py).
+traffic.counting_object_areas holds the M1 cells (ref_geo) each counting object
+intersects. The object -> cell spatial join only changes when an object is
+created or moved, so it is stored here; the measures are aggregated on the fly
+through this table (see workshop2026/processing/score.py).
 
 traffic.sync_counting_object_areas(object_id) (re)computes the cells of one
 object, or of every object when called without argument. It is called:
@@ -17,15 +15,8 @@ ref_geo is not managed by Django (loaded from the RefGeo dump): while
 ref_geo.l_areas is missing, the function does nothing and returns NULL.
 """
 
-import importlib
-
 import django.db.models.deletion
 from django.db import migrations, models
-
-previous = importlib.import_module("traffic.migrations.0003_materialized_view_counts")
-
-DROP_MATERIALIZED_VIEW = previous.DROP_TRIGGERS + previous.DROP_VIEW + ";"
-RECREATE_MATERIALIZED_VIEW = previous.CREATE_VIEW + previous.CREATE_TRIGGERS
 
 CREATE_FUNCTIONS = """
 CREATE OR REPLACE FUNCTION traffic.sync_counting_object_areas(object_id bigint DEFAULT NULL)
@@ -97,11 +88,10 @@ DROP FUNCTION IF EXISTS traffic.sync_counting_object_areas(bigint);
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("traffic", "0003_materialized_view_counts"),
+        ("traffic", "0002_initial_reference_values"),
     ]
 
     operations = [
-        migrations.RunSQL(sql=DROP_MATERIALIZED_VIEW, reverse_sql=RECREATE_MATERIALIZED_VIEW),
         migrations.CreateModel(
             name="CountingObjectArea",
             fields=[
