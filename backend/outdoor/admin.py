@@ -9,8 +9,16 @@ from .models import Offer, OfferImport
 from .parsers import OfferParser
 
 
-class MapWidget(OSMWidget):
-    """The admin map widget, without its "Delete all Features" link."""
+class ReadOnlyMapWidget(OSMWidget):
+    """The admin map widget, to view a geometry: no "Delete all Features" link,
+    and no drawing nor vertex editing (static/outdoor/read_only_map.js)."""
+
+    class Media:
+        # OLMapWidget.js repeated so that the media merge keeps it before ours.
+        js = ("gis/js/OLMapWidget.js", "outdoor/read_only_map.js")
+
+    def __init__(self):
+        super().__init__(attrs={"read_only": True})
 
     def get_context(self, name, value, attrs):
         return super().get_context(name, value, attrs) | {"disabled": True}
@@ -28,11 +36,11 @@ class OfferAdmin(admin.ModelAdmin):
 
     @property
     def media(self):
-        return super().media + MapWidget().media
+        return super().media + ReadOnlyMapWidget().media
 
     @admin.display(description="Geom")
     def map(self, obj):
-        return MapWidget().render("geom", obj.geom, attrs={"id": "id_geom"})
+        return ReadOnlyMapWidget().render("geom", obj.geom, attrs={"id": "id_geom"})
 
     # Offers come from imports: the admin only displays them.
     def has_add_permission(self, request):

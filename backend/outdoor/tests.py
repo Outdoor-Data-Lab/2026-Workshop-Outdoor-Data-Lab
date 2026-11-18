@@ -252,3 +252,6 @@ class OfferAdminTests(OutdoorTestCase):
         html = self.client.get(reverse("admin:outdoor_offer_change", args=[offer.pk])).content.decode()
         self.assertIn('class="dj_map_wrapper"', html)
         self.assertNotIn("SRID=4326", html)
+        # read_only_map.js patches MapWidget: it must come after OLMapWidget.js.
+        self.assertIn('"read_only": true', html)
+        self.assertLess(html.index("gis/js/OLMapWidget.js"), html.index("outdoor/read_only_map.js"))
