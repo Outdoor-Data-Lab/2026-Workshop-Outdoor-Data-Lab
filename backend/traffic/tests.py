@@ -1,8 +1,11 @@
 import tempfile
+import zipfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from unittest.mock import patch
 
 import geopandas as gpd
+import pandas as pd
 from shapely import LineString
 
 from django.contrib.auth import get_user_model
@@ -16,6 +19,7 @@ from commons.models import DataImport, DataSource, Practice
 
 from .models import CountingMeasure, CountingObject, CountingObjectType, Unit
 from .parsers.outdoorvision import OutdoorVisionParser
+from .parsers.strava import StravaParser
 
 
 def dt(day, hour=0):
@@ -216,3 +220,96 @@ class OutdoorVisionParserTests(TrafficTestCase):
         data_import.file.save("export.gpkg", ContentFile(b"not a GeoPackage"))
         with self.assertRaisesMessage(ValueError, "pas un GPKG lisible"):
             OutdoorVisionParser(data_import).import_data()
+
+
+class StravaParserTests(TrafficTestCase):
+    # Network of 3 edges; edge 30 is never used, like most of the Strava network.
+    EDGES = {10: [(6.40, 44.90), (6.41, 44.90)], 20: [(6.41, 44.90), (6.42, 44.91)], 30: [(6.5, 44.8), (6.6, 44.8)]}
+
+    def setUp(self):
+        self.tmp = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self.enterContext(override_settings(MEDIA_ROOT=self.tmp / "media"))
+
+    def run_import(self, year=2024, counts=((10, 80), (20, 15)), activity="Run,Walk,Hike", day=None, extra=()):
+        """Import a zip of one export, plus the `extra` (name, content) files."""
+        folder = Path(tempfile.mkdtemp(dir=self.tmp))
+        gpd.GeoDataFrame(
+            {"edgeUID": list(self.EDGES), "osmId": [1, 1, 2]},
+            geometry=[LineString(c) for c in self.EDGES.values()],
+            crs=4326,
+        ).to_file(folder / "edges.shp")
+        period = {"date": day} if day else {"year": year}  # daily or yearly export
+        rows = [dict(edge_uid=e, activity_type=activity, total_trip_count=n, **period) for e, n in counts]
+        pd.DataFrame(rows).to_csv(folder / "edges.csv", index=False)
+        archive = folder.with_suffix(".zip")
+        with zipfile.ZipFile(archive, "w") as zip_file:
+            for file in folder.iterdir():
+                zip_file.write(file, file.name)
+            for name, content in extra:
+                zip_file.writestr(name, content)
+        data_import = DataImport(source=DataSource.objects.get(code="strava"))
+        data_import.file.save(archive.name, ContentFile(archive.read_bytes()))
+        return data_import, StravaParser(data_import).import_data()
+
+    def test_one_object_per_used_edge_and_one_yearly_measure(self):
+        data_import, count = self.run_import()
+        self.assertEqual((count, data_import.line_numbers), (2, 2))
+        self.assertEqual(set(CountingObject.objects.values_list("external_id", flat=True)), {"10", "20"})
+        measure = CountingMeasure.objects.get(counting_object__external_id="10")
+        self.assertEqual((measure.count, measure.unit.code, measure.practice.code), (80, "person", "walking"))
+        # Years are local: 1 January 00:00 in Paris = 31 December 23:00 UTC.
+        self.assertEqual(measure.start_datetime, datetime(2023, 12, 31, 23, tzinfo=timezone.utc))
+        self.assertEqual(measure.end_datetime, datetime(2024, 12, 31, 23, tzinfo=timezone.utc))
+        self.assertEqual(measure.counting_object.type.code, "segment")
+
+    def test_reimport_replaces_the_year(self):
+        self.run_import()
+        self.run_import(counts=((10, 90), (20, 20)))
+        self.assertEqual(CountingObject.objects.count(), 2)
+        self.assertEqual(sorted(CountingMeasure.objects.values_list("count", flat=True)), [20, 90])
+
+    def test_new_year_reuses_edges(self):
+        self.run_import(2024)
+        self.run_import(2025, counts=((10, 100), (30, 5)))
+        self.assertEqual(CountingObject.objects.count(), 3)
+        self.assertEqual(CountingMeasure.objects.count(), 4)
+
+    def test_daily_export_gives_one_measure_per_day(self):
+        self.run_import(2024)
+        self.run_import(counts=((10, 5), (20, 10)), day="2024-07-14")
+        self.run_import(counts=((10, 5),), day="2024-07-15")
+        daily = CountingMeasure.objects.get(counting_object__external_id="20", count=10)
+        # 14 July 00:00 in Paris (summer time) = 13 July 22:00 UTC, for one day.
+        self.assertEqual(daily.start_datetime, datetime(2024, 7, 13, 22, tzinfo=timezone.utc))
+        self.assertEqual(daily.end_datetime, datetime(2024, 7, 14, 22, tzinfo=timezone.utc))
+        # Daily imports keep the yearly measures of the same edges: 2 yearly + 3 daily.
+        self.assertEqual((CountingObject.objects.count(), CountingMeasure.objects.count()), (2, 5))
+
+    def test_yearly_import_keeps_daily_measures(self):
+        self.run_import(counts=((10, 5), (20, 10)), day="2024-07-14")
+        self.run_import(2024)
+        self.assertEqual(CountingMeasure.objects.count(), 4)  # 2 daily + 2 yearly
+
+    @patch.object(StravaParser, "PRACTICE_CODES", {"Run,Walk,Hike": "walking", "Ride": "cycling"})
+    def test_other_activity_keeps_the_first_one(self):
+        self.run_import(2024)
+        self.run_import(2024, activity="Ride")
+        practices = CountingMeasure.objects.values_list("practice__code", flat=True)
+        self.assertEqual(sorted(practices), ["cycling", "cycling", "walking", "walking"])
+
+    def test_duplicate_measures_are_refused(self):
+        with self.assertRaisesMessage(ValueError, "Mesures Strava en double (même objet, période et pratique) : 1"):
+            self.run_import(counts=((10, 80), (10, 5)))
+        self.assertFalse(CountingObject.objects.exists())
+
+    def test_archive_with_several_exports_is_refused(self):
+        with self.assertRaisesMessage(ValueError, "un seul export, soit un .shp et un .csv (trouvé : 1 .shp et 2 .csv)"):
+            self.run_import(extra=[("other.csv", "edge_uid,activity_type,year,total_trip_count\n")])
+        with self.assertRaisesMessage(ValueError, "contient d'autres zips"):
+            self.run_import(extra=[("all_edges_yearly_2023_is.zip", b"")])
+        self.assertFalse(CountingObject.objects.exists())
+
+    def test_unknown_activity_imports_nothing(self):
+        with self.assertRaisesMessage(ValueError, "inconnues : Ride"):
+            self.run_import(activity="Ride")
+        self.assertFalse(CountingObject.objects.exists())

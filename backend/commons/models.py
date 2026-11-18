@@ -25,6 +25,7 @@ def table(name):
 # Source code -> parser class, run when a file is imported for that source.
 PARSERS = {
     "outdoorvision": "traffic.parsers.outdoorvision.OutdoorVisionParser",
+    "strava": "traffic.parsers.strava.StravaParser",
 }
 
 

@@ -1,87 +1,82 @@
-import sys
+"""Import Strava Metro exports into the traffic application.
+
+One zip = a shapefile of the edges network (edgeUID, geometry) and a CSV of
+counts (total_trip_count = passages), one line per used edge and per period:
+- yearly exports (all_edges_yearly_*): a `year` column, one line per edge;
+- daily exports (all_edges_daily_*, usually a quarter): a `date` column, one line
+  per edge and per day.
+One used edge = one counting object, with one measure per year or per day.
+
+The edges network depends on the Strava basemap version (the .txt of the zip):
+two exports on different basemaps share no edgeUID, so the same path then gets
+one counting object per basemap.
+"""
+
 import zipfile
 from pathlib import Path
 
 import geopandas as gpd
 import pandas as pd
-from pandas import DataFrame
+
+from .base import TrafficParser
+
+CSV_COLUMNS = ["edge_uid", "activity_type", "total_trip_count"]
+# Period column -> length of the period. Dates are local days: read as Europe/Paris.
+PERIODS = {"year": pd.DateOffset(years=1), "date": pd.DateOffset(days=1)}
 
 
-def find_member(names: list[str], extension: str) -> str:
-    """
-    From the list of file name in a zip archive, find the unique file with the given extension.
+class StravaParser(TrafficParser):
+    NAME = "Strava"
+    PRACTICE_CODES = {
+        # TODO: inexact, "Run,Walk,Hike" mixes walking and running. Replace by a
+        # practice grouping both (e.g. "pédestre") once it exists.
+        "Run,Walk,Hike": "walking",
+    }
 
-    :param names: A list of file names in a zip archive.
-    :param extension: The file extension to search for.
+    def read(self) -> tuple[int, pd.DataFrame]:
+        path = Path(self.data_import.file.path)
+        if not zipfile.is_zipfile(path):
+            raise ValueError("Le fichier Strava doit être un zip (shapefile + CSV).")
+        with zipfile.ZipFile(path) as archive:
+            # Exactly one export per zip: with several CSVs, only one would be imported.
+            files = [name for name in archive.namelist() if not name.startswith("__MACOSX/")]
+            found = {
+                suffix: [name for name in files if name.lower().endswith(suffix)] for suffix in (".shp", ".csv", ".zip")
+            }
+            if found[".zip"]:
+                raise ValueError("L'archive Strava contient d'autres zips : la décompresser et importer chacun d'eux.")
+            if len(found[".shp"]) != 1 or len(found[".csv"]) != 1:
+                raise ValueError(
+                    "L'archive Strava doit contenir un seul export, soit un .shp et un .csv "
+                    f"(trouvé : {len(found['.shp'])} .shp et {len(found['.csv'])} .csv)."
+                )
+            (shp_name,), (csv_name,) = found[".shp"], found[".csv"]
+            with archive.open(csv_name) as csv_file:
+                header = pd.read_csv(csv_file, nrows=0).columns
+            period = next((column for column in PERIODS if column in header), None)
+            if period is None:
+                raise ValueError("Le CSV Strava doit avoir une colonne year ou date.")
+            with archive.open(csv_name) as csv_file:
+                counts = pd.read_csv(csv_file, usecols=CSV_COLUMNS + [period])
+        edges = gpd.read_file(f"/vsizip/{path}/{shp_name}").to_crs(4326)
 
-    :return: The name of the unique file with the given extension.
-    """
-    matches = [
-        n for n in names
-        if Path(n).suffix.lower() == extension
-    ]
-    if len(matches) != 1:
-        raise ValueError(
-            f"Expected only one file with extension {extension} in archive, found {len(matches)} : {matches}"
+        if counts.empty:
+            raise ValueError("Le fichier Strava ne contient aucun comptage.")
+        missing = set(counts["edge_uid"]).difference(edges["edgeUID"])
+        if missing:
+            raise ValueError(f"{len(missing)} tronçons du CSV absents du shapefile.")
+
+        start = pd.to_datetime(counts[period].astype(str), format="%Y" if period == "year" else "%Y-%m-%d")
+        start = start.dt.tz_localize("Europe/Paris")
+        geometries = edges.set_index("edgeUID").geometry
+        rows = pd.DataFrame(
+            {
+                "external_id": counts["edge_uid"].astype(str),
+                "geometry": geometries.loc[counts["edge_uid"]].values,
+                "start_datetime": start,
+                "end_datetime": start + PERIODS[period],
+                "count": counts["total_trip_count"],
+                "activity": counts["activity_type"],
+            }
         )
-    return matches[0]
-
-def load_from_zip(zip_path: Path) -> tuple[gpd.GeoDataFrame, pd.DataFrame]:
-    """
-    Load data from a zip archive created by strava.
-
-    :param zip_path: Path to the zip archive.
-    :return: A tuple containing a GeoDataFrame (correspond to shp) and a DataFrame (correspond to csv).
-    """
-    with zipfile.ZipFile(zip_path) as zip_archive:
-        names = zip_archive.namelist()
-        csv_member = find_member(names, ".csv")
-        shp_member = find_member(names, ".shp")
-
-        with zip_archive.open(csv_member) as file:
-            csv_df = pd.read_csv(file)
-
-    shp_df = gpd.read_file(f"/vsizip/{zip_path.resolve().as_posix()}/{shp_member}")
-    return shp_df, csv_df
-
-def load_strava(zip_file: str | Path) -> DataFrame:
-    """
-
-    :param zip_file:
-    :return:
-    """
-    zip_path = Path(zip_file)
-    strava_shp, strava_csv = load_from_zip(zip_path)
-
-    strava_shp["osmId"] = strava_shp["osmId"].astype("int64")
-    strava_csv["osm_reference_id"] = strava_csv["osm_reference_id"].astype("int64")
-
-    strava_full = strava_shp.merge(
-        strava_csv,
-        left_on="osmId",
-        right_on="osm_reference_id",
-        how="inner",
-    )
-
-    dates = pd.to_datetime(strava_full["date"])
-
-    export = pd.DataFrame({
-        "id_source": "Strava",
-        "start_date": dates,
-        "end_date": dates,
-        "count": strava_full["total_trip_count"].astype("int64"),
-        "object_name": None,
-        "id_source_object": None,
-        "geom": strava_full.geometry.to_wkt(),
-        "type_geom": "Linear",
-        "activity": strava_full["activity_type"],
-    })
-
-    return export
-
-if __name__ == "__main__":
-    zip_path = Path(sys.argv[1])
-    strava_data_frame = load_strava(zip_path)
-    export_path = zip_path.with_name(f"{zip_path.stem}_export.csv")
-    strava_data_frame.to_csv(export_path, index=False)
-    print(f"Export done in : {export_path}")
+        return len(counts), rows
