@@ -1,9 +1,4 @@
-/**
- * Client HTTP minimal pour l'API Django (/api/...).
- *
- * En dev, Vite proxifie /api vers le backend (cf. vite.config.ts) : les URLs
- * restent relatives et il n'y a pas de CORS à gérer.
- */
+/** Client HTTP de l'API Django, via le proxy Vite `/api`. */
 
 export class ApiError extends Error {
   constructor(
@@ -16,7 +11,7 @@ export class ApiError extends Error {
   }
 }
 
-/** Le serveur n'a pas pu être joint (réseau coupé, DNS, CORS…) : aucune réponse HTTP. */
+/** Aucune réponse HTTP (réseau coupé, DNS…). */
 export class NetworkError extends Error {
   constructor(url: string, options?: ErrorOptions) {
     super(`Réseau indisponible pour ${url}`, options)
@@ -26,7 +21,7 @@ export class NetworkError extends Error {
 
 type QueryValue = string | number | boolean | null | undefined
 
-/** Ajoute une query string à `path`, en ignorant les valeurs null/undefined. */
+/** Ajoute une query string, sans les valeurs null/undefined. */
 export function withQuery(path: string, params: Record<string, QueryValue> = {}): string {
   const query = new URLSearchParams()
   for (const [key, value] of Object.entries(params)) {
@@ -48,7 +43,7 @@ export async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
       },
     })
   } catch (cause) {
-    // fetch ne rejette que si aucune réponse n'arrive (les 4xx/5xx sont traités plus bas).
+    // fetch ne rejette qu'en l'absence de réponse.
     throw new NetworkError(url, { cause })
   }
   if (!res.ok) {
