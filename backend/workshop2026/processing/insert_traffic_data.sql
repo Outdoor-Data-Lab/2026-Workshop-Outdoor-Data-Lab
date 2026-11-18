@@ -1,4 +1,6 @@
--- Fake traffic data to test traffic.materialized_view_counts.
+-- Fake traffic data to test the counts and scores per 1 km grid cell.
+-- The cells of the objects (traffic.counting_object_areas) are filled by
+-- the triggers of migration traffic 0004.
 -- Re-runnable: the demo rows (external_id 'demo_m1_%') are deleted first.
 --
 -- Run (from the repo root):
@@ -16,6 +18,18 @@ BEGIN;
 
 DELETE FROM
     traffic.counting_measures
+WHERE
+    counting_object_id IN (
+        SELECT
+            id
+        FROM
+            traffic.counting_objects
+        WHERE
+            external_id LIKE 'demo_m1_%'
+    );
+
+DELETE FROM
+    traffic.counting_object_areas
 WHERE
     counting_object_id IN (
         SELECT
@@ -121,7 +135,6 @@ FROM
     sample_objects s
     JOIN sample_areas a ON a.position = s.position;
 
--- One statement, so the refresh trigger fires once.
 INSERT INTO
     traffic.counting_measures (
         counting_object_id,
@@ -185,22 +198,20 @@ WHERE
 
 COMMIT;
 
--- Check: the view against a direct aggregate of the demo measures.
+-- Check: counts per cell, source and month of the demo measures.
 SELECT
-    v.*
+    coa.id_area,
+    co.source_id AS id_source,
+    EXTRACT(YEAR FROM cm.start_datetime)::int AS year,
+    EXTRACT(MONTH FROM cm.start_datetime)::int AS month,
+    SUM(cm.count) AS counts
 FROM
-    traffic.materialized_view_counts v
+    traffic.counting_measures cm
+    JOIN traffic.counting_objects co ON co.id = cm.counting_object_id
+    JOIN traffic.counting_object_areas coa ON coa.counting_object_id = co.id
 WHERE
-    v.id_source IN (
-        SELECT
-            source_id
-        FROM
-            traffic.counting_objects
-        WHERE
-            external_id LIKE 'demo_m1_%'
-    )
+    co.external_id LIKE 'demo_m1_%'
+GROUP BY
+    1, 2, 3, 4
 ORDER BY
-    v.id_area,
-    v.id_source,
-    v.year,
-    v.month;
+    1, 2, 3, 4;

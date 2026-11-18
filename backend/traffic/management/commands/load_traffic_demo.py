@@ -6,7 +6,7 @@ from django.db import DatabaseError, connection
 
 
 class Command(BaseCommand):
-    help = "Load the traffic demonstration data and refresh the score materialized view."
+    help = "Load the traffic demonstration data (needs ref_geo)."
 
     def handle(self, *args, **options):
         script_path = (

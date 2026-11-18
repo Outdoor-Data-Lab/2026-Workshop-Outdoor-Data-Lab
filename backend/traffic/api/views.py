@@ -1,6 +1,5 @@
 from functools import cached_property
 
-from django.db.models import OuterRef, Subquery, Sum
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework import serializers, viewsets
@@ -10,7 +9,7 @@ from rest_framework_gis.filters import InBBoxFilter
 from commons.api.geo import GeoJsonLimitOffsetPagination, GeoViewSet, ReadOnlyViewSet
 from ref_geo.filters import LAreaFilter
 from ref_geo.models import LArea
-from workshop2026.processing.score import SCORES, counts_queryset
+from workshop2026.processing.score import SCORES, counts_by_area, measures_queryset
 
 from ..models import (
     CountingMeasure,
@@ -77,7 +76,9 @@ class CountingMeasureViewSet(ReadOnlyViewSet):
 class AreasViewSet(viewsets.ReadOnlyModelViewSet):
     """Counts and scores per 1 km grid cell (ref_geo "M1"), as GeoJSON.
 
-    Only the cells with measures matching ``source``, ``year`` and ``month``.
+    Only the cells with measures matching ``source`` and the period
+    ``date_from`` / ``date_to`` (YYYY-MM-DD, both included, on the start of
+    the measures).
     Properties: ``counts``, ``count_segment``, ``count_presence`` and ``score``
     (``{score name: value}`` for the requested ``scores``). Geometry in WGS84.
     Scores are computed for the cells of the page only.
@@ -104,63 +105,50 @@ class AreasViewSet(viewsets.ReadOnlyModelViewSet):
         return serializer.validated_data
 
     @cached_property
-    def counts(self):
-        """Rows of the materialized view matching source, year and month."""
-        return counts_queryset(
+    def measures(self):
+        """Measures matching source and period, one row per (measure, cell)."""
+        return measures_queryset(
             sources=self.params.get("source"),
-            year=self.params.get("year"),
-            month=self.params.get("month"),
+            date_from=self.params.get("date_from"),
+            date_to=self.params.get("date_to"),
         )
 
     def get_queryset(self):
         if getattr(self, "swagger_fake_view", False):  # OpenAPI schema generation
             return LArea.objects.none()
-        queryset = LArea.objects.filter(
-            type__type_code="M1", id_area__in=self.counts.values("id_area")
-        )
-
-        def total(column):
-            return Subquery(
-                self.counts.filter(id_area=OuterRef("id_area"))
-                .values("id_area")
-                .annotate(total=Sum(column))
-                .values("total")
-            )
-
         return (
-            queryset.only("id_area", "geom_4326")
-            .annotate(
-                counts=total("counts"),
-                count_segment=total("count_segment"),
-                count_presence=total("count_presence"),
+            LArea.objects.filter(
+                type__type_code="M1", id_area__in=self.measures.values("id_area")
             )
+            .only("id_area", "geom_4326")
             .order_by("id_area")
         )
 
-    def compute_scores(self, area_ids):
+    def compute_scores(self, measures):
         """``{score name: {id_area: value}}`` for the requested scores."""
-        rows = self.counts.filter(id_area__in=area_ids)
         try:
             return {
                 name: SCORES[name].compute_from(
-                    rows, source_weights=self.params.get("source_weights")
+                    measures, source_weights=self.params.get("source_weights")
                 )
                 for name in sorted(self.params.get("scores", ()))
             }
         except ValueError as error:
             raise serializers.ValidationError({"source_weights": [str(error)]})
 
+    def serialize(self, areas, many):
+        """Serializer of ``areas`` with the counts and scores of these cells only."""
+        measures = self.measures.filter(id_area__in=[area.id_area for area in areas])
+        context = {
+            **self.get_serializer_context(),
+            "counts": counts_by_area(measures),
+            "scores": self.compute_scores(measures),
+        }
+        return self.get_serializer(areas if many else areas[0], many=many, context=context)
+
     def list(self, request, *args, **kwargs):
         page = self.paginate_queryset(self.filter_queryset(self.get_queryset()))
-        scores = self.compute_scores([area.id_area for area in page])
-        serializer = self.get_serializer(page, many=True, context={
-            **self.get_serializer_context(), "scores": scores,
-        })
-        return self.get_paginated_response(serializer.data)
+        return self.get_paginated_response(self.serialize(page, many=True).data)
 
     def retrieve(self, request, *args, **kwargs):
-        area = self.get_object()
-        serializer = self.get_serializer(area, context={
-            **self.get_serializer_context(), "scores": self.compute_scores([area.id_area]),
-        })
-        return Response(serializer.data)
+        return Response(self.serialize([self.get_object()], many=False).data)

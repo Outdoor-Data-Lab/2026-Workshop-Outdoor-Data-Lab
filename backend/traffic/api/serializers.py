@@ -1,3 +1,5 @@
+from math import isfinite
+
 from rest_framework import serializers
 from rest_framework_gis.serializers import GeoFeatureModelSerializer
 
@@ -95,8 +97,12 @@ class AreasQuerySerializer(serializers.Serializer):
         required=False,
         help_text="Data source id (repeatable). All sources if omitted.",
     )
-    year = serializers.IntegerField(required=False)
-    month = serializers.IntegerField(required=False, min_value=1, max_value=12)
+    date_from = serializers.DateField(
+        required=False, help_text="First day of the period (YYYY-MM-DD), included."
+    )
+    date_to = serializers.DateField(
+        required=False, help_text="Last day of the period (YYYY-MM-DD), included."
+    )
     scores = serializers.MultipleChoiceField(
         choices=sorted(SCORES),
         required=False,
@@ -110,13 +116,16 @@ class AreasQuerySerializer(serializers.Serializer):
     def validate_source_weights(self, value):
         try:
             pairs = (item.split(":") for item in value.split(",") if item.strip())
-            return {int(source): float(weight) for source, weight in pairs}
+            weights = {int(source): float(weight) for source, weight in pairs}
         except ValueError:
-            raise serializers.ValidationError(
-                'Expected "source_id:weight,...", e.g. "1:2,3:0.5".'
-            )
+            raise serializers.ValidationError('Expected "source_id:weight,...", e.g. "1:2,3:0.5".')
+        if not all(isfinite(weight) for weight in weights.values()):
+            raise serializers.ValidationError("Weights must be finite numbers.")
+        return weights
 
     def validate(self, data):
+        if data.get("date_from") and data.get("date_to") and data["date_from"] > data["date_to"]:
+            raise serializers.ValidationError({"date_to": "Must not be before date_from."})
         if "cazalis" in data.get("scores", ()) and "source_weights" not in data:
             raise serializers.ValidationError(
                 {"source_weights": 'Required by the "cazalis" score.'}
@@ -125,12 +134,14 @@ class AreasQuerySerializer(serializers.Serializer):
 
 
 class AreaCountsSerializer(GeoFeatureModelSerializer):
-    """A grid cell with its counts (annotated by AreasViewSet) and its scores
-    (``context["scores"]``: ``{score name: {id_area: value}}``)."""
+    """A grid cell with its counts (``context["counts"]``:
+    ``{id_area: {"counts", "count_segment", "count_presence"}}``) and its scores
+    (``context["scores"]``: ``{score name: {id_area: value}}``), both computed
+    by AreasViewSet."""
 
-    counts = serializers.IntegerField(read_only=True)
-    count_segment = serializers.IntegerField(read_only=True)
-    count_presence = serializers.IntegerField(read_only=True)
+    counts = serializers.SerializerMethodField()
+    count_segment = serializers.SerializerMethodField()
+    count_presence = serializers.SerializerMethodField()
     score = serializers.SerializerMethodField()
 
     class Meta:
@@ -138,6 +149,18 @@ class AreaCountsSerializer(GeoFeatureModelSerializer):
         geo_field = "geom_4326"
         id_field = "id_area"
         fields = ["id_area", "geom_4326", "counts", "count_segment", "count_presence", "score"]
+
+    def _count(self, area, column):
+        return self.context.get("counts", {}).get(area.id_area, {}).get(column, 0)
+
+    def get_counts(self, area) -> int:
+        return self._count(area, "counts")
+
+    def get_count_segment(self, area) -> int:
+        return self._count(area, "count_segment")
+
+    def get_count_presence(self, area) -> int:
+        return self._count(area, "count_presence")
 
     def get_score(self, area) -> dict[str, float]:
         return {

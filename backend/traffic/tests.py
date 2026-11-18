@@ -1,17 +1,24 @@
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
+from io import StringIO
 
 from django.contrib.auth import get_user_model
-from django.contrib.gis.geos import MultiPolygon, Point, Polygon
+from django.contrib.gis.geos import LineString, MultiPolygon, Point, Polygon
+from django.core.management import CommandError, call_command
 from django.db import IntegrityError, connection, transaction
 from django.db.models import ProtectedError
 from django.test import Client, TestCase
 
 from commons.models import DataSource, Practice
 from ref_geo.models import BibAreasType, LArea
-from workshop2026.models import MaterializedViewCount
 from workshop2026.processing.score import BasicFrequentationScore, CazalisFrequentationScore
 
-from .models import CountingMeasure, CountingObject, CountingObjectType, Unit
+from .models import (
+    CountingMeasure,
+    CountingObject,
+    CountingObjectArea,
+    CountingObjectType,
+    Unit,
+)
 
 
 def dt(day, hour=0):
@@ -45,6 +52,7 @@ class SchemaTests(TrafficTestCase):
         self.assertEqual(
             tables,
             {
+                "counting_object_areas",
                 "counting_object_types",
                 "counting_objects",
                 "counting_measures",
@@ -209,14 +217,14 @@ def cell(xmin, ymin, xmax, ymax):
 
 
 class AreasTestCase(TestCase):
-    """The view needs ref_geo, which the test database does not have (migration
-    0003 skips it). The ref_geo tables and a plain table standing in for the
-    view are created inside the test transaction.
+    """The view needs ref_geo, which the test database does not have. Its
+    tables are created inside the test transaction, before the counting
+    objects, so the trigger of migration 0004 fills counting_object_areas.
 
-    Source 1 / source 2, two M1 cells (12 and 13):
-        cell 12: 2023-01 src1 10 (4 segment, 6 presence), 2023-01 src2 5 (5, 0),
-                 2023-02 src1 7 (0, 7)
-        cell 13: 2023-01 src1 4 (0, 4), 2024-01 src2 3 (3, 0)
+    Sources s1 / s2, two M1 cells (12 and 13), one object per (cell, source, type):
+        cell 12: 2023-01 s1 10 (4 segment, 6 presence), 2023-01 s2 5 (5, 0),
+                 2023-02 s1 7 (0, 7)
+        cell 13: 2023-01 s1 4 (0, 4), 2024-01 s2 3 (3, 0)
     """
 
     @classmethod
@@ -224,32 +232,60 @@ class AreasTestCase(TestCase):
         with connection.cursor() as cursor:
             cursor.execute("CREATE SCHEMA IF NOT EXISTS ref_geo")
         with connection.schema_editor() as editor:
-            for model in (BibAreasType, LArea, MaterializedViewCount):
+            for model in (BibAreasType, LArea):
                 editor.create_model(model)
 
         m1 = BibAreasType.objects.create(type_name="Mailles 1km", type_code="M1")
         LArea.objects.create(id_area=12, type=m1, area_code="A", **cell(6.0, 44.0, 6.5, 44.5))
         LArea.objects.create(id_area=13, type=m1, area_code="B", **cell(7.0, 44.0, 7.5, 44.5))
-        for id_area, id_source, year, month, counts, segment, presence in [
-            (12, 1, 2023, 1, 10, 4, 6),
-            (12, 2, 2023, 1, 5, 5, 0),
-            (12, 1, 2023, 2, 7, 0, 7),
-            (13, 1, 2023, 1, 4, 0, 4),
-            (13, 2, 2024, 1, 3, 3, 0),
-        ]:
-            MaterializedViewCount.objects.create(
-                id_area=id_area, id_source=id_source, year=year, month=month,
-                counts=counts, count_segment=segment, count_presence=presence,
+
+        cls.s1 = DataSource.objects.get(code="outdoorvision").pk
+        cls.s2 = DataSource.objects.get(code="ecocompteur").pk
+        cls.weights = f"{cls.s1}:2,{cls.s2}:3"
+        types = {t.code: t for t in CountingObjectType.objects.all()}
+        person = Unit.objects.get(code="person")
+        centers = {12: (6.2, 44.2), 13: (7.2, 44.2)}
+
+        def make(id_area, source, type_code, measures):
+            x, y = centers[id_area]
+            geom = (
+                LineString((x, y), (x + 0.01, y + 0.01), srid=4326)
+                if type_code == "segment"
+                else Point(x, y, srid=4326)
             )
+            obj = CountingObject.objects.create(
+                type=types[type_code], source_id=source, geom=geom
+            )
+            for year, month, count in measures:
+                start = datetime(year, month, 10, tzinfo=timezone.utc)
+                CountingMeasure.objects.create(
+                    counting_object=obj, start_datetime=start,
+                    end_datetime=start + timedelta(days=1), count=count, unit=person,
+                )
+            return obj
+
+        make(12, cls.s1, "counter", [(2023, 1, 6), (2023, 2, 7)])
+        make(12, cls.s1, "segment", [(2023, 1, 4)])
+        make(12, cls.s2, "segment", [(2023, 1, 5)])
+        make(13, cls.s1, "counter", [(2023, 1, 4)])
+        cls.moving = make(13, cls.s2, "segment", [(2024, 1, 3)])
 
 
 class BasicFrequentationScoreTests(AreasTestCase):
     def test_sums_every_source_and_month(self):
         self.assertEqual(BasicFrequentationScore.compute(), {12: 22, 13: 7})
 
-    def test_filters_on_year_month_and_source(self):
-        self.assertEqual(BasicFrequentationScore.compute(year=2023, month=1), {12: 15, 13: 4})
-        self.assertEqual(BasicFrequentationScore.compute(sources=[2]), {12: 5, 13: 3})
+    def test_filters_on_period_and_source(self):
+        def basic(date_from=None, date_to=None):
+            return BasicFrequentationScore.compute(date_from=date_from, date_to=date_to)
+
+        self.assertEqual(basic(date(2023, 1, 1), date(2023, 1, 31)), {12: 15, 13: 4})
+        # Both bounds included: the January measures start on 2023-01-10 at 00:00.
+        self.assertEqual(basic(date(2023, 1, 10), date(2023, 1, 10)), {12: 15, 13: 4})
+        self.assertEqual(basic(date_to=date(2023, 1, 9)), {})
+        self.assertEqual(basic(date(2023, 1, 11), date(2023, 12, 31)), {12: 7})
+        self.assertEqual(basic(date_from=date(2024, 1, 1)), {13: 3})
+        self.assertEqual(BasicFrequentationScore.compute(sources=[self.s2]), {12: 5, 13: 3})
 
     def test_filters_on_cells(self):
         self.assertEqual(BasicFrequentationScore.compute(geom_ids=[12]), {12: 22})
@@ -263,13 +299,16 @@ class BasicFrequentationScoreTests(AreasTestCase):
 
 class CazalisFrequentationScoreTests(AreasTestCase):
     def test_applies_source_weights_per_area(self):
-        score_grid = CazalisFrequentationScore.compute(year=2023, source_weights={1: 2, 2: 3})
+        score_grid = CazalisFrequentationScore.compute(
+            date_from=date(2023, 1, 1), date_to=date(2023, 12, 31),
+            source_weights={self.s1: 2, self.s2: 3},
+        )
         # cell 12: (10 + 7) * 2 + 5 * 3; cell 13: 4 * 2
         self.assertEqual(score_grid, {12: 49, 13: 8})
 
     def test_rejects_missing_source_weight(self):
-        with self.assertRaisesRegex(ValueError, "Missing weight for source ID 2"):
-            CazalisFrequentationScore.compute(source_weights={1: 1})
+        with self.assertRaisesRegex(ValueError, f"Missing weight for source ID {self.s2}"):
+            CazalisFrequentationScore.compute(source_weights={self.s1: 1})
 
     def test_requires_source_weights(self):
         with self.assertRaises(ValueError):
@@ -281,8 +320,8 @@ class AreasApiTests(AreasTestCase):
 
     def test_returns_geojson_with_counts_and_scores(self):
         response = self.client.get(self.url, {
-            "year": 2023, "month": 1,
-            "scores": ["basic", "cazalis"], "source_weights": "1:2,2:3",
+            "date_from": "2023-01-01", "date_to": "2023-01-31",
+            "scores": ["basic", "cazalis"], "source_weights": self.weights,
         })
         self.assertEqual(response.status_code, 200)
         data = response.json()
@@ -300,7 +339,7 @@ class AreasApiTests(AreasTestCase):
         })
 
     def test_filters_on_source_and_bbox(self):
-        response = self.client.get(self.url, {"source": [2], "bbox": "6.9,43.9,7.6,44.6"})
+        response = self.client.get(self.url, {"source": [self.s2], "bbox": "6.9,43.9,7.6,44.6"})
         features = response.json()["features"]
         self.assertEqual([f["id"] for f in features], [13])
         self.assertEqual(features[0]["properties"]["counts"], 3)
@@ -310,8 +349,15 @@ class AreasApiTests(AreasTestCase):
         response = self.client.get(self.url, {"scores": "cazalis"})
         self.assertEqual(response.status_code, 400)
         self.assertIn("source_weights", response.json())
-        response = self.client.get(self.url, {"scores": "cazalis", "source_weights": "1:2"})
+        response = self.client.get(self.url, {"scores": "cazalis", "source_weights": f"{self.s1}:2"})
         self.assertEqual(response.status_code, 400)
+
+    def test_rejects_non_finite_source_weights(self):
+        for weight in ("nan", "inf", "-inf"):
+            weights = f"{self.s1}:{weight},{self.s2}:1"
+            response = self.client.get(self.url, {"scores": "cazalis", "source_weights": weights})
+            self.assertEqual(response.status_code, 400, weights)
+            self.assertIn("source_weights", response.json())
 
     def test_spatial_filters_of_ref_geo(self):
         def ids(**params):
@@ -323,14 +369,17 @@ class AreasApiTests(AreasTestCase):
         self.assertEqual(ids(area_code="B"), [13])
 
     def test_rejects_invalid_parameters(self):
-        response = self.client.get(self.url, {"month": 13, "scores": "foo"})
+        response = self.client.get(self.url, {"date_from": "2023-13-01", "scores": "foo"})
         self.assertEqual(response.status_code, 400)
-        self.assertEqual(set(response.json()), {"month", "scores"})
+        self.assertEqual(set(response.json()), {"date_from", "scores"})
+        response = self.client.get(self.url, {"date_from": "2023-02-01", "date_to": "2023-01-31"})
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("date_to", response.json())
         self.assertEqual(self.client.get(self.url, {"bbox": "x"}).status_code, 400)
         self.assertEqual(self.client.get(self.url, {"in_bbox": "x"}).status_code, 400)
 
     def test_only_cells_with_matching_measures(self):
-        response = self.client.get(self.url, {"year": 2024})
+        response = self.client.get(self.url, {"date_from": "2024-01-01"})
         self.assertEqual([f["id"] for f in response.json()["features"]], [13])
 
     def test_paginates_and_scores_the_page(self):
@@ -344,7 +393,7 @@ class AreasApiTests(AreasTestCase):
         self.assertEqual(data["features"][0]["properties"]["score"], {"basic": 7})
 
     def test_retrieve_one_cell(self):
-        response = self.client.get(f"{self.url}/12", {"source": 1, "scores": "basic"})
+        response = self.client.get(f"{self.url}/12", {"source": self.s1, "scores": "basic"})
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertEqual(data["type"], "Feature")
@@ -354,4 +403,43 @@ class AreasApiTests(AreasTestCase):
         })
 
     def test_retrieve_cell_without_matching_measures(self):
-        self.assertEqual(self.client.get(f"{self.url}/12", {"year": 2024}).status_code, 404)
+        self.assertEqual(self.client.get(f"{self.url}/12", {"date_from": "2024-01-01"}).status_code, 404)
+
+
+class CountingObjectAreasTests(AreasTestCase):
+    def areas(self, obj):
+        return set(obj.areas.values_list("area_id", flat=True))
+
+    def test_trigger_fills_and_follows_the_geometry(self):
+        self.assertEqual(self.areas(self.moving), {13})
+        self.moving.geom = LineString((6.4, 44.2), (7.2, 44.2), srid=4326)  # crosses 12 and 13
+        self.moving.save()
+        self.assertEqual(self.areas(self.moving), {12, 13})
+        self.moving.geom = Point(8.0, 44.2, srid=4326)  # outside the grid
+        self.moving.save()
+        self.assertEqual(self.areas(self.moving), set())
+
+    def test_segment_counts_in_every_cell_it_crosses(self):
+        self.moving.geom = LineString((6.4, 44.2), (7.2, 44.2), srid=4326)
+        self.moving.save()
+        self.assertEqual(
+            BasicFrequentationScore.compute(date_from=date(2024, 1, 1), sources=[self.s2]), {12: 3, 13: 3}
+        )
+
+    def test_sync_command_rebuilds_the_table(self):
+        CountingObjectArea.objects.all().delete()
+        call_command("sync_counting_object_areas", stdout=StringIO())
+        self.assertEqual(CountingObjectArea.objects.count(), 5)
+
+    def test_deleting_an_object_deletes_its_cells(self):
+        pk = self.moving.pk  # delete() sets self.moving.pk to None
+        self.moving.delete()
+        self.assertFalse(CountingObjectArea.objects.filter(counting_object_id=pk).exists())
+
+
+class SyncCommandWithoutRefGeoTests(TestCase):
+    """The test database has no ref_geo schema."""
+
+    def test_fails_without_ref_geo(self):
+        with self.assertRaisesRegex(CommandError, "ref_geo schema missing"):
+            call_command("sync_counting_object_areas")
