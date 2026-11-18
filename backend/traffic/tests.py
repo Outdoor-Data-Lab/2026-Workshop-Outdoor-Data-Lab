@@ -1,17 +1,15 @@
 from datetime import datetime, timedelta, timezone
-from unittest.mock import patch
 
-from django.contrib.gis.geos import Point
+from django.contrib.auth import get_user_model
+from django.contrib.gis.geos import MultiPolygon, Point, Polygon
 from django.db import IntegrityError, connection, transaction
-from django.db.models import Sum
 from django.db.models import ProtectedError
-from django.test import Client, SimpleTestCase, TestCase
+from django.test import Client, TestCase
 
 from commons.models import DataSource, Practice
-from workshop2026.processing.score import (
-    BasicFrequentationScore,
-    CazalisFrequentationScore,
-)
+from ref_geo.models import BibAreasType, LArea
+from workshop2026.models import MaterializedViewCount
+from workshop2026.processing.score import BasicFrequentationScore, CazalisFrequentationScore
 
 from .models import CountingMeasure, CountingObject, CountingObjectType, Unit
 
@@ -204,71 +202,117 @@ class ReferenceDataTests(TestCase):
         )
 
 
-class BasicFrequentationScoreTests(SimpleTestCase):
-    @patch("workshop2026.processing.score.MaterializedViewCount.objects.filter")
-    def test_compute_sums_counts_from_all_sources_per_area(self, filter_counts):
-        filter_counts.return_value.values.return_value.annotate.return_value = [
-            {"id_area": 12, "total": 25},
-            {"id_area": 13, "total": 8},
-        ]
-        score_grid = BasicFrequentationScore.compute(geom_ids=[12, 13])
+def cell(xmin, ymin, xmax, ymax):
+    """WGS84 square as ``geom_4326`` plus its Lambert-93 ``geom``."""
+    wgs84 = MultiPolygon(Polygon.from_bbox((xmin, ymin, xmax, ymax)), srid=4326)
+    return {"geom_4326": wgs84, "geom": wgs84.transform(2154, clone=True)}
 
-        filter_counts.assert_called_once_with(id_area__in=[12, 13])
-        filter_counts.return_value.values.assert_called_once_with("id_area")
-        filter_counts.return_value.values.return_value.annotate.assert_called_once_with(
-            total=Sum("counts")
+
+class AreasTestCase(TestCase):
+    """The view needs ref_geo, which the test database does not have (migration
+    0003 skips it). The ref_geo tables and a plain table standing in for the
+    view are created inside the test transaction.
+
+    Source 1 / source 2, two M1 cells (12 and 13):
+        cell 12: 2023-01 src1 10 (4 segment, 6 presence), 2023-01 src2 5 (5, 0),
+                 2023-02 src1 7 (0, 7)
+        cell 13: 2023-01 src1 4 (0, 4), 2024-01 src2 3 (3, 0)
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        with connection.cursor() as cursor:
+            cursor.execute("CREATE SCHEMA IF NOT EXISTS ref_geo")
+        with connection.schema_editor() as editor:
+            for model in (BibAreasType, LArea, MaterializedViewCount):
+                editor.create_model(model)
+
+        m1 = BibAreasType.objects.create(type_name="Mailles 1km", type_code="M1")
+        LArea.objects.create(id_area=12, type=m1, area_code="A", **cell(6.0, 44.0, 6.5, 44.5))
+        LArea.objects.create(id_area=13, type=m1, area_code="B", **cell(7.0, 44.0, 7.5, 44.5))
+        for id_area, id_source, year, month, counts, segment, presence in [
+            (12, 1, 2023, 1, 10, 4, 6),
+            (12, 2, 2023, 1, 5, 5, 0),
+            (12, 1, 2023, 2, 7, 0, 7),
+            (13, 1, 2023, 1, 4, 0, 4),
+            (13, 2, 2024, 1, 3, 3, 0),
+        ]:
+            MaterializedViewCount.objects.create(
+                id_area=id_area, id_source=id_source, year=year, month=month,
+                counts=counts, count_segment=segment, count_presence=presence,
+            )
+
+
+class BasicFrequentationScoreTests(AreasTestCase):
+    def test_sums_every_source_and_month(self):
+        self.assertEqual(BasicFrequentationScore.compute(), {12: 22, 13: 7})
+
+    def test_filters_on_year_month_and_source(self):
+        self.assertEqual(BasicFrequentationScore.compute(year=2023, month=1), {12: 15, 13: 4})
+        self.assertEqual(BasicFrequentationScore.compute(sources=[2]), {12: 5, 13: 3})
+
+    def test_filters_on_cells(self):
+        self.assertEqual(BasicFrequentationScore.compute(geom_ids=[12]), {12: 22})
+        inside_13 = Point(7.2, 44.2, srid=4326)
+        self.assertEqual(BasicFrequentationScore.compute(geoms=inside_13), {13: 7})
+        self.assertEqual(
+            BasicFrequentationScore.compute(geoms=inside_13, geom_ids=[12]), {12: 22, 13: 7}
         )
-        self.assertEqual(score_grid, {12: 25, 13: 8})
-
-    @patch("workshop2026.processing.score.MaterializedViewCount.objects.filter")
-    @patch("workshop2026.processing.score.LArea.objects.filter")
-    def test_compute_includes_ids_from_geometry_and_geom_ids(
-        self, filter_areas, filter_counts
-    ):
-        filter_areas.return_value.values_list.return_value = [13, 14]
-        filter_counts.return_value.values.return_value.annotate.return_value = [
-            {"id_area": 12, "total": 25},
-            {"id_area": 13, "total": 8},
-            {"id_area": 14, "total": 4},
-        ]
-
-        score_grid = BasicFrequentationScore.compute(
-            geoms=Point(6.4, 44.9, srid=4326),
-            geom_ids=[12, 13],
-        )
-
-        filter_areas.assert_called_once()
-        self.assertEqual(filter_areas.call_args.kwargs["geom__intersects"].srid, 2154)
-        filter_counts.assert_called_once_with(id_area__in=[12, 13, 14])
-        self.assertEqual(score_grid, {12: 25, 13: 8, 14: 4})
+        self.assertEqual(BasicFrequentationScore.compute(geom_ids=[]), {})
 
 
-class CazalisFrequentationScoreTests(SimpleTestCase):
-    @patch("workshop2026.processing.score.MaterializedViewCount.objects.filter")
-    def test_compute_applies_source_weights_per_area(self, filter_counts):
-        filter_counts.return_value.values.return_value = [
-            {"id_area": 12, "id_source": 1, "counts": 10},
-            {"id_area": 12, "id_source": 2, "counts": 5},
-            {"id_area": 13, "id_source": 1, "counts": 4},
-            {"id_area": 13, "id_source": 2, "counts": 3},
-        ]
+class CazalisFrequentationScoreTests(AreasTestCase):
+    def test_applies_source_weights_per_area(self):
+        score_grid = CazalisFrequentationScore.compute(year=2023, source_weights={1: 2, 2: 3})
+        # cell 12: (10 + 7) * 2 + 5 * 3; cell 13: 4 * 2
+        self.assertEqual(score_grid, {12: 49, 13: 8})
 
-        score_grid = CazalisFrequentationScore.compute(
-            geom_ids=[12, 13],
-            source_weights={1: 2, 2: 3},
-        )
+    def test_rejects_missing_source_weight(self):
+        with self.assertRaisesRegex(ValueError, "Missing weight for source ID 2"):
+            CazalisFrequentationScore.compute(source_weights={1: 1})
 
-        filter_counts.assert_called_once_with(id_area__in=[12, 13])
-        filter_counts.return_value.values.assert_called_once_with(
-            "id_area", "id_source", "counts"
-        )
-        self.assertEqual(score_grid, {12: 35, 13: 17})
+    def test_requires_source_weights(self):
+        with self.assertRaises(ValueError):
+            CazalisFrequentationScore.compute()
 
-    @patch("workshop2026.processing.score.MaterializedViewCount.objects.filter")
-    def test_compute_rejects_missing_source_weight(self, filter_counts):
-        filter_counts.return_value.values.return_value = [
-            {"id_area": 12, "id_source": 3, "counts": 10},
-        ]
 
-        with self.assertRaisesRegex(ValueError, "Missing weight for source ID 3"):
-            CazalisFrequentationScore.compute(geom_ids=[12], source_weights={})
+class AreasApiTests(AreasTestCase):
+    url = "/api/traffic/areas"
+
+    def test_returns_geojson_with_counts_and_scores(self):
+        response = self.client.get(self.url, {
+            "year": 2023, "month": 1,
+            "scores": ["basic", "cazalis"], "source_weights": "1:2,2:3",
+        })
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["type"], "FeatureCollection")
+        features = {f["id"]: f for f in data["features"]}
+        self.assertEqual(features[12]["geometry"]["type"], "MultiPolygon")
+        self.assertEqual(features[12]["properties"], {
+            "counts": 15, "count_segment": 9, "count_presence": 6,
+            "score": {"basic": 15, "cazalis": 35.0},
+        })
+        self.assertEqual(features[13]["properties"], {
+            "counts": 4, "count_segment": 0, "count_presence": 4,
+            "score": {"basic": 4, "cazalis": 8.0},
+        })
+
+    def test_filters_on_source_and_bbox(self):
+        response = self.client.get(self.url, {"source": [2], "bbox": "6.9,43.9,7.6,44.6"})
+        features = response.json()["features"]
+        self.assertEqual([f["id"] for f in features], [13])
+        self.assertEqual(features[0]["properties"]["counts"], 3)
+        self.assertEqual(features[0]["properties"]["score"], {})
+
+    def test_cazalis_needs_a_weight_for_every_source(self):
+        response = self.client.get(self.url, {"scores": "cazalis"})
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("source_weights", response.json())
+        response = self.client.get(self.url, {"scores": "cazalis", "source_weights": "1:2"})
+        self.assertEqual(response.status_code, 400)
+
+    def test_rejects_invalid_parameters(self):
+        response = self.client.get(self.url, {"month": 13, "scores": "foo", "bbox": "x"})
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(set(response.json()), {"month", "scores", "bbox"})

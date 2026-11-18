@@ -1,7 +1,10 @@
+from django.contrib.gis.geos import Polygon
 from rest_framework import serializers
+from rest_framework_gis.fields import GeometryField
 from rest_framework_gis.serializers import GeoFeatureModelSerializer
 
 from commons.api.geo import code_field
+from workshop2026.processing.score import SCORES
 
 from ..models import (
     CountingMeasure,
@@ -82,3 +85,59 @@ class CountingMeasureSerializer(serializers.ModelSerializer):
             "date_update",
             "processed",
         ]
+
+
+class GeometrySearchSerializer(serializers.Serializer):
+    PREDICATES = ("within", "intersects")
+
+    geometry = GeometryField()
+    predicate = serializers.ChoiceField(choices=PREDICATES, default="intersects")
+
+
+class AreasQuerySerializer(serializers.Serializer):
+    """Query parameters of the areas route."""
+
+    source = serializers.ListField(
+        child=serializers.IntegerField(),
+        required=False,
+        help_text="Data source id (repeatable). All sources if omitted.",
+    )
+    year = serializers.IntegerField(required=False)
+    month = serializers.IntegerField(required=False, min_value=1, max_value=12)
+    scores = serializers.MultipleChoiceField(
+        choices=sorted(SCORES),
+        required=False,
+        help_text="Scores to compute (repeatable).",
+    )
+    source_weights = serializers.CharField(
+        required=False,
+        help_text='Weights of the "cazalis" score, as source_id:weight pairs, e.g. "1:2,3:0.5".',
+    )
+    bbox = serializers.CharField(
+        required=False, help_text="minlon,minlat,maxlon,maxlat (WGS84)."
+    )
+
+    def validate_source_weights(self, value):
+        try:
+            pairs = (item.split(":") for item in value.split(",") if item.strip())
+            return {int(source): float(weight) for source, weight in pairs}
+        except ValueError:
+            raise serializers.ValidationError(
+                'Expected "source_id:weight,...", e.g. "1:2,3:0.5".'
+            )
+
+    def validate_bbox(self, value):
+        try:
+            xmin, ymin, xmax, ymax = (float(v) for v in value.split(","))
+        except ValueError:
+            raise serializers.ValidationError("Expected minlon,minlat,maxlon,maxlat.")
+        polygon = Polygon.from_bbox((xmin, ymin, xmax, ymax))
+        polygon.srid = 4326
+        return polygon
+
+    def validate(self, data):
+        if "cazalis" in data.get("scores", ()) and "source_weights" not in data:
+            raise serializers.ValidationError(
+                {"source_weights": 'Required by the "cazalis" score.'}
+            )
+        return data
