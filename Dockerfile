@@ -58,13 +58,18 @@ WORKDIR /app
 
 # Run as a non-root user.
 RUN addgroup -S app && adduser -S app -G app
+# Media volume mount point: a new named volume inherits this ownership.
+RUN mkdir -p /app/media && chown app:app /app/media
 
 # Copy only the pre-built virtual environment and application source code.
 COPY --from=builder /app/.venv /app/.venv
 COPY --chown=app:app . .
 
 USER app
+# Static files (admin, API docs) are served by WhiteNoise.
+RUN python backend/manage.py collectstatic --noinput
+
 EXPOSE 8000
 
 # Run Gunicorn as the production WSGI server.
-CMD ["gunicorn", "myapp.wsgi:application", "--bind", "0.0.0.0:8000"]
+CMD ["gunicorn", "--chdir", "backend", "--bind", "0.0.0.0:8000", "workshop2026.wsgi:application"]
