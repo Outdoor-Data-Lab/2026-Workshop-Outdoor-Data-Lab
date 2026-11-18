@@ -18,7 +18,13 @@ const notifications = useNotificationsStore()
           {{ n.message }}
           <span v-if="n.count > 1" class="count">×{{ n.count }}</span>
         </p>
-        <button type="button" aria-label="Close" @click="notifications.dismiss(n.id)">×</button>
+        <button
+          type="button"
+          :aria-label="$t('notifications.close')"
+          @click="notifications.dismiss(n.id)"
+        >
+          ×
+        </button>
       </div>
     </TransitionGroup>
   </div>

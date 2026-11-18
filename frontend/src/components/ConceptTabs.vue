@@ -7,7 +7,7 @@ const layers = useLayersStore()
 </script>
 
 <template>
-  <nav class="concepts" aria-label="Concept">
+  <nav class="concepts" :aria-label="$t('concepts.label')">
     <button
       v-for="concept in CONCEPTS"
       :key="concept.id"
@@ -15,7 +15,7 @@ const layers = useLayersStore()
       :aria-pressed="layers.concept === concept.id"
       @click="layers.setConcept(concept.id)"
     >
-      {{ concept.label }}
+      {{ $t(`concepts.${concept.id}`) }}
     </button>
   </nav>
 </template>

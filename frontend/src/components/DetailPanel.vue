@@ -7,9 +7,9 @@ const layers = useLayersStore()
 
 <template>
   <section class="detail">
-    <h2>Detail</h2>
+    <h2>{{ $t('detail.title') }}</h2>
     <p v-if="layers.selected">{{ layers.selected.label }}</p>
-    <p v-else class="hint">Select an object on the map.</p>
+    <p v-else class="hint">{{ $t('detail.empty') }}</p>
   </section>
 </template>
 

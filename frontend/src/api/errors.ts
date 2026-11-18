@@ -1,22 +1,26 @@
+import { i18n } from '@/i18n'
+
 import { ApiError, NetworkError } from './client'
+
+const { t } = i18n.global
 
 /** Message lisible par l'utilisateur à partir d'une erreur technique. */
 export function describeError(error: unknown): string {
   if (error instanceof NetworkError) {
-    return 'Connexion au serveur impossible. Vérifiez votre réseau.'
+    return t('errors.network')
   }
   if (error instanceof ApiError) {
     if (error.status >= 500) {
-      return 'Le serveur est indisponible pour le moment. Réessayez plus tard.'
+      return t('errors.server')
     }
-    if (error.status === 404) return 'Élément introuvable.'
+    if (error.status === 404) return t('errors.notFound')
     if (error.status === 401 || error.status === 403) {
-      return "Vous n'avez pas accès à cette ressource."
+      return t('errors.forbidden')
     }
-    if (error.status === 400) return drfMessage(error.body) ?? 'Requête invalide.'
-    return `Réponse inattendue du serveur (${error.status}).`
+    if (error.status === 400) return drfMessage(error.body) ?? t('errors.badRequest')
+    return t('errors.unexpectedStatus', { status: error.status })
   }
-  return 'Une erreur inattendue est survenue.'
+  return t('errors.unexpected')
 }
 
 /** Premier message d'une erreur DRF : `{ detail }`, `{ champ: [...] }` ou `[...]`. */
@@ -28,7 +32,8 @@ function drfMessage(body: unknown): string | undefined {
     if ('detail' in record) return drfMessage(record.detail)
     const [field, value] = Object.entries(record)[0] ?? []
     const message = drfMessage(value)
-    if (message) return field === 'non_field_errors' ? message : `${field} : ${message}`
+    if (message)
+      return field === 'non_field_errors' ? message : t('errors.field', { field, message })
   }
   return undefined
 }

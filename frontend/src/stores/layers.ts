@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, ref, shallowRef } from 'vue'
 import type { FeatureCollection, Geometry } from 'geojson'
 
+import { i18n } from '@/i18n'
 import { CONCEPTS, type Concept } from '@/types/concept'
 import { layerDomain, type LayerId, type MapObject } from '@/types/mapObject'
 
@@ -22,6 +23,7 @@ export interface MapFeatureProperties {
 export interface LayerDefinition {
   id: LayerId
   label: string
+  /** Clé `layerGroups.<group>` des traductions. */
   group: string
   load: () => Promise<MapObject[]>
 }
@@ -101,7 +103,7 @@ export const useLayersStore = defineStore('layers', () => {
     } catch (error) {
       if (call !== lastCall[layer]) return
       status.value[layer] = { loading: false, error }
-      notifications.notifyError(error, `Could not load ${label}`)
+      notifications.notifyError(error, i18n.global.t('layers.loadError', { label }))
     }
   }
 

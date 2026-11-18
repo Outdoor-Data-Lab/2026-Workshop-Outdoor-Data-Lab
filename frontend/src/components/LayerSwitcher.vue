@@ -18,7 +18,7 @@ const groups = computed(() => {
 <template>
   <div v-if="layers.definitions.length" class="layer-switcher">
     <fieldset v-for="[group, definitions] in groups" :key="group">
-      <legend>{{ group }}</legend>
+      <legend>{{ $t(`layerGroups.${group}`) }}</legend>
       <label v-for="definition in definitions" :key="definition.id">
         <input
           type="checkbox"
@@ -26,8 +26,10 @@ const groups = computed(() => {
           @change="layers.setVisible(definition.id, ($event.target as HTMLInputElement).checked)"
         />
         {{ definition.label }}
-        <span v-if="layers.status[definition.id]?.loading">(loading)</span>
-        <span v-else-if="layers.status[definition.id]?.error" class="error">(failed)</span>
+        <span v-if="layers.status[definition.id]?.loading">{{ $t('layers.loading') }}</span>
+        <span v-else-if="layers.status[definition.id]?.error" class="error">{{
+          $t('layers.failed')
+        }}</span>
       </label>
     </fieldset>
   </div>
