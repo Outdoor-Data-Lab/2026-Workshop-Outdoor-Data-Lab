@@ -26,6 +26,8 @@ services:
       - --entrypoints.web.http.redirections.entrypoint.scheme=https
       - --entrypoints.websecure.address=:443
       - --entrypoints.websecure.http.tls.certresolver=letsencrypt
+      # Large import uploads: Traefik reads a request for 60s at most by default.
+      - --entrypoints.websecure.transport.respondingtimeouts.readtimeout=${GUNICORN_TIMEOUT:-600}
       - --certificatesresolvers.letsencrypt.acme.email=${ACME_EMAIL:?ACME_EMAIL must be set in .env}
       - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
       - --certificatesresolvers.letsencrypt.acme.tlschallenge=true
@@ -60,7 +62,13 @@ services:
       - -ec
       - |
         python backend/manage.py migrate --noinput
-        exec gunicorn --chdir backend --bind 0.0.0.0:8000 workshop2026.wsgi:application
+        exec gunicorn --chdir backend --bind 0.0.0.0:8000 --timeout ${GUNICORN_TIMEOUT:-600} workshop2026.wsgi:application
+    # Caps the container, so a heavy import cannot starve the database or the host.
+    deploy:
+      resources:
+        limits:
+          memory: ${WEB_MEMORY_LIMIT:-2g}
+          cpus: "${WEB_CPUS_LIMIT:-2}"
     depends_on:
       # Django tables reference the TaxHub / ref_geo schemas.
       taxhub:
