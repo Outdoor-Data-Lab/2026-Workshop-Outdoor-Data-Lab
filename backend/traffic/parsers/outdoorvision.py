@@ -96,7 +96,16 @@ class OutdoorVisionParser(TrafficParser):
             # As text: a column with no value at all is read as numbers.
             tracks["provider"] = tracks["provider"].astype("string").str.strip().replace("", None)
             aggregates["provider"] = "first"
-        outings = tracks.to_crs(4326).dissolve(by="track_id", aggfunc=aggregates)
+        tracks = tracks.to_crs(4326)
+        # Only the tracks in several pieces are merged: most have a single one, and
+        # merging is by far the slowest step.
+        pieces = tracks["track_id"].duplicated(keep=False)
+        outings = pd.concat(
+            [
+                tracks[~pieces].set_index("track_id")[[*aggregates, "geometry"]],
+                tracks[pieces].dissolve(by="track_id", aggfunc=aggregates),
+            ]
+        )
         backwards = outings.index[outings.date_end <= outings.date_start]
         if len(backwards):
             raise ValueError(f"The end date of track_id {backwards[0]} must follow its start date.")
