@@ -1,10 +1,9 @@
 from rest_framework import viewsets
-from rest_framework.decorators import action
 from rest_framework.filters import OrderingFilter
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework.response import Response
 from rest_framework.settings import api_settings
 
+from commons.api.geo import FormatFirstNegotiation, GeoJSONRenderer, GeoJsonLimitOffsetPagination
 from ref_geo.filters import LAreaFilter
 from ref_geo.models import LArea
 from ref_geo.serializers import LAreaSerializer, LAreaGeoSerializer
@@ -14,8 +13,6 @@ from .serializers import OfferSerializer, OfferGeoSerializer, LAreaWithOffersCou
     LAreaGeoWithOffersCountSerializer, LAreaGeoWithOffersCountAndByPracticeSerializer, \
     LAreaWithOffersCountAndByPracticeSerializer
 from .filters import OfferFilter
-from ref_geo.renderers import FormatFirstNegotiation, GeoJSONRenderer
-from ref_geo.pagination import GeoJsonLimitOffsetPagination
 
 
 class OfferViewSet(viewsets.ReadOnlyModelViewSet):
