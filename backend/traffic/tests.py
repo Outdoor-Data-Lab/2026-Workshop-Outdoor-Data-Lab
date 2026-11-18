@@ -1,3 +1,5 @@
+import io
+import re
 import tempfile
 import zipfile
 from datetime import datetime, timedelta, timezone
@@ -19,6 +21,7 @@ from commons.models import DataImport, DataSource, Practice
 
 from .models import CountingMeasure, CountingObject, CountingObjectType, Unit
 from .parsers.compteur import CompteurParser
+from .parsers.inaturalist import INaturalistParser, observer_day_id
 from .parsers.outdoorvision import OutdoorVisionParser
 from .parsers.strava import StravaParser
 
@@ -350,8 +353,86 @@ class CompteurParserTests(TrafficTestCase):
         self.assertEqual(sorted(CountingMeasure.objects.filter(counting_object__external_id="A").values_list("count", flat=True)), [1, 9])
 
 
+def zip_bytes(files: dict[str, str]) -> bytes:
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        for name, content in files.items():
+            archive.writestr(name, content)
+    return buffer.getvalue()
+
+
+class INaturalistParserTests(TrafficTestCase):
+    # (observation id, observer name, login, day, latitude, longitude, obscured)
+    OBSERVATIONS = [
+        # The lines of an outing are not consecutive, as in real exports.
+        (1, "Jeanne Martin", "jmartin", "2025-07-14", 44.90, 6.40, False),
+        (2, "", "pdupont", "2025-07-14", 44.80, 6.50, False),  # no name: known by their login
+        (3, "Jeanne Martin", "jmartin", "2025-07-14", 44.91, 6.41, False),  # same outing, second point
+        (4, "Jeanne Martin", "jmartin", "2025-07-14", 44.91, 6.41, False),  # same point again
+        (5, "Jeanne Martin", "jmartin", "2025-07-15", 44.92, 6.42, False),  # next day: another outing
+        (6, "Ana Silva", "asilva", "2025-07-14", 44.85, 6.45, True),  # obscured: skipped
+    ]
+
+    def setUp(self):
+        self.tmp = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self.enterContext(override_settings(MEDIA_ROOT=self.tmp / "media"))
+
+    def import_file(self, name, content):
+        data_import = DataImport(source=DataSource.objects.get(code="inaturalist"))
+        data_import.file.save(name, ContentFile(content))
+        return data_import, INaturalistParser(data_import).import_data()
+
+    def inaturalist_export(self, observations=OBSERVATIONS):
+        rows = [
+            dict(id=i, observed_on=d, user_id=100 + i, user_login=login, user_name=name, latitude=lat, longitude=lon,
+                 coordinates_obscured=str(obscured).lower(), scientific_name="Rupicapra rupicapra", description="Vu\nau lac")
+            for i, name, login, d, lat, lon, obscured in observations
+        ]
+        return zip_bytes({"README.txt": "Export iNaturalist", "observations-1.csv": pd.DataFrame(rows).to_csv(index=False)})
+
+    def gbif_download(self, observations):
+        rows = [
+            dict(gbifID=i, occurrenceID=f"https://www.inaturalist.org/observations/{i}", recordedBy=name or login,
+                 eventDate=f"{d}T10:30", decimalLatitude=lat, decimalLongitude=lon,
+                 coordinateUncertaintyInMeters=27285 if obscured else 10, species="Rupicapra rupicapra")
+            for i, name, login, d, lat, lon, obscured in observations
+        ]
+        return zip_bytes({"0012597.csv": pd.DataFrame(rows).to_csv(index=False, sep="\t")})
+
+    def test_one_passage_per_observer_and_day(self):
+        data_import, count = self.run_export()
+        self.assertEqual((count, data_import.line_numbers, data_import.error_numbers), (3, 6, 1))
+        outing = CountingObject.objects.get(external_id=observer_day_id("Jeanne Martin", pd.Timestamp("2025-07-14")))
+        self.assertEqual(outing.geom.num_geom, 2)  # her two places that day, the repeated point once
+        measure = outing.measures.get()
+        self.assertEqual((measure.count, measure.unit.code, measure.practice.code), (1, "person", "walking"))
+        # 14 July in Paris (summer time) = 13 July 22:00 UTC, for one day.
+        self.assertEqual(measure.start_datetime, datetime(2025, 7, 13, 22, tzinfo=timezone.utc))
+        self.assertEqual(measure.end_datetime, datetime(2025, 7, 14, 22, tzinfo=timezone.utc))
+        self.assertTrue(CountingObject.objects.filter(external_id=observer_day_id("pdupont", pd.Timestamp("2025-07-14"))))
+
+    def test_observers_are_not_stored(self):
+        self.run_export()
+        for external_id in CountingObject.objects.values_list("external_id", flat=True):
+            self.assertRegex(external_id, r"^[0-9a-f]{32}$")
+
+    def test_gbif_after_the_export_counts_each_outing_once(self):
+        self.run_export()
+        new = (7, "Paul Roux", "proux", "2025-07-16", 44.95, 6.30, False)
+        data_import, count = self.import_file("gbif.zip", self.gbif_download([self.OBSERVATIONS[0], self.OBSERVATIONS[2], self.OBSERVATIONS[5], new]))
+        self.assertEqual((count, data_import.error_numbers), (2, 1))  # Jeanne's 14 July again, and Paul
+        self.assertEqual((CountingObject.objects.count(), CountingMeasure.objects.count()), (4, 4))
+
+    def test_unknown_columns_are_refused(self):
+        with self.assertRaisesMessage(ValueError, "Colonnes iNaturalist non reconnues"):
+            self.import_file("other.zip", zip_bytes({"data.csv": "a,b\n1,2\n"}))
+
+    def run_export(self):
+        return self.import_file("iNaturalist-observations-1.csv", self.inaturalist_export())
+
+
 class ParserDescriptionTests(SimpleTestCase):
     def test_every_parser_says_what_its_file_holds(self):
-        for parser in (OutdoorVisionParser, StravaParser, CompteurParser):
+        for parser in (OutdoorVisionParser, StravaParser, CompteurParser, INaturalistParser):
             with self.subTest(parser.__name__):
                 self.assertTrue(parser.CONTENT.startswith("Contient des "))
