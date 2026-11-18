@@ -86,7 +86,7 @@ class LAreaWithOffersCountSerializer(DynamicFieldsMixin, OffersCountMixin, seria
     Meta = LAreaMeta
 
 
-class LAreaGeoWithOffersCountSerializer(DynamicFieldsMixin,OffersCountMixin, GeoFeatureModelSerializer):
+class LAreaGeoWithOffersCountSerializer(DynamicFieldsMixin, OffersCountMixin, GeoFeatureModelSerializer):
     Meta = LAreaGeoMeta
 
 

@@ -39,6 +39,7 @@ urlpatterns = [
         SpectacularSwaggerView.as_view(url_name="schema"),
         name="swagger-ui",
     ),
+    path("traffic/", include("traffic.urls")),
 ]
 
 if settings.DEBUG:

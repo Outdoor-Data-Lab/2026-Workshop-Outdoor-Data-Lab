@@ -100,7 +100,6 @@ class ReferenceDataTests(TestCase):
             {"taxref", "gbif", "col", "worms"},
         )
 
-
 class SINPParserTests(BiodiversityTestCase):
     HEADER = "id_perm_sinp;cd_ref;cd_nom;nom_valide;nom_cite;date_debut;date_fin;wkt_4326;precision;jdd_uuid"
     LYNX = str(uuid.uuid4())
@@ -153,18 +152,26 @@ class SINPParserTests(BiodiversityTestCase):
             ("Polygon", None),
         )
 
+    def test_deleting_an_import_deletes_the_records_it_wrote_last(self):
+        first, _ = self.run_import(self.line(self.LYNX))
+        second, _ = self.run_import(self.line(self.LYNX, name="Lynx lynx"), self.line(self.FROG))
+        first.delete()  # both records were last written by the second import
+        self.assertEqual(TaxonRecord.objects.count(), 2)
+        second.delete()
+        self.assertFalse(TaxonRecord.objects.exists())
+
     def test_reimport_updates_records(self):
         self.run_import(self.line(self.LYNX))
         self.run_import(self.line(self.LYNX, name="Lynx lynx"))
         self.assertEqual(TaxonRecord.objects.get().scientific_name, "Lynx lynx")
 
     def test_incomplete_line_imports_nothing(self):
-        with self.assertRaisesMessage(ValueError, "lignes 3"):
+        with self.assertRaisesMessage(ValueError, "lines 3"):
             self.run_import(self.line(self.LYNX), self.line(self.FROG, start=""))
         self.assertFalse(TaxonRecord.objects.exists())
 
     def test_missing_column_is_rejected(self):
-        with self.assertRaisesMessage(ValueError, "manquantes : wkt_4326"):
+        with self.assertRaisesMessage(ValueError, "Missing SINP columns: wkt_4326"):
             self.run_import(header=self.HEADER.replace("wkt_4326", "geom"))
 
 
@@ -364,5 +371,5 @@ class GBIFParserTests(BiodiversityTestCase):
     def test_missing_taxref_is_reported(self):
         with connection.cursor() as cursor:
             cursor.execute("drop schema taxonomie cascade")
-        with self.assertRaisesMessage(ValueError, "TaxRef n'est pas chargé"):
+        with self.assertRaisesMessage(ValueError, "TaxRef is not loaded"):
             self.run_import(self.line(1))

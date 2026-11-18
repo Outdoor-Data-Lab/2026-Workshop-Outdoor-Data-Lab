@@ -10,3 +10,5 @@ class TrafficConfig(AppConfig):
         from .parsers import PARSERS
 
         register_parsers(PARSERS)
+
+        from . import signals  # noqa: F401 (connects the receivers)

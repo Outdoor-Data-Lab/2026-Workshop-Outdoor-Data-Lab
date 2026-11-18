@@ -12,14 +12,154 @@ A measure belongs to the period [date_from, date_to] when its ``start_datetime``
 falls in it, both dates included, in the current time zone (TIME_ZONE setting).
 """
 
-from datetime import datetime, time, timedelta
+from collections import defaultdict
+from datetime import date, datetime, time, timedelta
+from math import isfinite
+from statistics import StatisticsError, fmean, quantiles, stdev
+from statistics import correlation as pearson_r
 
 from django.contrib.gis.geos import GEOSGeometry
-from django.db.models import F, Q, Sum
+from django.core.cache import cache
+from django.db import connection
+from django.db.models import Case, Count, F, Max, Q, Sum, Value, When
+from django.db.models.functions import ExtractMonth, ExtractYear, TruncDate
 from django.utils import timezone
 
+from commons.models import DataSource
 from ref_geo.models import LArea
-from traffic.models import CountingMeasure
+from traffic.models import CountingMeasure, CountingObject
+
+BTA_REFERENCE_SOURCE = "ecocompteur"
+# How each weighted source is matched to an eco-counter (BTA_PrepareCorrelation):
+# (radius in metres, whether only the nearest object within it counts).
+BTA_SOURCE_MATCHING = {
+    "strava": (500, True),  # passages of the nearest edge
+    "outdoorvision": (100, False),  # outings passing within 100 m
+    "inaturalist": (500, False),  # observer-days within 500 m
+}
+# Eco-counters (external_id) left out of the weight estimation. CARRELET was
+# already excluded by the R code; PREMCARL (Pré de Madame Carle, reached by car)
+# counts 4 times more than any other counter for few Strava passages, and alone
+# brings the Strava correlation from 0.80 down to 0.04.
+BTA_EXCLUDED_COUNTERS = frozenset({"CARRELET", "PREMCARL"})
+BTA_SUMMER_MONTHS = (6, 7, 8, 9)
+BTA_FIRST_YEAR = 2021
+BTA_CORRELATION_THRESHOLD = 0.25
+# A half-month (1-15, 16-end) of eco-counter data is used only with more than this many days of data.
+BTA_MIN_DAYS_PER_HALF_MONTH = 10
+# Scores above this quantile are capped before the 0-100 rescaling.
+BTA_WINSORIZE_QUANTILE = 0.98
+
+
+def cazalis_weights_from_correlations(correlations, source_ids):
+    """Apply the BTA correlation-to-weight rule and apportion 100 integer points."""
+    raw_weights = {}
+    for source_id in source_ids:
+        correlation = correlations.get(source_id)
+        if correlation is None or not isfinite(correlation) or correlation <= BTA_CORRELATION_THRESHOLD:
+            raw_weights[source_id] = 0.0
+        else:
+            raw_weights[source_id] = 1 / (1 - min(correlation, 0.99))
+
+    total = sum(raw_weights.values())
+    if total == 0:
+        return {source_id: 0 for source_id in source_ids}
+
+    percentages = {source_id: weight / total * 100 for source_id, weight in raw_weights.items()}
+    weights = {source_id: int(percentages[source_id]) for source_id in source_ids}
+    remainder = 100 - sum(weights.values())
+    order = sorted(
+        source_ids,
+        key=lambda source_id: (-(percentages[source_id] - weights[source_id]), source_id),
+    )
+    for source_id in order[:remainder]:
+        weights[source_id] += 1
+    return weights
+
+
+def _pearson_correlation(reference_values, source_values):
+    """Pearson's r, or None when undefined (fewer than 2 points, constant input)."""
+    try:
+        return pearson_r(reference_values, source_values)
+    except StatisticsError:
+        return None
+
+
+def _counts_near(station_ids, source_id, radius, nearest_only):
+    """``{station id: total count}`` of the ``source_id`` objects within ``radius`` metres.
+
+    With ``nearest_only``, only the closest object counts and stations with no
+    object within ``radius`` are left out (in the R code, a counter without a
+    Strava edge nearby is not used). Otherwise such stations get 0.
+    """
+    objects = f'"{CountingObject._meta.db_table}"'
+    measures = f'"{CountingMeasure._meta.db_table}"'
+    distinct = "DISTINCT ON (station.id)" if nearest_only else ""
+    order = (
+        "ORDER BY station.id, ST_Distance(station.geom::geography, obj.geom::geography), obj.id"
+        if nearest_only
+        else ""
+    )
+    sql = f"""
+        WITH near AS (
+            SELECT {distinct} station.id AS station_id, obj.id AS object_id
+            FROM {objects} station
+            JOIN {objects} obj
+              ON obj.source_id = %(source)s
+             -- A circle of radius metres drawn in Lambert-93, tested against
+             -- the WGS84 geometries as they are: uses the GiST index on geom,
+             -- and is ~10x faster than ST_DWithin on geography for long tracks.
+             AND ST_Intersects(
+                 obj.geom,
+                 ST_Transform(
+                     ST_Buffer(ST_Transform(station.geom, 2154), %(radius)s, 'quad_segs=32'),
+                     4326
+                 )
+             )
+            WHERE station.id = ANY(%(stations)s)
+            {order}
+        )
+        SELECT near.station_id, COALESCE(SUM(measure.count), 0)
+        FROM near
+        LEFT JOIN {measures} measure ON measure.counting_object_id = near.object_id
+        GROUP BY near.station_id
+    """
+    params = {
+        "source": source_id,
+        "stations": list(station_ids),
+        "radius": radius,
+    }
+    with connection.cursor() as cursor:
+        cursor.execute(sql, params)
+        counts = dict(cursor.fetchall())
+    if nearest_only:
+        return counts
+    return {station: counts.get(station, 0) for station in station_ids}
+
+
+def _standardize(values):
+    """z-scores with the sample standard deviation (R's ``scale``); 0 when undefined."""
+    if len(values) < 2:
+        return [0.0] * len(values)
+    mean, sd = fmean(values), stdev(values)
+    if sd == 0:
+        return [0.0] * len(values)
+    return [(value - mean) / sd for value in values]
+
+
+def _winsorize_and_rescale(scores):
+    """Cap ``{key: score}`` at the 98th percentile, then rescale it to 0-100."""
+    if not scores:
+        return {}
+    values = list(scores.values())
+    if len(values) > 1:
+        # method="inclusive" matches R's default quantile (type 7).
+        cap = quantiles(values, n=100, method="inclusive")[round(BTA_WINSORIZE_QUANTILE * 100) - 1]
+        values = [min(value, cap) for value in values]
+    low, high = min(values), max(values)
+    if high == low:
+        return {key: 0.0 for key in scores}
+    return {key: 100 * (value - low) / (high - low) for key, value in zip(scores, values)}
 
 
 def _to_lambert93(geom):
@@ -113,26 +253,155 @@ class BasicFrequentationScore(Score):
 
 
 class CazalisFrequentationScore(Score):
-    """Counts weighted per source: sum of counts(source) * source_weights[source]."""
+    """Standardised frequentation of the BiodivTourAlps analysis (V. Cazalis).
+
+    Port of ``BTA_FreqRaster`` (data/BTA-analyse-frequentation): each source's
+    counts per cell are standardised (z-scores over the cells of the queryset,
+    0 where a source has no data), summed with ``source_weights``, capped at the
+    98th percentile and rescaled to 0-100.
+    """
 
     name = "cazalis"
 
     @classmethod
+    def cached_source_weights(cls):
+        """``calculate_source_weights``, cached (see ``cached_estimate``)."""
+        return cls.cached_estimate()["weights"]
+
+    @classmethod
+    def cached_estimate(cls):
+        """``estimate_source_weights``, cached until measures or sources change.
+
+        The calculation takes seconds on real data (the Outdoorvision tracks
+        around the counters), too long to run on every API request.
+        """
+        measures = CountingMeasure.objects.aggregate(last=Max("id"), total=Count("id"))
+        sources = DataSource.objects.aggregate(last=Max("id"), total=Count("id"))
+        key = "cazalis-weights:{}:{}:{}:{}".format(
+            measures["last"], measures["total"], sources["last"], sources["total"]
+        )
+        estimate = cache.get(key)
+        if estimate is None:
+            estimate = cls.estimate_source_weights()
+            cache.set(key, estimate, timeout=None)
+        return estimate
+
+    @classmethod
+    def calculate_source_weights(cls):
+        """``{source id: weight}``, see ``estimate_source_weights``."""
+        return cls.estimate_source_weights()["weights"]
+
+    @classmethod
+    def estimate_source_weights(cls):
+        """Estimate BTA weights from correlations with the eco-counters.
+
+        Counters of ``BTA_EXCLUDED_COUNTERS`` are left out.
+
+        Returns ``{"weights": {source id: weight}, "counters": n, "correlations":
+        {source id: {"r": Pearson's r or None, "counters": n}}}``: ``counters``
+        is the number of eco-counters with enough data, and per source the
+        number of them matched to it (all of them, except for a nearest-only
+        source such as Strava). ``correlations`` holds the weighted sources only.
+
+        Port of ``BTA_PrepareCorrelation`` + ``BTA_PoidsRaster``: one point per
+        eco-counter. Its reference value is its mean daily count over the
+        summer half-months (June-September, from 2021) that have more than 10
+        days of data. Each weighted source's value is its total count, over
+        all periods, near the counter (see ``BTA_SOURCE_MATCHING``).
+
+        Simplification: the R code keeps, around each counter, only the paths
+        connected to its Strava edge (a 100 m corridor); here every object
+        within the radius counts.
+        """
+        source_rows = list(DataSource.objects.order_by("id").values_list("id", "code"))
+        source_ids = [source_id for source_id, _ in source_rows]
+        reference_id = next(
+            (source_id for source_id, code in source_rows if code == BTA_REFERENCE_SOURCE),
+            None,
+        )
+        candidates = {
+            source_id: BTA_SOURCE_MATCHING[code]
+            for source_id, code in source_rows
+            if code in BTA_SOURCE_MATCHING
+        }
+        correlations = {}
+
+        def result(counters=0):
+            return {
+                "weights": cazalis_weights_from_correlations(
+                    {source_id: c["r"] for source_id, c in correlations.items()}, source_ids
+                ),
+                "counters": counters,
+                "correlations": correlations,
+            }
+
+        if reference_id is None or not candidates:
+            return result()
+
+        half_months = (
+            # Not measures_queryset: its one row per (measure, cell) would count
+            # twice a counter lying on the edge of two cells.
+            CountingMeasure.objects.filter(
+                counting_object__source_id=reference_id,
+                start_datetime__gte=_start_of_day(date(BTA_FIRST_YEAR, 1, 1)),
+            )
+            .exclude(counting_object__external_id__in=BTA_EXCLUDED_COUNTERS)
+            .annotate(
+                year=ExtractYear("start_datetime"),
+                month=ExtractMonth("start_datetime"),
+                half_month=Case(
+                    When(start_datetime__day__lte=15, then=Value(1)), default=Value(2)
+                ),
+            )
+            .filter(month__in=BTA_SUMMER_MONTHS)
+            .values("counting_object_id", "year", "month", "half_month")
+            .annotate(
+                total=Sum("count"),
+                days=Count(TruncDate("start_datetime"), distinct=True),
+            )
+            .filter(days__gt=BTA_MIN_DAYS_PER_HALF_MONTH)
+        )
+        daily_means = defaultdict(list)
+        for row in half_months:
+            daily_means[row["counting_object_id"]].append(row["total"] / row["days"])
+        if not daily_means:
+            return result()
+        reference = {station: fmean(values) for station, values in sorted(daily_means.items())}
+
+        for source_id, (radius, nearest_only) in sorted(candidates.items()):
+            near = _counts_near(reference, source_id, radius, nearest_only)
+            matched = [station for station in reference if station in near]
+            correlations[source_id] = {
+                "r": _pearson_correlation(
+                    [reference[station] for station in matched],
+                    [near[station] for station in matched],
+                ),
+                "counters": len(matched),
+            }
+
+        return result(counters=len(reference))
+
+    @classmethod
     def compute_from(cls, queryset, source_weights=None, **params):
         if source_weights is None:
-            raise ValueError("source_weights must map each source ID to its weight")
+            source_weights = cls.cached_source_weights()
 
-        rows = queryset.values("id_area", "id_source").annotate(total=Sum("count"))
-        score_grid = {}
-        for row in rows:
-            source_id = row["id_source"]
-            if source_id not in source_weights:
-                raise ValueError(f"Missing weight for source ID {source_id}")
-            area_id = row["id_area"]
-            score_grid[area_id] = (
-                score_grid.get(area_id, 0) + row["total"] * source_weights[source_id]
-            )
-        return score_grid
+        counts = defaultdict(dict)
+        for row in queryset.values("id_area", "id_source").annotate(total=Sum("count")):
+            if row["id_source"] not in source_weights:
+                raise ValueError(f"Missing weight for source ID {row['id_source']}")
+            counts[row["id_source"]][row["id_area"]] = row["total"]
+
+        area_ids = sorted({id_area for by_area in counts.values() for id_area in by_area})
+        raw_scores = dict.fromkeys(area_ids, 0.0)
+        for source_id, by_area in counts.items():
+            weight = source_weights[source_id]
+            if not weight:
+                continue
+            z_scores = _standardize([by_area.get(id_area, 0) for id_area in area_ids])
+            for id_area, z_score in zip(area_ids, z_scores):
+                raw_scores[id_area] += weight * z_score
+        return _winsorize_and_rescale(raw_scores)
 
 
 SCORES = {score.name: score for score in (BasicFrequentationScore, CazalisFrequentationScore)}
