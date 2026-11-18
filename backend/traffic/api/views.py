@@ -1,16 +1,14 @@
-from commons.api.geo import GeoViewSet, ReadOnlyViewSet
-import json
+from functools import cached_property
 
-from django.db.models import Sum
-from django_filters.rest_framework import DjangoFilterBackend
-from drf_spectacular.types import OpenApiTypes
-from drf_spectacular.utils import extend_schema
+from django.db.models import OuterRef, Subquery, Sum
+from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework import serializers, viewsets
-from rest_framework.decorators import action
-from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
-from rest_framework.views import APIView
 from rest_framework_gis.pagination import GeoJsonPagination
+
+from commons.api.geo import GeoViewSet, ReadOnlyViewSet
+from ref_geo.models import LArea
+from workshop2026.processing.score import SCORES, counts_queryset
 
 from ..models import (
     CountingMeasure,
@@ -20,16 +18,14 @@ from ..models import (
 )
 from .filters import CountingMeasureFilter, CountingObjectFilter
 from .serializers import (
+    AreaCountsSerializer,
+    AreasQuerySerializer,
     CountingMeasureSerializer,
     CountingObjectGeoSerializer,
     CountingObjectSerializer,
     CountingObjectTypeSerializer,
-    GeometrySearchSerializer,
-    AreasQuerySerializer,
     UnitSerializer,
 )
-from ref_geo.models import LArea
-from workshop2026.processing.score import SCORES, counts_queryset
 
 
 class UnitViewSet(ReadOnlyViewSet):
@@ -70,65 +66,93 @@ class CountingMeasureViewSet(ReadOnlyViewSet):
     serializer_class = CountingMeasureSerializer
     filterset_class = CountingMeasureFilter
     ordering_fields = ("id", "start_datetime", "end_datetime", "count")
-    pagination_class = PageNumberPagination
-    filter_backends = [DjangoFilterBackend]
-    filterset_fields = ["counting_object"]
 
 
-class AreasView(APIView):
-    """Counts and scores per 1 km grid cell, as a GeoJSON FeatureCollection.
+@extend_schema_view(
+    list=extend_schema(parameters=[AreasQuerySerializer]),
+    retrieve=extend_schema(parameters=[AreasQuerySerializer]),
+)
+class AreasViewSet(viewsets.ReadOnlyModelViewSet):
+    """Counts and scores per 1 km grid cell (ref_geo "M1"), as GeoJSON.
 
-    One feature per cell that has measures matching the filters, with the
-    properties ``counts``, ``count_segment``, ``count_presence`` and ``score``
-    (``{score name: value}`` for the requested ``scores``). Geometry in WGS84.
+    Only the cells with measures matching the filters (source, year, month,
+    bbox). Properties: ``counts``, ``count_segment``, ``count_presence`` and
+    ``score`` (``{score name: value}`` for the requested ``scores``).
+    Geometry in WGS84. Scores are computed for the cells of the page only.
     """
 
-    @extend_schema(
-        parameters=[AreasQuerySerializer], responses={200: OpenApiTypes.OBJECT}
-    )
-    def get(self, request):
-        params = AreasQuerySerializer(data=request.query_params)
-        params.is_valid(raise_exception=True)
-        params = params.validated_data
+    serializer_class = AreaCountsSerializer
+    lookup_field = "id_area"
+    pagination_class = GeoJsonPagination
 
-        queryset = counts_queryset(
-            geoms=params.get("bbox"),
-            sources=params.get("source"),
-            year=params.get("year"),
-            month=params.get("month"),
+    @cached_property
+    def params(self):
+        serializer = AreasQuerySerializer(data=self.request.query_params)
+        serializer.is_valid(raise_exception=True)
+        return serializer.validated_data
+
+    @cached_property
+    def counts(self):
+        """Rows of the materialized view matching source, year and month."""
+        return counts_queryset(
+            sources=self.params.get("source"),
+            year=self.params.get("year"),
+            month=self.params.get("month"),
         )
-        totals = queryset.values("id_area").annotate(
-            counts=Sum("counts"),
-            count_segment=Sum("count_segment"),
-            count_presence=Sum("count_presence"),
+
+    def get_queryset(self):
+        if getattr(self, "swagger_fake_view", False):  # OpenAPI schema generation
+            return LArea.objects.none()
+        queryset = LArea.objects.filter(
+            type__type_code="M1", id_area__in=self.counts.values("id_area")
         )
+        if "bbox" in self.params:
+            queryset = queryset.filter(
+                geom__intersects=self.params["bbox"].transform(2154, clone=True)
+            )
+
+        def total(column):
+            return Subquery(
+                self.counts.filter(id_area=OuterRef("id_area"))
+                .values("id_area")
+                .annotate(total=Sum(column))
+                .values("total")
+            )
+
+        return (
+            queryset.only("id_area", "geom_4326")
+            .annotate(
+                counts=total("counts"),
+                count_segment=total("count_segment"),
+                count_presence=total("count_presence"),
+            )
+            .order_by("id_area")
+        )
+
+    def compute_scores(self, area_ids):
+        """``{score name: {id_area: value}}`` for the requested scores."""
+        rows = self.counts.filter(id_area__in=area_ids)
         try:
-            scores = {
+            return {
                 name: SCORES[name].compute_from(
-                    queryset, source_weights=params.get("source_weights")
+                    rows, source_weights=self.params.get("source_weights")
                 )
-                for name in sorted(params.get("scores", ()))
+                for name in sorted(self.params.get("scores", ()))
             }
         except ValueError as error:
             raise serializers.ValidationError({"source_weights": [str(error)]})
 
-        totals = {row.pop("id_area"): row for row in totals}
-        areas = LArea.objects.filter(id_area__in=totals).only("id_area", "geom_4326")
-        features = [
-            {
-                "type": "Feature",
-                "id": area.id_area,
-                "geometry": (
-                    json.loads(area.geom_4326.geojson) if area.geom_4326 else None
-                ),
-                "properties": {
-                    **totals[area.id_area],
-                    "score": {
-                        name: values.get(area.id_area, 0)
-                        for name, values in scores.items()
-                    },
-                },
-            }
-            for area in areas.order_by("id_area")
-        ]
-        return Response({"type": "FeatureCollection", "features": features})
+    def list(self, request, *args, **kwargs):
+        page = self.paginate_queryset(self.filter_queryset(self.get_queryset()))
+        scores = self.compute_scores([area.id_area for area in page])
+        serializer = self.get_serializer(page, many=True, context={
+            **self.get_serializer_context(), "scores": scores,
+        })
+        return self.get_paginated_response(serializer.data)
+
+    def retrieve(self, request, *args, **kwargs):
+        area = self.get_object()
+        serializer = self.get_serializer(area, context={
+            **self.get_serializer_context(), "scores": self.compute_scores([area.id_area]),
+        })
+        return Response(serializer.data)
