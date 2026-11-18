@@ -4,6 +4,74 @@
  */
 
 export interface paths {
+    "/api/biodiversity/list_taxa": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Protected or threatened taxa, nested within each grid area. */
+        get: operations["api_biodiversity_list_taxa_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/biodiversity/list_taxa/{id_area}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Protected or threatened taxa, nested within each grid area. */
+        get: operations["api_biodiversity_list_taxa_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/biodiversity/synthetic_data": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Protected and threatened taxon counts per configured grid area. */
+        get: operations["api_biodiversity_synthetic_data_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/biodiversity/synthetic_data/{id_area}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Protected and threatened taxon counts per configured grid area. */
+        get: operations["api_biodiversity_synthetic_data_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/commons/data-imports": {
         parameters: {
             query?: never;
@@ -11,7 +79,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["commons_data_imports_list"];
+        get: operations["api_commons_data_imports_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -27,7 +95,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["commons_data_imports_retrieve"];
+        get: operations["api_commons_data_imports_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -43,7 +111,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["commons_data_sources_list"];
+        get: operations["api_commons_data_sources_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -59,7 +127,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["commons_data_sources_retrieve"];
+        get: operations["api_commons_data_sources_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -75,7 +143,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["commons_external_layers_list"];
+        get: operations["api_commons_external_layers_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -91,7 +159,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["commons_external_layers_retrieve"];
+        get: operations["api_commons_external_layers_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -107,7 +175,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["commons_practices_list"];
+        get: operations["api_commons_practices_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -123,7 +191,119 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["commons_practices_retrieve"];
+        get: operations["api_commons_practices_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/outdoor/offers/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description API endpoint for listing and retrieving outdoor offers.
+         *
+         *     Supports both JSON and GeoJSON output formats via ?format=geojson
+         *     Spatial filters: area (filter by l_area code)
+         *
+         *     Example requests:
+         *     - GET /api/offers/ -> JSON format
+         *     - GET /api/offers/?format=geojson -> GeoJSON format
+         *     - GET /api/offers/?area=26 -> Filter by area Drôme (JSON)
+         *     - GET /api/offers/?area=26&format=geojson -> Filter by area code (GeoJSON)
+         */
+        get: operations["api_outdoor_offers_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/outdoor/offers/{id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description API endpoint for listing and retrieving outdoor offers.
+         *
+         *     Supports both JSON and GeoJSON output formats via ?format=geojson
+         *     Spatial filters: area (filter by l_area code)
+         *
+         *     Example requests:
+         *     - GET /api/offers/ -> JSON format
+         *     - GET /api/offers/?format=geojson -> GeoJSON format
+         *     - GET /api/offers/?area=26 -> Filter by area Drôme (JSON)
+         *     - GET /api/offers/?area=26&format=geojson -> Filter by area code (GeoJSON)
+         */
+        get: operations["api_outdoor_offers_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/outdoor/offers/area/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description API endpoint for listing areas with optional offers count.
+         *
+         *     When type_code parameter is provided, areas are filtered by type and include offers count.
+         *     When practice_count=true parameter is provided, also includes offers count by practice type.
+         *
+         *     Example requests:
+         *     - GET /api/areas/ -> List all areas
+         *     - GET /api/areas/?type_code=COM -> List areas of type COM with offers count
+         *     - GET /api/areas/?type_code=COM&practice_count=true -> With practice breakdown
+         *     - GET /api/areas/?type_code=COM&format=geojson -> Same in GeoJSON format
+         */
+        get: operations["api_outdoor_offers_area_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/outdoor/offers/area/{id_area}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description API endpoint for listing areas with optional offers count.
+         *
+         *     When type_code parameter is provided, areas are filtered by type and include offers count.
+         *     When practice_count=true parameter is provided, also includes offers count by practice type.
+         *
+         *     Example requests:
+         *     - GET /api/areas/ -> List all areas
+         *     - GET /api/areas/?type_code=COM -> List areas of type COM with offers count
+         *     - GET /api/areas/?type_code=COM&practice_count=true -> With practice breakdown
+         *     - GET /api/areas/?type_code=COM&format=geojson -> Same in GeoJSON format
+         */
+        get: operations["api_outdoor_offers_area_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -139,7 +319,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["ref_geo_area_types_list"];
+        get: operations["api_ref_geo_area_types_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -155,7 +335,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["ref_geo_area_types_retrieve"];
+        get: operations["api_ref_geo_area_types_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -172,7 +352,7 @@ export interface paths {
             cookie?: never;
         };
         /** @description Areas (communes, grids, zonings...). */
-        get: operations["ref_geo_areas_list"];
+        get: operations["api_ref_geo_areas_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -189,7 +369,7 @@ export interface paths {
             cookie?: never;
         };
         /** @description Areas (communes, grids, zonings...). */
-        get: operations["ref_geo_areas_retrieve"];
+        get: operations["api_ref_geo_areas_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -205,7 +385,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["ref_geo_grids_list"];
+        get: operations["api_ref_geo_grids_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -221,7 +401,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["ref_geo_grids_retrieve"];
+        get: operations["api_ref_geo_grids_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -237,7 +417,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["ref_geo_linear_groups_list"];
+        get: operations["api_ref_geo_linear_groups_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -253,7 +433,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["ref_geo_linear_groups_retrieve"];
+        get: operations["api_ref_geo_linear_groups_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -269,7 +449,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["ref_geo_linear_types_list"];
+        get: operations["api_ref_geo_linear_types_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -285,7 +465,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["ref_geo_linear_types_retrieve"];
+        get: operations["api_ref_geo_linear_types_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -302,7 +482,7 @@ export interface paths {
             cookie?: never;
         };
         /** @description Plain JSON by default, GeoJSON FeatureCollection with ``?format=geojson``. */
-        get: operations["ref_geo_linears_list"];
+        get: operations["api_ref_geo_linears_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -319,7 +499,7 @@ export interface paths {
             cookie?: never;
         };
         /** @description Plain JSON by default, GeoJSON FeatureCollection with ``?format=geojson``. */
-        get: operations["ref_geo_linears_retrieve"];
+        get: operations["api_ref_geo_linears_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -335,7 +515,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["ref_geo_municipalities_list"];
+        get: operations["api_ref_geo_municipalities_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -351,7 +531,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["ref_geo_municipalities_retrieve"];
+        get: operations["api_ref_geo_municipalities_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -367,7 +547,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["ref_geo_point_types_list"];
+        get: operations["api_ref_geo_point_types_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -383,7 +563,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["ref_geo_point_types_retrieve"];
+        get: operations["api_ref_geo_point_types_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -400,7 +580,7 @@ export interface paths {
             cookie?: never;
         };
         /** @description Plain JSON by default, GeoJSON FeatureCollection with ``?format=geojson``. */
-        get: operations["ref_geo_points_list"];
+        get: operations["api_ref_geo_points_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -417,7 +597,7 @@ export interface paths {
             cookie?: never;
         };
         /** @description Plain JSON by default, GeoJSON FeatureCollection with ``?format=geojson``. */
-        get: operations["ref_geo_points_retrieve"];
+        get: operations["api_ref_geo_points_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -448,7 +628,7 @@ export interface paths {
          *     Lambert-93 geometry) and ``in_bbox`` (rest_framework_gis). Pagination:
          *     ``limit`` / ``offset``.
          */
-        get: operations["traffic_areas_list"];
+        get: operations["api_traffic_areas_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -479,7 +659,7 @@ export interface paths {
          *     Lambert-93 geometry) and ``in_bbox`` (rest_framework_gis). Pagination:
          *     ``limit`` / ``offset``.
          */
-        get: operations["traffic_areas_retrieve"];
+        get: operations["api_traffic_areas_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -495,7 +675,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["traffic_counting_measures_list"];
+        get: operations["api_traffic_counting_measures_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -511,7 +691,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["traffic_counting_measures_retrieve"];
+        get: operations["api_traffic_counting_measures_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -527,7 +707,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["traffic_counting_object_types_list"];
+        get: operations["api_traffic_counting_object_types_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -543,7 +723,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["traffic_counting_object_types_retrieve"];
+        get: operations["api_traffic_counting_object_types_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -560,7 +740,7 @@ export interface paths {
             cookie?: never;
         };
         /** @description Plain JSON by default, GeoJSON FeatureCollection with ``?format=geojson``. */
-        get: operations["traffic_counting_objects_list"];
+        get: operations["api_traffic_counting_objects_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -577,7 +757,7 @@ export interface paths {
             cookie?: never;
         };
         /** @description Plain JSON by default, GeoJSON FeatureCollection with ``?format=geojson``. */
-        get: operations["traffic_counting_objects_retrieve"];
+        get: operations["api_traffic_counting_objects_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -593,7 +773,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["traffic_units_list"];
+        get: operations["api_traffic_units_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -609,7 +789,39 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["traffic_units_retrieve"];
+        get: operations["api_traffic_units_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/traffic/score-map/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["traffic_score_map_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/traffic/sources/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["traffic_sources_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -648,6 +860,18 @@ export interface components {
         AreaCountsList: {
             type?: components["schemas"]["GisFeatureCollectionEnum"];
             features?: components["schemas"]["AreaCounts"][];
+        };
+        AreaTaxon: {
+            cd_ref: number;
+            lb_nom: string | null;
+            nom_vern: string | null;
+            protection: components["schemas"]["TaxonConservationStatus"][];
+            threatened: components["schemas"]["TaxonConservationStatus"][];
+            count: number;
+            /** Format: date */
+            date_min: string;
+            /** Format: date */
+            date_max: string;
         };
         BibAreasType: {
             readonly id_type: number;
@@ -846,6 +1070,78 @@ export interface components {
             /** Format: date-time */
             meta_update_date?: string | null;
             area: number;
+        };
+        Offer: {
+            readonly id: number;
+            /** Format: uuid */
+            readonly uuid: string | null;
+            /** @default  */
+            external_id: string;
+            practice: number;
+            readonly practice_label: string;
+            source: number;
+            readonly source_label: string;
+            /** Format: date-time */
+            readonly date_create: string;
+            /** Format: date-time */
+            readonly date_update: string;
+            geom: {
+                /** @enum {string} */
+                type?: "Point";
+                /**
+                 * @example [
+                 *       12.9721,
+                 *       77.5933
+                 *     ]
+                 */
+                coordinates?: number[];
+            } | {
+                /** @enum {string} */
+                type?: "LineString";
+                /**
+                 * @example [
+                 *       [
+                 *         22.4707,
+                 *         70.0577
+                 *       ],
+                 *       [
+                 *         12.9721,
+                 *         77.5933
+                 *       ]
+                 *     ]
+                 */
+                coordinates?: number[][];
+            } | {
+                /** @enum {string} */
+                type?: "Polygon";
+                /**
+                 * @example [
+                 *       [
+                 *         [
+                 *           0,
+                 *           0
+                 *         ],
+                 *         [
+                 *           0,
+                 *           50
+                 *         ],
+                 *         [
+                 *           50,
+                 *           50
+                 *         ],
+                 *         [
+                 *           50,
+                 *           0
+                 *         ],
+                 *         [
+                 *           0,
+                 *           0
+                 *         ]
+                 *       ]
+                 *     ]
+                 */
+                coordinates?: number[][][];
+            };
         };
         PaginatedAreaCountsList: {
             /** @example 123 */
@@ -1072,6 +1368,21 @@ export interface components {
             previous?: string | null;
             results: components["schemas"]["LiMunicipality"][];
         };
+        PaginatedOfferList: {
+            /** @example 123 */
+            count: number;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?offset=400&limit=100
+             */
+            next?: string | null;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?offset=200&limit=100
+             */
+            previous?: string | null;
+            results: components["schemas"]["Offer"][];
+        };
         PaginatedPracticeList: {
             /** @example 123 */
             count: number;
@@ -1102,6 +1413,36 @@ export interface components {
             previous?: string | null;
             results: components["schemas"]["TLinearGroup"][];
         };
+        PaginatedTaxonListAreaList: {
+            /** @example 123 */
+            count: number;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?offset=400&limit=100
+             */
+            next?: string | null;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?offset=200&limit=100
+             */
+            previous?: string | null;
+            results: components["schemas"]["TaxonListAreaList"];
+        };
+        PaginatedTaxonStatusAreaList: {
+            /** @example 123 */
+            count: number;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?offset=400&limit=100
+             */
+            next?: string | null;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?offset=200&limit=100
+             */
+            previous?: string | null;
+            results: components["schemas"]["TaxonStatusAreaList"];
+        };
         PaginatedUnitList: {
             /** @example 123 */
             count: number;
@@ -1128,6 +1469,53 @@ export interface components {
             name: string;
             code: string;
         };
+        TaxonConservationStatus: {
+            lb_type_statut: string | null;
+            code_statut: string | null;
+            label_statut: string | null;
+        };
+        /** @description GeoJSON area containing its nested protected or threatened taxa. */
+        TaxonListArea: {
+            type?: components["schemas"]["GisFeatureEnum"];
+            readonly id?: number;
+            geometry?: {
+                /** @enum {string} */
+                type?: "MultiPolygon";
+                coordinates?: number[][][][];
+            };
+            properties?: {
+                area_code?: string | null;
+                area_name?: string | null;
+                readonly type_code?: string;
+                readonly taxa?: components["schemas"]["AreaTaxon"][];
+            };
+        };
+        TaxonListAreaList: {
+            type?: components["schemas"]["GisFeatureCollectionEnum"];
+            features?: components["schemas"]["TaxonListArea"][];
+        };
+        /** @description GeoJSON representation of an area and its taxon status counters. */
+        TaxonStatusArea: {
+            type?: components["schemas"]["GisFeatureEnum"];
+            readonly id?: number;
+            geometry?: {
+                /** @enum {string} */
+                type?: "MultiPolygon";
+                coordinates?: number[][][][];
+            };
+            properties?: {
+                area_code?: string | null;
+                area_name?: string | null;
+                readonly type_code?: string;
+                readonly protected_taxa_count?: number;
+                readonly threatened_taxa_count?: number;
+                readonly protected_or_threatened_taxa_count?: number;
+            };
+        };
+        TaxonStatusAreaList: {
+            type?: components["schemas"]["GisFeatureCollectionEnum"];
+            features?: components["schemas"]["TaxonStatusArea"][];
+        };
         Unit: {
             readonly id: number;
             code: string;
@@ -1142,7 +1530,125 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    commons_data_imports_list: {
+    api_biodiversity_list_taxa_list: {
+        parameters: {
+            query?: {
+                area_code?: string;
+                bbox?: string;
+                contains?: string;
+                enable?: boolean;
+                /** @description Specify a bounding box as filter: in_bbox=min_lon,min_lat,max_lon,max_lat */
+                in_bbox?: number[];
+                intersects?: string;
+                /** @description Number of results to return per page. */
+                limit?: number;
+                name?: string;
+                /** @description The initial index from which to return the results. */
+                offset?: number;
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                point?: string;
+                type_code?: string;
+                within?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedTaxonListAreaList"];
+                };
+            };
+        };
+    };
+    api_biodiversity_list_taxa_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description A unique integer value identifying this l area. */
+                id_area: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaxonListArea"];
+                };
+            };
+        };
+    };
+    api_biodiversity_synthetic_data_list: {
+        parameters: {
+            query?: {
+                area_code?: string;
+                bbox?: string;
+                contains?: string;
+                enable?: boolean;
+                /** @description Specify a bounding box as filter: in_bbox=min_lon,min_lat,max_lon,max_lat */
+                in_bbox?: number[];
+                intersects?: string;
+                /** @description Number of results to return per page. */
+                limit?: number;
+                name?: string;
+                /** @description The initial index from which to return the results. */
+                offset?: number;
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                point?: string;
+                type_code?: string;
+                within?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedTaxonStatusAreaList"];
+                };
+            };
+        };
+    };
+    api_biodiversity_synthetic_data_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description A unique integer value identifying this l area. */
+                id_area: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaxonStatusArea"];
+                };
+            };
+        };
+    };
+    api_commons_data_imports_list: {
         parameters: {
             query?: {
                 /** @description Number of results to return per page. */
@@ -1169,7 +1675,7 @@ export interface operations {
             };
         };
     };
-    commons_data_imports_retrieve: {
+    api_commons_data_imports_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -1191,7 +1697,7 @@ export interface operations {
             };
         };
     };
-    commons_data_sources_list: {
+    api_commons_data_sources_list: {
         parameters: {
             query?: {
                 code?: string;
@@ -1218,7 +1724,7 @@ export interface operations {
             };
         };
     };
-    commons_data_sources_retrieve: {
+    api_commons_data_sources_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -1240,7 +1746,7 @@ export interface operations {
             };
         };
     };
-    commons_external_layers_list: {
+    api_commons_external_layers_list: {
         parameters: {
             query?: {
                 /** @description Number of results to return per page. */
@@ -1266,7 +1772,7 @@ export interface operations {
             };
         };
     };
-    commons_external_layers_retrieve: {
+    api_commons_external_layers_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -1288,7 +1794,7 @@ export interface operations {
             };
         };
     };
-    commons_practices_list: {
+    api_commons_practices_list: {
         parameters: {
             query?: {
                 code?: string;
@@ -1318,7 +1824,7 @@ export interface operations {
             };
         };
     };
-    commons_practices_retrieve: {
+    api_commons_practices_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -1340,17 +1846,23 @@ export interface operations {
             };
         };
     };
-    ref_geo_area_types_list: {
+    api_outdoor_offers_list: {
         parameters: {
             query?: {
+                area?: string;
+                date_from?: string;
+                date_to?: string;
+                external_id?: string;
+                format?: "geojson" | "json";
                 /** @description Number of results to return per page. */
                 limit?: number;
                 /** @description The initial index from which to return the results. */
                 offset?: number;
                 /** @description Which field to use when ordering the results. */
                 ordering?: string;
-                ref_name?: string;
-                type_code?: string;
+                practice?: number;
+                source?: number;
+                uuid?: string;
             };
             header?: never;
             path?: never;
@@ -1363,18 +1875,21 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PaginatedBibAreasTypeList"];
+                    "application/json": components["schemas"]["PaginatedOfferList"];
+                    "application/geo+json": components["schemas"]["PaginatedOfferList"];
                 };
             };
         };
     };
-    ref_geo_area_types_retrieve: {
+    api_outdoor_offers_retrieve: {
         parameters: {
-            query?: never;
+            query?: {
+                format?: "geojson" | "json";
+            };
             header?: never;
             path: {
-                /** @description A unique integer value identifying this bib areas type. */
-                id_type: number;
+                /** @description A unique integer value identifying this offer. */
+                id: number;
             };
             cookie?: never;
         };
@@ -1385,12 +1900,13 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["BibAreasType"];
+                    "application/json": components["schemas"]["Offer"];
+                    "application/geo+json": components["schemas"]["Offer"];
                 };
             };
         };
     };
-    ref_geo_areas_list: {
+    api_outdoor_offers_area_list: {
         parameters: {
             query?: {
                 area_code?: string;
@@ -1427,7 +1943,7 @@ export interface operations {
             };
         };
     };
-    ref_geo_areas_retrieve: {
+    api_outdoor_offers_area_retrieve: {
         parameters: {
             query?: {
                 format?: "geojson" | "json";
@@ -1452,7 +1968,119 @@ export interface operations {
             };
         };
     };
-    ref_geo_grids_list: {
+    api_ref_geo_area_types_list: {
+        parameters: {
+            query?: {
+                /** @description Number of results to return per page. */
+                limit?: number;
+                /** @description The initial index from which to return the results. */
+                offset?: number;
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                ref_name?: string;
+                type_code?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedBibAreasTypeList"];
+                };
+            };
+        };
+    };
+    api_ref_geo_area_types_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description A unique integer value identifying this bib areas type. */
+                id_type: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BibAreasType"];
+                };
+            };
+        };
+    };
+    api_ref_geo_areas_list: {
+        parameters: {
+            query?: {
+                area_code?: string;
+                bbox?: string;
+                contains?: string;
+                enable?: boolean;
+                format?: "geojson" | "json";
+                intersects?: string;
+                /** @description Number of results to return per page. */
+                limit?: number;
+                name?: string;
+                /** @description The initial index from which to return the results. */
+                offset?: number;
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                point?: string;
+                type_code?: string;
+                within?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedLAreaList"];
+                    "application/geo+json": components["schemas"]["PaginatedLAreaList"];
+                };
+            };
+        };
+    };
+    api_ref_geo_areas_retrieve: {
+        parameters: {
+            query?: {
+                format?: "geojson" | "json";
+            };
+            header?: never;
+            path: {
+                /** @description A unique integer value identifying this l area. */
+                id_area: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LArea"];
+                    "application/geo+json": components["schemas"]["LArea"];
+                };
+            };
+        };
+    };
+    api_ref_geo_grids_list: {
         parameters: {
             query?: {
                 area?: number;
@@ -1479,7 +2107,7 @@ export interface operations {
             };
         };
     };
-    ref_geo_grids_retrieve: {
+    api_ref_geo_grids_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -1501,7 +2129,7 @@ export interface operations {
             };
         };
     };
-    ref_geo_linear_groups_list: {
+    api_ref_geo_linear_groups_list: {
         parameters: {
             query?: {
                 code?: string;
@@ -1528,7 +2156,7 @@ export interface operations {
             };
         };
     };
-    ref_geo_linear_groups_retrieve: {
+    api_ref_geo_linear_groups_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -1550,7 +2178,7 @@ export interface operations {
             };
         };
     };
-    ref_geo_linear_types_list: {
+    api_ref_geo_linear_types_list: {
         parameters: {
             query?: {
                 /** @description Number of results to return per page. */
@@ -1577,7 +2205,7 @@ export interface operations {
             };
         };
     };
-    ref_geo_linear_types_retrieve: {
+    api_ref_geo_linear_types_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -1599,7 +2227,7 @@ export interface operations {
             };
         };
     };
-    ref_geo_linears_list: {
+    api_ref_geo_linears_list: {
         parameters: {
             query?: {
                 bbox?: string;
@@ -1636,7 +2264,7 @@ export interface operations {
             };
         };
     };
-    ref_geo_linears_retrieve: {
+    api_ref_geo_linears_retrieve: {
         parameters: {
             query?: {
                 format?: "geojson" | "json";
@@ -1661,7 +2289,7 @@ export interface operations {
             };
         };
     };
-    ref_geo_municipalities_list: {
+    api_ref_geo_municipalities_list: {
         parameters: {
             query?: {
                 code_epci?: string;
@@ -1692,7 +2320,7 @@ export interface operations {
             };
         };
     };
-    ref_geo_municipalities_retrieve: {
+    api_ref_geo_municipalities_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -1714,7 +2342,7 @@ export interface operations {
             };
         };
     };
-    ref_geo_point_types_list: {
+    api_ref_geo_point_types_list: {
         parameters: {
             query?: {
                 /** @description Number of results to return per page. */
@@ -1741,7 +2369,7 @@ export interface operations {
             };
         };
     };
-    ref_geo_point_types_retrieve: {
+    api_ref_geo_point_types_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -1763,7 +2391,7 @@ export interface operations {
             };
         };
     };
-    ref_geo_points_list: {
+    api_ref_geo_points_list: {
         parameters: {
             query?: {
                 bbox?: string;
@@ -1800,7 +2428,7 @@ export interface operations {
             };
         };
     };
-    ref_geo_points_retrieve: {
+    api_ref_geo_points_retrieve: {
         parameters: {
             query?: {
                 format?: "geojson" | "json";
@@ -1825,7 +2453,7 @@ export interface operations {
             };
         };
     };
-    traffic_areas_list: {
+    api_traffic_areas_list: {
         parameters: {
             query?: {
                 area_code?: string;
@@ -1870,7 +2498,7 @@ export interface operations {
             };
         };
     };
-    traffic_areas_retrieve: {
+    api_traffic_areas_retrieve: {
         parameters: {
             query?: {
                 /** @description First day of the period (YYYY-MM-DD), included. */
@@ -1903,7 +2531,7 @@ export interface operations {
             };
         };
     };
-    traffic_counting_measures_list: {
+    api_traffic_counting_measures_list: {
         parameters: {
             query?: {
                 counting_object?: number;
@@ -1932,7 +2560,7 @@ export interface operations {
             };
         };
     };
-    traffic_counting_measures_retrieve: {
+    api_traffic_counting_measures_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -1954,7 +2582,7 @@ export interface operations {
             };
         };
     };
-    traffic_counting_object_types_list: {
+    api_traffic_counting_object_types_list: {
         parameters: {
             query?: {
                 code?: string;
@@ -1981,7 +2609,7 @@ export interface operations {
             };
         };
     };
-    traffic_counting_object_types_retrieve: {
+    api_traffic_counting_object_types_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -2003,7 +2631,7 @@ export interface operations {
             };
         };
     };
-    traffic_counting_objects_list: {
+    api_traffic_counting_objects_list: {
         parameters: {
             query?: {
                 bbox?: string;
@@ -2039,7 +2667,7 @@ export interface operations {
             };
         };
     };
-    traffic_counting_objects_retrieve: {
+    api_traffic_counting_objects_retrieve: {
         parameters: {
             query?: {
                 format?: "geojson" | "json";
@@ -2064,7 +2692,7 @@ export interface operations {
             };
         };
     };
-    traffic_units_list: {
+    api_traffic_units_list: {
         parameters: {
             query?: {
                 code?: string;
@@ -2091,7 +2719,7 @@ export interface operations {
             };
         };
     };
-    traffic_units_retrieve: {
+    api_traffic_units_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -2110,6 +2738,42 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["Unit"];
                 };
+            };
+        };
+    };
+    traffic_score_map_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    traffic_sources_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

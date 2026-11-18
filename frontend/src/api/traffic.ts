@@ -4,7 +4,14 @@ import type { Feature, FeatureCollection, Geometry, MultiPolygon } from 'geojson
 import { i18n } from '@/i18n'
 import { mapObjectKey, type LayerId, type MapObject } from '@/types/mapObject'
 
-import { apiFetch, fetchAllFeatures, withQuery, type LimitOffset, type Paginated } from './client'
+import {
+  apiFetch,
+  fetchAllFeatures,
+  withQuery,
+  type GeoJsonPage,
+  type LimitOffset,
+  type Paginated,
+} from './client'
 import type { components } from './schema'
 
 type Schemas = components['schemas']
@@ -19,11 +26,7 @@ export type CountingObjectProperties = Omit<CountingObject, 'id'>
 export type CountingObjectFeature = Feature<Geometry, CountingObjectProperties>
 export type CountingObjectCollection = FeatureCollection<Geometry, CountingObjectProperties>
 
-export type CountingObjectPage = CountingObjectCollection & {
-  count: number
-  next: string | null
-  previous: string | null
-}
+export type CountingObjectPage = GeoJsonPage<Geometry, CountingObjectProperties>
 export type CountingObjectFilters = {
   typeCode?: string
   sourceCode?: string
@@ -113,11 +116,7 @@ export function getCountingObjectTypes({ limit, offset }: LimitOffset = {}) {
 export type TrafficAreaScore = 'basic' | 'cazalis'
 export type TrafficAreaProperties = Required<NonNullable<Schemas['AreaCounts']['properties']>>
 export type TrafficAreaFeature = Feature<MultiPolygon, TrafficAreaProperties>
-export type TrafficAreaPage = FeatureCollection<MultiPolygon, TrafficAreaProperties> & {
-  count: number
-  next: string | null
-  previous: string | null
-}
+export type TrafficAreaPage = GeoJsonPage<MultiPolygon, TrafficAreaProperties>
 
 export type TrafficAreaFilters = {
   sources?: number[]
@@ -178,7 +177,7 @@ export async function getCountingObjectsForMap(filters: CountingObjectFilters = 
 export const TRAFFIC_AREA_LAYER: LayerId = 'traffic/area'
 
 /** Score utilisé pour colorer les mailles. */
-const MAP_AREA_SCORE: TrafficAreaScore = 'basic'
+const MAP_AREA_SCORE: TrafficAreaScore = 'cazalis'
 
 export function trafficAreaToMapObject(feature: TrafficAreaFeature): MapObject {
   if (feature.id === undefined) throw new Error('Maille sans identifiant dans la réponse API')
@@ -188,13 +187,16 @@ export function trafficAreaToMapObject(feature: TrafficAreaFeature): MapObject {
     id: feature.id,
     domain: 'traffic',
     layer: TRAFFIC_AREA_LAYER,
-    label: i18n.global.t('layers.trafficArea', { id: feature.id, score: score ?? '–' }),
+    label: i18n.global.t('layers.trafficArea', {
+      id: feature.id,
+      score: score === undefined ? '–' : Math.round(score),
+    }),
     geometry: feature.geometry,
     value: score,
   }
 }
 
-/** Toutes les mailles, page par page. Les scores sont calculés par page : `basic`, une somme, n'en dépend pas. */
+/** Toutes les mailles, page par page. Les scores portent sur toutes les mailles, pas sur la page ; sans `sourceWeights`, le backend estime les poids de `cazalis`. */
 export async function getTrafficAreasForMap(filters: TrafficAreaFilters = {}) {
   const url = trafficAreasUrl({ ...filters, scores: [MAP_AREA_SCORE] }, {})
   return (await fetchAllFeatures<TrafficAreaFeature>(url)).map(trafficAreaToMapObject)

@@ -25,6 +25,8 @@ describe('layers store', () => {
     const load = vi.fn().mockResolvedValue([point])
 
     layers.addDefinitions([definition('traffic/counter', load)])
+    expect(load).not.toHaveBeenCalled()
+    layers.setVisible('traffic/counter', true)
     await vi.waitFor(() => expect(layers.objectsByLayer['traffic/counter']).toEqual([point]))
     layers.setVisible('traffic/counter', false)
     layers.setVisible('traffic/counter', true)
@@ -44,7 +46,7 @@ describe('layers store', () => {
   it('shows the layers of the selected concept only', () => {
     const layers = useLayersStore()
     layers.addDefinitions([definition('traffic/counter'), definition('biodiversity/taxon')])
-    expect(layers.visible).toEqual({ 'traffic/counter': true, 'biodiversity/taxon': true })
+    expect(layers.visible).toEqual({ 'traffic/counter': false, 'biodiversity/taxon': false })
 
     layers.setConcept('traffic')
     expect(layers.visible).toEqual({ 'traffic/counter': true, 'biodiversity/taxon': false })
