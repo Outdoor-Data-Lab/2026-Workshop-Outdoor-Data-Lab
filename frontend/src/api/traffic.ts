@@ -216,10 +216,7 @@ export function trafficAreaToMapObject(feature: TrafficAreaFeature): MapObject {
     id: feature.id,
     domain: 'traffic',
     layer: TRAFFIC_AREA_LAYER,
-    label: i18n.global.t('layers.trafficArea', {
-      id: feature.id,
-      score: score === undefined ? '–' : Math.round(score),
-    }),
+    label: `${i18n.global.t('layers.cellName')} ${feature.id}`,
     geometry: feature.geometry,
     value: score,
   }

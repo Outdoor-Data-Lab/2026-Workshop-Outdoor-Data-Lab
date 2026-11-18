@@ -19,7 +19,10 @@ function text(value: unknown): string {
   <section class="detail">
     <h2>{{ $t('detail.title') }}</h2>
     <template v-if="layers.selected">
-      <p>{{ layers.selected.label }}</p>
+      <p v-if="layers.selected.layer === TRAFFIC_AREA_LAYER">
+        <strong>{{ $t('layers.cellName') }}</strong> {{ layers.selected.id }}
+      </p>
+      <p v-else>{{ layers.selected.label }}</p>
       <CellDetail
         v-if="layers.selected.layer === TRAFFIC_AREA_LAYER"
         :key="layers.selected.key"

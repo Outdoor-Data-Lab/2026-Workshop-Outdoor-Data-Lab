@@ -22,7 +22,7 @@ export default {
     failed: '(échec)',
     trafficAreas: 'Fréquentation par maille',
     fromZoom: 'Visible à partir du zoom {zoom} : zoomez sur la carte.',
-    trafficArea: 'Maille {id}',
+    cellName: 'Maille',
     outdoorOffers: 'Offres outdoor',
     biodivAreas: 'Taxons protégés ou menacés par maille',
     biodivArea: 'Maille {name} : {count} taxons protégés ou menacés',

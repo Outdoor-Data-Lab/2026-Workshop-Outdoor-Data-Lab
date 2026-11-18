@@ -22,7 +22,7 @@ export default {
     failed: '(failed)',
     trafficAreas: 'Traffic per grid cell',
     fromZoom: 'Visible from zoom {zoom}: zoom in on the map.',
-    trafficArea: 'Cell {id}: score {score}',
+    cellName: 'Cell',
     outdoorOffers: 'Outdoor offers',
     biodivAreas: 'Protected or threatened taxa per grid cell',
     biodivArea: 'Cell {name}: {count} protected or threatened taxa',

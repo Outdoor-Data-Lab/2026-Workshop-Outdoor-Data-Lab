@@ -38,6 +38,6 @@ describe('getTrafficAreasForMap', () => {
       [1, 12.4],
       [2, 30],
     ])
-    expect(objects[0]!.label).toBe('Cell 1: score 12')
+    expect(objects[0]!.label).toBe('Cell 1')
   })
 })
