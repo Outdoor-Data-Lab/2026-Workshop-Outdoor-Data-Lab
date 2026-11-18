@@ -46,9 +46,7 @@ DATABASES = {
 }
 
 # Comma-separated lists, set in production (see docker-compose-prod.yaml).
-ALLOWED_HOSTS = [
-    h for h in os.environ.get("DJANGO_ALLOWED_HOSTS", "").split(",") if h
-]
+ALLOWED_HOSTS = [h for h in os.environ.get("DJANGO_ALLOWED_HOSTS", "").split(",") if h]
 CSRF_TRUSTED_ORIGINS = [
     o for o in os.environ.get("DJANGO_CSRF_TRUSTED_ORIGINS", "").split(",") if o
 ]
@@ -205,3 +203,16 @@ CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", "redis://localhost:6379/
 TEST_RUNNER = "workshop2026.test_runner.TestRunner"
 
 DEFAULT_AREA_TYPE = os.environ.get("DEFAULT_AREA_TYPE", "M1")
+# ref_geo grids the counting objects are linked to (traffic.counting_object_areas)
+# and that the API accepts as ``area_type``. After changing it, run
+# ``manage.py sync_counting_object_areas``.
+AREA_TYPES = list(
+    dict.fromkeys(
+        [DEFAULT_AREA_TYPE]
+        + [
+            t.strip()
+            for t in os.environ.get("AREA_TYPES", "M1,M0.5").split(",")
+            if t.strip()
+        ]
+    )
+)

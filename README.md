@@ -112,3 +112,5 @@ Counts and scores per 1 km grid cell are computed on the fly from the measures. 
 ```sh
 docker compose exec web python backend/manage.py sync_counting_object_areas
 ```
+
+The grid is the ref_geo area type given by the `DEFAULT_AREA_TYPE` environment variable (default `M1`, 1 km; `M0.5` is the 500 m grid added by traffic migration 0005). After changing it, rerun the command above (or pass `--area-type M0.5` once) to rebuild `traffic.counting_object_areas` for the new grid.

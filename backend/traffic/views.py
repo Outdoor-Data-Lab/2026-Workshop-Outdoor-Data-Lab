@@ -2,6 +2,7 @@ import json
 import math
 
 from commons.models import DataSource
+from django.conf import settings
 from django.contrib.gis.geos import Polygon
 from ref_geo.models import LArea
 from rest_framework import status
@@ -49,7 +50,7 @@ class ScoreMapView(APIView):
 
         areas = list(
             LArea.objects.filter(
-                type__type_code="M1",
+                type__type_code=settings.DEFAULT_AREA_TYPE,
                 enable=True,
                 geom_4326__isnull=False,
                 geom_4326__intersects=viewport,

@@ -1,5 +1,7 @@
 from math import isfinite
 
+from django.conf import settings
+
 from rest_framework import serializers
 from rest_framework_gis.serializers import GeoFeatureModelSerializer
 
@@ -108,6 +110,11 @@ class AreasQuerySerializer(DynamicFieldsMixin, serializers.Serializer):
         choices=sorted(SCORES),
         required=False,
         help_text="Scores to compute (repeatable).",
+    )
+    area_type = serializers.ChoiceField(
+        choices=settings.AREA_TYPES,
+        required=False,
+        help_text=f"Grid (ref_geo type_code). Default: {settings.DEFAULT_AREA_TYPE}.",
     )
     source_weights = serializers.CharField(
         required=False,

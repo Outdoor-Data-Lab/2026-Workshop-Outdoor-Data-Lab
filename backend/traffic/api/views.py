@@ -1,5 +1,6 @@
 from functools import cached_property
 
+from django.conf import settings
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework import serializers, viewsets
@@ -74,7 +75,7 @@ class CountingMeasureViewSet(ReadOnlyViewSet):
     retrieve=extend_schema(parameters=[AreasQuerySerializer]),
 )
 class AreasViewSet(viewsets.ReadOnlyModelViewSet):
-    """Counts and scores per 1 km grid cell (ref_geo "M1"), as GeoJSON.
+    """Counts and scores per grid cell (ref_geo ``area_type``, "M1" 1 km by default), as GeoJSON.
 
     Only the cells with measures matching ``source`` and the period
     ``date_from`` / ``date_to`` (YYYY-MM-DD, both included, on the start of
@@ -104,6 +105,10 @@ class AreasViewSet(viewsets.ReadOnlyModelViewSet):
         serializer.is_valid(raise_exception=True)
         return serializer.validated_data
 
+    @property
+    def area_type(self):
+        return self.params.get("area_type") or settings.DEFAULT_AREA_TYPE
+
     @cached_property
     def measures(self):
         """Measures matching source and period, one row per (measure, cell)."""
@@ -111,6 +116,7 @@ class AreasViewSet(viewsets.ReadOnlyModelViewSet):
             sources=self.params.get("source"),
             date_from=self.params.get("date_from"),
             date_to=self.params.get("date_to"),
+            area_type=self.area_type,
         )
 
     def get_queryset(self):
@@ -118,7 +124,7 @@ class AreasViewSet(viewsets.ReadOnlyModelViewSet):
             return LArea.objects.none()
         return (
             LArea.objects.filter(
-                type__type_code="M1", id_area__in=self.measures.values("id_area")
+                type__type_code=self.area_type, id_area__in=self.measures.values("id_area")
             )
             .only("id_area", "geom_4326")
             .order_by("id_area")
