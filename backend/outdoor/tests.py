@@ -748,9 +748,11 @@ class OfferImportAdminTests(OfferImportTestCase):
         # No button name: import_loading.js disables the buttons on submit.
         response = self.confirm(preview)
         self.assertRedirects(response, self.changelist)
+        self.assertEqual(self.messages(response), ["Import queued: its status and outcome are shown in the list."])
+        # Run by the worker (at once in tests).
         self.assertEqual(
-            self.messages(response),
-            ['2 item(s) imported, 1 line(s) in error: line 3 (c): unknown practice "unknown".'],
+            OfferImport.objects.latest("pk").message,
+            '2 item(s) imported, 1 line(s) in error: line 3 (c): unknown practice "unknown".',
         )
         self.assertEqual(set(self.offers()), {"a", "b"})
         self.assertEqual(self.offers()["b"].data_import, OfferImport.objects.latest("pk"))

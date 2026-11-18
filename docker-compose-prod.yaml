@@ -79,6 +79,25 @@ services:
       - traefik.http.routers.web.entrypoints=websecure
       - traefik.http.services.web.loadbalancer.server.port=8000
 
+  redis:
+    logging: *logging
+
+  worker:
+    build:
+      target: production
+    restart: unless-stopped
+    logging: *logging
+    # Caps the container, so a heavy import cannot starve the database or the host.
+    deploy:
+      resources:
+        limits:
+          memory: ${WORKER_MEMORY_LIMIT:-4g}
+          cpus: "${WORKER_CPUS_LIMIT:-2}"
+    depends_on:
+      # Its tables are created by the migrations web runs on start.
+      web:
+        condition: service_started
+
   frontend:
     build:
       target: production
