@@ -1,5 +1,5 @@
 <script setup lang="ts">
-/** Carte MapLibre pilotée par le store mapObjects. */
+/** Carte MapLibre pilotée par le store layers. */
 import { onMounted, onUnmounted, shallowRef, useTemplateRef, watch } from 'vue'
 import {
   Map as MlMap,
@@ -11,7 +11,7 @@ import {
 } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 
-import { useMapObjectsStore } from '@/stores/mapObjects'
+import { useLayersStore } from '@/stores/layers'
 import { DOMAIN_COLORS, layerDomain, type LayerId } from '@/types/mapObject'
 
 const props = defineProps<{
@@ -19,7 +19,7 @@ const props = defineProps<{
   zoom?: number
 }>()
 
-const store = useMapObjectsStore()
+const store = useLayersStore()
 
 const container = useTemplateRef<HTMLDivElement>('container')
 const map = shallowRef<MlMap | null>(null)

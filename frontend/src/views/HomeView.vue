@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import MapView from '@/components/MapView.vue'
 import { COUNTING_OBJECT_LAYER, getCountingObjectsForMap } from '@/api/traffic'
-import { useMapObjectsStore } from '@/stores/mapObjects'
+import { useLayersStore } from '@/stores/layers'
 
-const mapObjects = useMapObjectsStore()
+const layers = useLayersStore()
 
 // Les erreurs sont notifiées par le store.
-mapObjects.loadLayer(COUNTING_OBJECT_LAYER, () => getCountingObjectsForMap(), {
+layers.loadLayer(COUNTING_OBJECT_LAYER, () => getCountingObjectsForMap(), {
   label: 'les compteurs',
 })
 </script>

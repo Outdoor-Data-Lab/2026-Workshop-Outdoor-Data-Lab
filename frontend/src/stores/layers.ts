@@ -18,17 +18,17 @@ export interface MapFeatureProperties {
 }
 
 /** Objets de la carte, rangés par couche. */
-export const useMapObjectsStore = defineStore('mapObjects', () => {
+export const useLayersStore = defineStore('layers', () => {
   const notifications = useNotificationsStore()
 
   // shallowRef + remplacement : pas de réactivité profonde sur les géométries.
-  const layers = shallowRef<Partial<Record<LayerId, MapObject[]>>>({})
+  const objectsByLayer = shallowRef<Partial<Record<LayerId, MapObject[]>>>({})
   const status = ref<Partial<Record<LayerId, LayerStatus>>>({})
   const selectedKey = ref<string | null>(null)
 
   const byKey = computed(() => {
     const index = new Map<string, MapObject>()
-    for (const objects of Object.values(layers.value)) {
+    for (const objects of Object.values(objectsByLayer.value)) {
       for (const object of objects ?? []) index.set(object.key, object)
     }
     return index
@@ -41,7 +41,10 @@ export const useMapObjectsStore = defineStore('mapObjects', () => {
   const featureCollections = computed(() => {
     const collections: Partial<Record<LayerId, FeatureCollection<Geometry, MapFeatureProperties>>> =
       {}
-    for (const [layer, objects] of Object.entries(layers.value) as [LayerId, MapObject[]][]) {
+    for (const [layer, objects] of Object.entries(objectsByLayer.value) as [
+      LayerId,
+      MapObject[],
+    ][]) {
       collections[layer] = {
         type: 'FeatureCollection',
         features: objects.map((o) => ({
@@ -55,13 +58,13 @@ export const useMapObjectsStore = defineStore('mapObjects', () => {
   })
 
   function setLayer(layer: LayerId, objects: MapObject[]) {
-    layers.value = { ...layers.value, [layer]: objects }
+    objectsByLayer.value = { ...objectsByLayer.value, [layer]: objects }
     if (selectedKey.value && !byKey.value.has(selectedKey.value)) selectedKey.value = null
   }
 
   function removeLayer(layer: LayerId) {
-    const { [layer]: _removed, ...rest } = layers.value
-    layers.value = rest
+    const { [layer]: _removed, ...rest } = objectsByLayer.value
+    objectsByLayer.value = rest
     delete status.value[layer]
     if (selectedKey.value && !byKey.value.has(selectedKey.value)) selectedKey.value = null
   }
@@ -94,7 +97,7 @@ export const useMapObjectsStore = defineStore('mapObjects', () => {
   }
 
   return {
-    layers,
+    objectsByLayer,
     status,
     selectedKey,
     selected,
