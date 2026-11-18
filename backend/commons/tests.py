@@ -111,12 +111,20 @@ class DataImportFileTests(TestCase):
                 self.assertEqual(stored.read(), b"content")
 
 
-class DataImportAdminTests(TestCase):
+class DataImportAddPageTests(TestCase):
     url = "/admin/commons/dataimport/add/"
+
+    def setUp(self):
+        self.client.force_login(get_user_model().objects.create_superuser("admin@example.org", "x"))
+
+    def test_expected_file_of_each_source_is_shown(self):
+        response = self.client.get(self.url)
+        strava = DataSource.objects.get(code="strava")
+        self.assertContains(response, 'id="import-example"')
+        self.assertContains(response, f"&quot;{strava.pk}&quot;: &quot;Zip Strava Metro")
 
     def test_refused_file_shows_the_error_and_keeps_nothing(self):
         strava = DataSource.objects.get(code="strava")
-        self.client.force_login(get_user_model().objects.create_superuser("admin@example.org", "x"))
         with tempfile.TemporaryDirectory() as media_root, override_settings(MEDIA_ROOT=media_root):
             response = self.client.post(
                 self.url,

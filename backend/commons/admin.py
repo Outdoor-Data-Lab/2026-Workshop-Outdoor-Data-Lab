@@ -36,17 +36,21 @@ class DataImportAdmin(admin.ModelAdmin):
     class Media:
         js = ("commons/import_loading.js", "commons/import_example.js")
 
-    def get_form(self, request, obj=None, **kwargs):
-        """Show the expected file of the selected source under the source field."""
-        form = super().get_form(request, obj, **kwargs)
-        examples = {
-            source.pk: import_string(PARSERS[source.code]).EXAMPLE
-            for source in DataSource.objects.filter(code__in=PARSERS)
-        }
-        form.base_fields["source"].help_text = format_html(
-            '<span id="import-example" data-examples="{}"></span>', json.dumps(examples)
-        )
-        return form
+    def render_change_form(self, request, context, *args, **kwargs):
+        """Show the expected file of the selected source under the source field.
+
+        Done when the form is displayed only: a POST that imports does not need it.
+        """
+        form = context["adminform"].form
+        if "source" in form.fields:
+            examples = {
+                source.pk: getattr(import_string(PARSERS[source.code]), "EXAMPLE", "")
+                for source in DataSource.objects.filter(code__in=PARSERS)
+            }
+            form.fields["source"].help_text = format_html(
+                '<span id="import-example" data-examples="{}"></span>', json.dumps(examples)
+            )
+        return super().render_change_form(request, context, *args, **kwargs)
 
     def add_view(self, request, form_url="", extra_context=None):
         # The admin saves within a transaction: an ImportRefused leaving it rolls
