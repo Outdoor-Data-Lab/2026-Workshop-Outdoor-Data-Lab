@@ -1,9 +1,10 @@
 /** API trafic. Types générés par `npm run gen:api`. */
 import type { Feature, FeatureCollection, Geometry, MultiPolygon } from 'geojson'
 
+import { i18n } from '@/i18n'
 import { mapObjectKey, type LayerId, type MapObject } from '@/types/mapObject'
 
-import { apiFetch, withQuery, type LimitOffset, type Paginated } from './client'
+import { apiFetch, fetchAllFeatures, withQuery, type LimitOffset, type Paginated } from './client'
 import type { components } from './schema'
 
 type Schemas = components['schemas']
@@ -127,12 +128,11 @@ export type TrafficAreaFilters = {
   bbox?: [number, number, number, number]
 }
 
-/** Mailles ayant des mesures, avec comptages et scores (une page). */
-export function getTrafficByArea(
-  filters: TrafficAreaFilters = {},
-  { limit = OBJECTS_LIMIT, offset }: LimitOffset = {},
+function trafficAreasUrl(
+  filters: TrafficAreaFilters,
+  { limit = OBJECTS_LIMIT, offset }: LimitOffset,
 ) {
-  const url = withQuery(`${BASE}/areas`, {
+  return withQuery(`${BASE}/areas`, {
     source: filters.sources,
     date_from: filters.dateFrom,
     date_to: filters.dateTo,
@@ -146,7 +146,11 @@ export function getTrafficByArea(
     limit,
     offset,
   })
-  return apiFetch<TrafficAreaPage>(url)
+}
+
+/** Mailles ayant des mesures, avec comptages et scores (une page). */
+export function getTrafficByArea(filters: TrafficAreaFilters = {}, page: LimitOffset = {}) {
+  return apiFetch<TrafficAreaPage>(trafficAreasUrl(filters, page))
 }
 
 // Adaptateur vers MapObject
@@ -184,13 +188,14 @@ export function trafficAreaToMapObject(feature: TrafficAreaFeature): MapObject {
     id: feature.id,
     domain: 'traffic',
     layer: TRAFFIC_AREA_LAYER,
-    label: `Maille ${feature.id} : score ${score ?? '–'}`,
+    label: i18n.global.t('layers.trafficArea', { id: feature.id, score: score ?? '–' }),
     geometry: feature.geometry,
     value: score,
   }
 }
 
+/** Toutes les mailles, page par page. Les scores sont calculés par page : `basic`, une somme, n'en dépend pas. */
 export async function getTrafficAreasForMap(filters: TrafficAreaFilters = {}) {
-  const page = await getTrafficByArea({ ...filters, scores: [MAP_AREA_SCORE] })
-  return page.features.map(trafficAreaToMapObject)
+  const url = trafficAreasUrl({ ...filters, scores: [MAP_AREA_SCORE] }, {})
+  return (await fetchAllFeatures<TrafficAreaFeature>(url)).map(trafficAreaToMapObject)
 }

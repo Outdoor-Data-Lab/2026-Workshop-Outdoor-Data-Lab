@@ -19,6 +19,7 @@ export default {
     loading: '(loading)',
     failed: '(failed)',
     trafficAreas: 'Traffic per grid cell',
+    trafficArea: 'Cell {id}: score {score}',
     loadError: 'Could not load {label}',
   },
   legend: {

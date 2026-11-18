@@ -19,6 +19,7 @@ export default {
     loading: '(chargement)',
     failed: '(échec)',
     trafficAreas: 'Fréquentation par maille',
+    trafficArea: 'Maille {id} : score {score}',
     loadError: 'Impossible de charger {label}',
   },
   legend: {

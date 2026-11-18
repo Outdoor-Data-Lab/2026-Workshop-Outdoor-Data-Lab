@@ -1,4 +1,5 @@
 /** Client HTTP de l'API Django, via le proxy Vite `/api`. */
+import type { Feature } from 'geojson'
 
 export class ApiError extends Error {
   constructor(
@@ -62,4 +63,18 @@ export async function apiFetch<T>(url: string, init?: RequestInit): Promise<T> {
     throw new ApiError(res.status, await res.json().catch(() => null), url)
   }
   return res.json() as Promise<T>
+}
+
+/** Toutes les features de `url`, en suivant les liens `next` d'une FeatureCollection paginée. */
+export async function fetchAllFeatures<F extends Feature = Feature>(
+  url: string,
+  init?: RequestInit,
+): Promise<F[]> {
+  let features: F[] = []
+  for (let next: string | null | undefined = url; next;) {
+    const page: { features: F[]; next?: string | null } = await apiFetch(next, init)
+    features = features.concat(page.features)
+    next = page.next
+  }
+  return features
 }
