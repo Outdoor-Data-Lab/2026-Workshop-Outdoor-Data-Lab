@@ -923,6 +923,12 @@ class CountingObjectAreasTests(AreasTestCase):
         call_command("sync_counting_object_areas", stdout=StringIO())
         self.assertEqual(CountingObjectArea.objects.count(), 5)
 
+    def test_an_object_moved_leaves_the_cells_of_the_others(self):
+        others = set(CountingObjectArea.objects.exclude(counting_object=self.moving).values_list("counting_object", "area"))
+        self.moving.geom = Point(8.0, 44.2, srid=4326)
+        self.moving.save()
+        self.assertEqual(set(CountingObjectArea.objects.values_list("counting_object", "area")), others)
+
     def test_deleting_an_object_deletes_its_cells(self):
         pk = self.moving.pk  # delete() sets self.moving.pk to None
         self.moving.delete()
