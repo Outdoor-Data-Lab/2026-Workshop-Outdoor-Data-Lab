@@ -242,6 +242,7 @@ class AreasApiTests(AreasTestCase):
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertEqual(data["type"], "FeatureCollection")
+        self.assertEqual(data["count"], 2)
         features = {f["id"]: f for f in data["features"]}
         self.assertEqual(features[12]["geometry"]["type"], "MultiPolygon")
         self.assertEqual(features[12]["properties"], {
@@ -271,3 +272,27 @@ class AreasApiTests(AreasTestCase):
         response = self.client.get(self.url, {"month": 13, "scores": "foo", "bbox": "x"})
         self.assertEqual(response.status_code, 400)
         self.assertEqual(set(response.json()), {"month", "scores", "bbox"})
+
+    def test_only_cells_with_matching_measures(self):
+        response = self.client.get(self.url, {"year": 2024})
+        self.assertEqual([f["id"] for f in response.json()["features"]], [13])
+
+    def test_paginates_and_scores_the_page(self):
+        response = self.client.get(self.url, {"page_size": 1, "page": 2, "scores": "basic"})
+        data = response.json()
+        self.assertEqual(data["count"], 2)
+        self.assertEqual([f["id"] for f in data["features"]], [13])
+        self.assertEqual(data["features"][0]["properties"]["score"], {"basic": 7})
+
+    def test_retrieve_one_cell(self):
+        response = self.client.get(f"{self.url}/12", {"source": 1, "scores": "basic"})
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["type"], "Feature")
+        self.assertEqual(data["id"], 12)
+        self.assertEqual(data["properties"], {
+            "counts": 17, "count_segment": 4, "count_presence": 13, "score": {"basic": 17},
+        })
+
+    def test_retrieve_cell_without_matching_measures(self):
+        self.assertEqual(self.client.get(f"{self.url}/12", {"year": 2024}).status_code, 404)

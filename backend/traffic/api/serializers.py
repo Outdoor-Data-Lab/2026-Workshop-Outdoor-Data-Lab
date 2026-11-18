@@ -5,6 +5,8 @@ from rest_framework_gis.serializers import GeoFeatureModelSerializer
 
 from workshop2026.processing.score import SCORES
 
+from ref_geo.models import LArea
+
 from ..models import (
     CountingMeasure,
     CountingObject,
@@ -120,3 +122,25 @@ class AreasQuerySerializer(serializers.Serializer):
                 {"source_weights": 'Required by the "cazalis" score.'}
             )
         return data
+
+
+class AreaCountsSerializer(GeoFeatureModelSerializer):
+    """A grid cell with its counts (annotated by AreasViewSet) and its scores
+    (``context["scores"]``: ``{score name: {id_area: value}}``)."""
+
+    counts = serializers.IntegerField(read_only=True)
+    count_segment = serializers.IntegerField(read_only=True)
+    count_presence = serializers.IntegerField(read_only=True)
+    score = serializers.SerializerMethodField()
+
+    class Meta:
+        model = LArea
+        geo_field = "geom_4326"
+        id_field = "id_area"
+        fields = ["id_area", "geom_4326", "counts", "count_segment", "count_presence", "score"]
+
+    def get_score(self, area) -> dict[str, float]:
+        return {
+            name: values.get(area.id_area, 0)
+            for name, values in self.context.get("scores", {}).items()
+        }

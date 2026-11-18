@@ -1,9 +1,9 @@
-from django.urls import path
 from rest_framework.routers import SimpleRouter
 
 from . import views
 
 router = SimpleRouter(trailing_slash=False)
+router.register("areas", views.AreasViewSet, basename="areas")
 router.register("unit", views.UnitViewSet, basename="unit")
 router.register(
     "counting-object-type",
@@ -17,7 +17,4 @@ router.register(
     "counting-measure", views.CountingMeasureViewSet, basename="counting-measure"
 )
 
-urlpatterns = [
-    path("areas", views.AreasView.as_view(), name="areas"),
-    *router.urls,
-]
+urlpatterns = router.urls
