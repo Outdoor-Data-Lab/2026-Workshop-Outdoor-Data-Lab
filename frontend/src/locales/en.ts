@@ -8,6 +8,7 @@ export default {
   },
   layerGroups: {
     traffic: 'Traffic',
+    external: 'External layers',
   },
   /** Valeurs de référence de l'API, par code (repli : le libellé de l'API). */
   countingObjectTypes: {

@@ -1,6 +1,7 @@
 import type { Geometry } from 'geojson'
 
-export type Domain = 'traffic' | 'biodiversity'
+/** `external` : couches GeoJSON d'autres sites, hors concepts, cochées au choix de l'utilisateur. */
+export type Domain = 'traffic' | 'biodiversity' | 'external'
 
 export type LayerId = `${Domain}/${string}`
 
@@ -12,6 +13,10 @@ export interface MapObject {
   layer: LayerId
   label: string
   geometry: Geometry
+  /** Sinon, la couleur du domaine. */
+  color?: string
+  /** Attributs affichés dans le détail, quand il ne se charge pas par `id` (couches externes). */
+  attributes?: Record<string, unknown>
 }
 
 export function mapObjectKey(layer: LayerId, id: number | string): string {
@@ -25,4 +30,5 @@ export function layerDomain(layer: LayerId): Domain {
 export const DOMAIN_COLORS: Record<Domain, string> = {
   traffic: '#e4572e',
   biodiversity: '#2e9e5b',
+  external: '#3388ff',
 }

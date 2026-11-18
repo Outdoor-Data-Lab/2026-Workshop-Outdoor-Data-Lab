@@ -19,7 +19,7 @@ const groups = computed(() => {
   <div v-if="layers.definitions.length" class="layer-switcher">
     <fieldset v-for="[group, definitions] in groups" :key="group">
       <legend>{{ $t(`layerGroups.${group}`) }}</legend>
-      <label v-for="definition in definitions" :key="definition.id">
+      <label v-for="definition in definitions" :key="definition.id" :title="definition.description">
         <input
           type="checkbox"
           :checked="layers.visible[definition.id] ?? false"

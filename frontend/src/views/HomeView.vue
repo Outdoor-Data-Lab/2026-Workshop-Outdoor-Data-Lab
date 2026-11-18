@@ -3,13 +3,14 @@ import ConceptTabs from '@/components/ConceptTabs.vue'
 import DetailPanel from '@/components/DetailPanel.vue'
 import LayerSwitcher from '@/components/LayerSwitcher.vue'
 import MapView from '@/components/MapView.vue'
-import { trafficLayers } from '@/catalog'
+import { externalLayers, trafficLayers } from '@/catalog'
 import { useLayersStore } from '@/stores/layers'
 
 const layers = useLayersStore()
 
 // Un échec est notifié par le gestionnaire global des promesses rejetées (main.ts).
 trafficLayers().then(layers.addDefinitions)
+externalLayers().then(layers.addDefinitions)
 </script>
 
 <template>

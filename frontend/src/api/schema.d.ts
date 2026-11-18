@@ -68,6 +68,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/commons/external-layers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["commons_external_layers_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/commons/external-layers/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["commons_external_layers_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/commons/practices": {
         parameters: {
             query?: never;
@@ -394,6 +426,68 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/traffic/areas": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Counts and scores per 1 km grid cell (ref_geo "M1"), as GeoJSON.
+         *
+         *     Only the cells with measures matching ``source`` and the period
+         *     ``date_from`` / ``date_to`` (YYYY-MM-DD, both included, on the start of
+         *     the measures).
+         *     Properties: ``counts``, ``count_segment``, ``count_presence`` and ``score``
+         *     (``{score name: value}`` for the requested ``scores``). Geometry in WGS84.
+         *     Scores are computed for the cells of the page only.
+         *
+         *     Spatial filters on the cells, as in ref_geo: ``bbox``, ``point``,
+         *     ``intersects``, ``within``, ``contains`` (LAreaFilter, on the indexed
+         *     Lambert-93 geometry) and ``in_bbox`` (rest_framework_gis). Pagination:
+         *     ``limit`` / ``offset``.
+         */
+        get: operations["traffic_areas_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/traffic/areas/{id_area}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Counts and scores per 1 km grid cell (ref_geo "M1"), as GeoJSON.
+         *
+         *     Only the cells with measures matching ``source`` and the period
+         *     ``date_from`` / ``date_to`` (YYYY-MM-DD, both included, on the start of
+         *     the measures).
+         *     Properties: ``counts``, ``count_segment``, ``count_presence`` and ``score``
+         *     (``{score name: value}`` for the requested ``scores``). Geometry in WGS84.
+         *     Scores are computed for the cells of the page only.
+         *
+         *     Spatial filters on the cells, as in ref_geo: ``bbox``, ``point``,
+         *     ``intersects``, ``within``, ``contains`` (LAreaFilter, on the indexed
+         *     Lambert-93 geometry) and ``in_bbox`` (rest_framework_gis). Pagination:
+         *     ``limit`` / ``offset``.
+         */
+        get: operations["traffic_areas_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/traffic/counting-measures": {
         parameters: {
             query?: never;
@@ -528,6 +622,33 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * @description A grid cell with its counts (``context["counts"]``:
+         *     ``{id_area: {"counts", "count_segment", "count_presence"}}``) and its scores
+         *     (``context["scores"]``: ``{score name: {id_area: value}}``), both computed
+         *     by AreasViewSet.
+         */
+        AreaCounts: {
+            type?: components["schemas"]["GisFeatureEnum"];
+            readonly id?: number;
+            geometry?: {
+                /** @enum {string} */
+                type?: "MultiPolygon";
+                coordinates?: number[][][][];
+            };
+            properties?: {
+                readonly counts?: number;
+                readonly count_segment?: number;
+                readonly count_presence?: number;
+                readonly score?: {
+                    [key: string]: number;
+                };
+            };
+        };
+        AreaCountsList: {
+            type?: components["schemas"]["GisFeatureCollectionEnum"];
+            features?: components["schemas"]["AreaCounts"][];
+        };
         BibAreasType: {
             readonly id_type: number;
             type_name: string;
@@ -624,6 +745,29 @@ export interface components {
             code: string;
             label: string;
         };
+        ExternalLayer: {
+            readonly id: number;
+            readonly label: string;
+            /**
+             * Format: uri
+             * @description FeatureCollection GeoJSON, en WGS84.
+             */
+            readonly url: string;
+            /** @description Affichée au survol du nom de la couche (contenu, producteur…). */
+            readonly description: string;
+            /** @description Attributs affichés au clic, séparés par des virgules ; vide : tous. */
+            readonly properties: string[];
+            readonly color: string;
+            /** @description Attribut dont la valeur choisit la couleur (facultatif). */
+            readonly color_property: string;
+            readonly colors: {
+                [key: string]: string;
+            };
+        };
+        /** @enum {string} */
+        GisFeatureCollectionEnum: "FeatureCollection";
+        /** @enum {string} */
+        GisFeatureEnum: "Feature";
         LArea: {
             readonly id_area: number;
             readonly type_code: string;
@@ -702,6 +846,21 @@ export interface components {
             /** Format: date-time */
             meta_update_date?: string | null;
             area: number;
+        };
+        PaginatedAreaCountsList: {
+            /** @example 123 */
+            count: number;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?offset=400&limit=100
+             */
+            next?: string | null;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?offset=200&limit=100
+             */
+            previous?: string | null;
+            results: components["schemas"]["AreaCountsList"];
         };
         PaginatedBibAreasTypeList: {
             /** @example 123 */
@@ -822,6 +981,21 @@ export interface components {
              */
             previous?: string | null;
             results: components["schemas"]["DataSource"][];
+        };
+        PaginatedExternalLayerList: {
+            /** @example 123 */
+            count: number;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?offset=400&limit=100
+             */
+            next?: string | null;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?offset=200&limit=100
+             */
+            previous?: string | null;
+            results: components["schemas"]["ExternalLayer"][];
         };
         PaginatedLAreaList: {
             /** @example 123 */
@@ -1062,6 +1236,54 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DataSource"];
+                };
+            };
+        };
+    };
+    commons_external_layers_list: {
+        parameters: {
+            query?: {
+                /** @description Number of results to return per page. */
+                limit?: number;
+                /** @description The initial index from which to return the results. */
+                offset?: number;
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedExternalLayerList"];
+                };
+            };
+        };
+    };
+    commons_external_layers_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description A unique integer value identifying this external layer. */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExternalLayer"];
                 };
             };
         };
@@ -1599,6 +1821,84 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["LPoint"];
                     "application/geo+json": components["schemas"]["LPoint"];
+                };
+            };
+        };
+    };
+    traffic_areas_list: {
+        parameters: {
+            query?: {
+                area_code?: string;
+                bbox?: string;
+                contains?: string;
+                /** @description First day of the period (YYYY-MM-DD), included. */
+                date_from?: string;
+                /** @description Last day of the period (YYYY-MM-DD), included. */
+                date_to?: string;
+                enable?: boolean;
+                /** @description Specify a bounding box as filter: in_bbox=min_lon,min_lat,max_lon,max_lat */
+                in_bbox?: number[];
+                intersects?: string;
+                /** @description Number of results to return per page. */
+                limit?: number;
+                name?: string;
+                /** @description The initial index from which to return the results. */
+                offset?: number;
+                point?: string;
+                /** @description Scores to compute (repeatable). */
+                scores?: ("basic" | "cazalis")[];
+                /** @description Data source id (repeatable). All sources if omitted. */
+                source?: number[];
+                /** @description Weights of the "cazalis" score, as source_id:weight pairs, e.g. "1:2,3:0.5". */
+                source_weights?: string;
+                type_code?: string;
+                within?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedAreaCountsList"];
+                };
+            };
+        };
+    };
+    traffic_areas_retrieve: {
+        parameters: {
+            query?: {
+                /** @description First day of the period (YYYY-MM-DD), included. */
+                date_from?: string;
+                /** @description Last day of the period (YYYY-MM-DD), included. */
+                date_to?: string;
+                /** @description Scores to compute (repeatable). */
+                scores?: ("basic" | "cazalis")[];
+                /** @description Data source id (repeatable). All sources if omitted. */
+                source?: number[];
+                /** @description Weights of the "cazalis" score, as source_id:weight pairs, e.g. "1:2,3:0.5". */
+                source_weights?: string;
+            };
+            header?: never;
+            path: {
+                /** @description A unique integer value identifying this l area. */
+                id_area: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AreaCounts"];
                 };
             };
         };
