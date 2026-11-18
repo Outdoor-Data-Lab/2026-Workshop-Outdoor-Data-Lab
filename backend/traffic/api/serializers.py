@@ -127,10 +127,6 @@ class AreasQuerySerializer(DynamicFieldsMixin, serializers.Serializer):
     def validate(self, data):
         if data.get("date_from") and data.get("date_to") and data["date_from"] > data["date_to"]:
             raise serializers.ValidationError({"date_to": "Must not be before date_from."})
-        if "cazalis" in data.get("scores", ()) and "source_weights" not in data:
-            raise serializers.ValidationError(
-                {"source_weights": 'Required by the "cazalis" score.'}
-            )
         return data
 
 
