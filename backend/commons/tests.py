@@ -134,7 +134,7 @@ class ExternalLayerApiTests(TestCase):
     def test_layer_exposed(self):
         ExternalLayer.objects.create(
             label="Zones sensibles",
-            url="https://biodiv-sports.fr/api/v2/sensitivearea/?format=geojson",
+            url="https://example.org/zones.geojson",
             description="Données : Biodiv'Sports",
             properties=["name"],
             color_property="species_id",

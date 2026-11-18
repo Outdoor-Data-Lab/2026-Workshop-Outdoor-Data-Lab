@@ -15,12 +15,4 @@ Dans l'admin Django : **Commons › External layers › Add**.
 
 L'URL doit être lisible depuis le navigateur (en-tête CORS `Access-Control-Allow-Origin`). Une API paginée est suivie page par page (lien `next`) : bornez le volume dans l'URL, par exemple avec une emprise.
 
-Exemples :
-
-| Couche | URL |
-|---|---|
-| Zones sensibles (Biodiv'Sports) | `https://biodiv-sports.fr/api/v2/sensitivearea/?language=fr&format=geojson&period=any&in_bbox=5.9,44.6,6.6,45.2` |
-| Habitats du PNE (Delphine), 52 Mo | `https://data.ecrins-parcnational.fr/files/Habitats_Delphine_PNE.geojson` |
-| Zones humides du PNE | `https://data.ecrins-parcnational.fr/files/Zones_humides_PNE.geojson` |
-| Alpages du PNE | `https://data.ecrins-parcnational.fr/files/alpages-pne.geojson` |
-| Signalements Suricate du PNE, 2023-2025 | `https://data.ecrins-parcnational.fr/files/Suricate-PNE-2023-2025.geojson` |
+Les URL des couches se transmettent en interne : elles ne figurent pas dans ce dépôt, qui est public.
