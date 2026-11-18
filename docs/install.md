@@ -103,7 +103,8 @@ docker compose down
 
    ```dotenv
    WEB_CONCURRENCY=3
-   GUNICORN_CMD_ARGS=--threads 2 --timeout 120 --graceful-timeout 30 --max-requests 1000 --max-requests-jitter 100
+   GUNICORN_CMD_ARGS=--threads 2 --graceful-timeout 30 --max-requests 1000 --max-requests-jitter 100
+   GUNICORN_TIMEOUT=600
    ```
 
    Approximate request concurrency is `WEB_CONCURRENCY x --threads`. Each
@@ -116,8 +117,12 @@ docker compose down
 
    Any option accepted by Gunicorn can be added to `GUNICORN_CMD_ARGS`,
    including `--workers`. An explicit `--workers` value takes precedence over
-   `WEB_CONCURRENCY`. These settings tune the application processes; Docker
-   CPU and memory limits must be configured separately.
+   `WEB_CONCURRENCY`. The request timeout is `GUNICORN_TIMEOUT` (600 s by
+   default, also used by Traefik), not `--timeout`: imports run in the Celery
+   worker, but a large file must still be uploaded within it. These settings
+   tune the application processes; the Docker CPU and memory limits are
+   `WEB_MEMORY_LIMIT` / `WEB_CPUS_LIMIT` (web) and `WORKER_MEMORY_LIMIT` /
+   `WORKER_CPUS_LIMIT` (worker, which runs the imports).
 
 3. Build and start the stack:
 
@@ -133,7 +138,7 @@ docker compose down
 
    ```sh
    docker compose ps
-   docker compose logs --tail=100 taxhub web traefik
+   docker compose logs --tail=100 taxhub web worker traefik
    docker compose exec web python backend/manage.py createsuperuser
    ```
 
