@@ -17,6 +17,8 @@ from django.db import models
 from django.db.models import F, Q
 from django.utils.module_loading import import_string
 
+from ref_geo.models import LArea
+
 DB_SCHEMA = "commons"
 
 
@@ -189,3 +191,33 @@ class ExternalLayer(models.Model):
 
     def __str__(self):
         return self.label
+
+
+class InstanceSettings(models.Model):
+    """Settings of this instance, edited in the admin: a single row (``load``)."""
+
+    # ref_geo is loaded outside of Django and may be reloaded: no database constraint.
+    default_area = models.ForeignKey(
+        LArea,
+        on_delete=models.SET_NULL,
+        db_constraint=False,
+        null=True,
+        blank=True,
+        related_name="+",
+        help_text="Area that filters the map when it opens (e.g. the national park). "
+        "Users can change or remove it.",
+    )
+
+    class Meta:
+        db_table = table("instance_settings")
+
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def load(cls):
+        return cls.objects.get_or_create(pk=1)[0]
+
+    def __str__(self):
+        return "Instance settings"

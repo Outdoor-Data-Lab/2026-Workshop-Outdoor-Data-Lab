@@ -1,7 +1,10 @@
 from django.core.exceptions import ValidationError
 from django_filters import rest_framework as filters
 
+from rest_framework.exceptions import ValidationError as ApiValidationError
+
 from commons.api.geo import SpatialFilterSet
+from ref_geo.filters import LAreaFilter
 from ref_geo.models import LArea
 from workshop2026.api.mixins import AreaFilterSet
 
@@ -19,6 +22,20 @@ class CountingObjectFilter(AreaFilterSet, SpatialFilterSet):
     class Meta:
         model = CountingObject
         fields = []
+
+
+class TrafficAreaFilter(LAreaFilter):
+    """Grid cells. ``area_id``: cells intersecting this ref_geo area (commune,
+    park...), as on the other routes; ``area_code`` stays the cell's own code."""
+
+    area_id = filters.NumberFilter(method="filter_by_area_id")
+
+    def filter_by_area_id(self, queryset, name, value):
+        area = LArea.objects.filter(id_area=value).only("geom").first()
+        if area is None:
+            raise ApiValidationError({"area_id": f"Area with ID '{value}' does not exist."})
+        # Lambert-93 on both sides: the GiST index of the cells is used.
+        return queryset.filter(geom__intersects=area.geom)
 
 
 class CountingMeasureFilter(filters.FilterSet):

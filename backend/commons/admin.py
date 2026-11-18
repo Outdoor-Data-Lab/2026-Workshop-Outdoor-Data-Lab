@@ -11,7 +11,7 @@ from django.utils.html import format_html
 from django.utils.http import urlencode
 from django.utils.module_loading import import_string
 
-from .models import DOMAINS, DataImport, DataSource, ExternalLayer, Practice
+from .models import DOMAINS, DataImport, DataSource, ExternalLayer, InstanceSettings, Practice
 from .tasks import run_import
 
 PREVIEW_ERRORS = 20  # lines in error listed on the preview page
@@ -211,3 +211,16 @@ class ImportAdmin(admin.ModelAdmin):
     def done(self, request, message, level):
         self.message_user(request, message, level)
         return HttpResponseRedirect(reverse(f"admin:{self.opts.app_label}_{self.opts.model_name}_changelist"))
+
+
+@admin.register(InstanceSettings)
+class InstanceSettingsAdmin(admin.ModelAdmin):
+    """A single row: created on first read, never deleted."""
+
+    autocomplete_fields = ("default_area",)
+
+    def has_add_permission(self, request):
+        return not InstanceSettings.objects.exists()
+
+    def has_delete_permission(self, request, obj=None):
+        return False

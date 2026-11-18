@@ -2,12 +2,25 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters as drf_filters
 from rest_framework import viewsets
 from rest_framework_gis.filters import InBBoxFilter
+from django_filters.rest_framework import filters
 
-from ref_geo.filters import LAreaFilter
+from ref_geo.filters import LAreaAreaFilter
 from commons.api.geo import GeoJsonLimitOffsetPagination
 
 from . import serializers
 from .querysets import GRID, TAXA_GRID
+
+class LAreaAreaTaxonStatusFilter(LAreaAreaFilter):
+    has_protected_or_threatened_taxa = filters.BooleanFilter(
+        method="filter_by_protected_or_threatened_taxa",
+        label="Has protected or threatened taxa",
+        help_text="Only show areas that have protected or threatened taxa (count > 0)"
+    )
+    def filter_by_protected_or_threatened_taxa(self, queryset, name, value):
+        """Filter areas that have protected or threatened taxa (count > 0)."""
+        if value:
+            return queryset.filter(protected_or_threatened_taxa_count__gt=0)
+        return queryset
 
 
 class TaxonAreaViewSet(viewsets.ReadOnlyModelViewSet):
@@ -19,7 +32,7 @@ class TaxonAreaViewSet(viewsets.ReadOnlyModelViewSet):
         DjangoFilterBackend,
         drf_filters.OrderingFilter,
     ]
-    filterset_class = LAreaFilter
+    filterset_class = LAreaAreaTaxonStatusFilter
     ordering_fields = ("id_area", "area_code", "area_name")
     bbox_filter_field = "geom_4326"
     bbox_filter_include_overlapping = True

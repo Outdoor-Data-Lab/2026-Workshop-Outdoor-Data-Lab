@@ -1,7 +1,9 @@
 from rest_framework import serializers
 
 from workshop2026.api.mixins import DynamicFieldsMixin
-from ..models import DataImport, DataSource, ExternalLayer, Practice
+from ref_geo.models import LArea
+
+from ..models import DataImport, DataSource, ExternalLayer, InstanceSettings, Practice
 from .geo import code_field
 
 
@@ -37,3 +39,21 @@ class ExternalLayerSerializer(DynamicFieldsMixin, serializers.ModelSerializer):
             "properties", "color", "color_property", "colors",
         ]
         read_only_fields = fields  # all always present in the schema
+
+
+class AreaSummarySerializer(serializers.ModelSerializer):
+    """An area without its geometry, as found by name in ref_geo."""
+
+    type_code = serializers.CharField(source="type.type_code", read_only=True)
+
+    class Meta:
+        model = LArea
+        fields = ("id_area", "area_name", "area_code", "type_code")
+
+
+class InstanceSettingsSerializer(serializers.ModelSerializer):
+    default_area = AreaSummarySerializer(read_only=True)
+
+    class Meta:
+        model = InstanceSettings
+        fields = ("default_area",)

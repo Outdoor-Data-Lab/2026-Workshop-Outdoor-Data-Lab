@@ -25,6 +25,8 @@ export type OfferFilters = {
   dateTo?: string
   /** Code d'une zone `ref_geo` (ex. `26` pour la Drôme) */
   areaCode?: string
+  /** Zone `ref_geo` : objets qui l'intersectent. */
+  areaId?: number
 }
 
 // Les routes outdoor gardent le `/` final (pas encore alignées sur la convention de l'API).
@@ -41,6 +43,7 @@ function offerQuery(filters: OfferFilters) {
     date_from: filters.dateFrom,
     date_to: filters.dateTo,
     area: filters.areaCode,
+    area_id: filters.areaId,
   }
 }
 

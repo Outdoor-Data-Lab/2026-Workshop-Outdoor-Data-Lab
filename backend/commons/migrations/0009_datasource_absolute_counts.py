@@ -8,7 +8,7 @@ def set_absolute(apps, schema_editor):
 
 
 class Migration(migrations.Migration):
-    dependencies = [("commons", "0007_merge_external_layers_import_status")]
+    dependencies = [("commons", "0008_instancesettings")]
 
     operations = [
         migrations.AddField(

@@ -4,7 +4,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.settings import api_settings
 
 from commons.api.geo import FormatFirstNegotiation, GeoJSONRenderer, GeoJsonLimitOffsetPagination
-from ref_geo.filters import LAreaFilter
+from ref_geo.filters import LAreaFilter, LAreaAreaFilter
 from ref_geo.models import LArea
 from ref_geo.serializers import LAreaSerializer, LAreaGeoSerializer
 from ref_geo.views import GeoViewSet
@@ -13,7 +13,7 @@ from ..models import Offer
 from .serializers import OfferSerializer, OfferGeoSerializer, LAreaWithOffersCountSerializer, \
     LAreaGeoWithOffersCountSerializer, LAreaGeoWithOffersCountAndByPracticeSerializer, \
     LAreaWithOffersCountAndByPracticeSerializer
-from .filters import OfferFilter, LAreaCountFilter
+from .filters import OfferFilter
 
 
 class OfferViewSet(viewsets.ReadOnlyModelViewSet):
@@ -80,16 +80,11 @@ class LAreaCountViewSet(GeoViewSet):
     )
     serializer_class = LAreaSerializer
     geo_serializer_class = LAreaGeoSerializer
-    filterset_class = LAreaCountFilter
+    filterset_class = LAreaAreaFilter
     ordering_fields = ("id_area", "area_name", "area_code")
 
     def get_queryset(self):
         qs = super().get_queryset()
-
-        # Si type_code est fourni, filtrer par type
-        type_code = self.request.query_params.get('type_code')
-        if type_code:
-            qs = qs.filter(type__type_code=type_code)
 
         if not self.is_geojson():
             qs = qs.defer("geom_4326")

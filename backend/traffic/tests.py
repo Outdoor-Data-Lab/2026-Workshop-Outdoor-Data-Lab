@@ -830,7 +830,9 @@ class AreasApiTests(AreasTestCase):
                 {"code": "outdoorvision", "label": "OutdoorVision", "absolute": False, "count": 10,
                  "first_data": JAN, "latest_data": JAN},
             ],
-            "score": {"basic": 15, "cazalis": 100.0},
+            "score": {"basic": 15, "cazalis": {
+                "score": 100.0, "source_weights": {str(self.s1): 2, str(self.s2): 3},
+            }},
         })
         self.assertEqual(features[13]["properties"], {
             "counts": 4, "count_segment": 0, "count_presence": 4,
@@ -838,7 +840,9 @@ class AreasApiTests(AreasTestCase):
                 {"code": "outdoorvision", "label": "OutdoorVision", "absolute": False, "count": 4,
                  "first_data": JAN, "latest_data": JAN},
             ],
-            "score": {"basic": 4, "cazalis": 0.0},
+            "score": {"basic": 4, "cazalis": {
+                "score": 0.0, "source_weights": {str(self.s1): 2, str(self.s2): 3},
+            }},
         })
 
     def test_filters_on_source_and_bbox(self):
@@ -853,6 +857,13 @@ class AreasApiTests(AreasTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("source_weights", response.json())
         self.assertEqual(sum(response.json()["source_weights"].values()), 0)
+        # Estimated: every cell carries the weights, correlations and counters.
+        for feature in response.json()["features"]:
+            cazalis = feature["properties"]["score"]["cazalis"]
+            self.assertEqual(set(cazalis), {
+                "score", "source_weights", "source_correlations", "reference_counters",
+            })
+            self.assertEqual(cazalis["source_weights"], response.json()["source_weights"])
 
         response = self.client.get(self.url, {"scores": "cazalis", "source_weights": f"{self.s1}:2"})
         self.assertEqual(response.status_code, 400)
@@ -872,6 +883,16 @@ class AreasApiTests(AreasTestCase):
         self.assertEqual(ids(point="6.2,44.2"), [12])
         self.assertEqual(ids(intersects="POLYGON((6.1 44.1,7.2 44.1,7.2 44.2,6.1 44.2,6.1 44.1))"), [12, 13])
         self.assertEqual(ids(area_code="B"), [13])
+
+    def test_filters_on_intersecting_area(self):
+        commune = BibAreasType.objects.create(type_name="Communes", type_code="COM")
+        LArea.objects.create(id_area=50, type=commune, area_code="X", **cell(7.4, 44.4, 8.0, 45.0))
+
+        response = self.client.get(self.url, {"area_id": 50})
+        self.assertEqual([f["id"] for f in response.json()["features"]], [13])
+        response = self.client.get(self.url, {"area_id": 999})
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("area_id", response.json())
 
     def test_rejects_invalid_parameters(self):
         response = self.client.get(self.url, {"date_from": "2023-13-01", "scores": "foo"})

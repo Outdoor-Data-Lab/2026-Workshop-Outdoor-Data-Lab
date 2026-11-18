@@ -22,7 +22,6 @@ class AreaTaxonSerializer(DynamicFieldsMixin, serializers.Serializer):
     date_min = serializers.DateField()
     date_max = serializers.DateField()
 
-
 class TaxonStatusAreaSerializer(DynamicFieldsMixin, GeoFeatureModelSerializer):
     """GeoJSON representation of an area and its taxon status counters."""
 
