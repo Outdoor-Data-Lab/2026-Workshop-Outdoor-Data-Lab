@@ -6,8 +6,8 @@ The file has a single layer, a defined CRS, and the columns:
 - name: required;
 - practice: a commons.Practice code, any level of the hierarchy;
 - uuid: optional, never generated;
-- the geometry: points, lines or polygons, multi or not; Z is dropped and an
-  invalid geometry is repaired.
+- the geometry: any type (point, line, polygon, multi or collection); Z is
+  dropped and an invalid geometry is repaired.
 Other columns are ignored.
 
 A line in error is skipped, counted in error_numbers and described in
@@ -38,7 +38,6 @@ from commons.models import DataImport, Practice
 from .models import Offer
 
 REQUIRED_COLUMNS = {"id", "name", "practice"}
-GEOMETRY_TYPES = {"Point", "MultiPoint", "LineString", "MultiLineString", "Polygon", "MultiPolygon"}
 MAX_LENGTH = 255  # of id and name
 BATCH_SIZE = 5000
 
@@ -60,20 +59,19 @@ def parse_uuid(value: str) -> uuid.UUID | None:
 
 
 def geometry(geom):
-    """2D valid geometry of an accepted type, or None."""
+    """2D valid geometry, or None when missing or empty."""
     if geom is None or geom.is_empty:
         return None
     geom = shapely.force_2d(geom)
     if not geom.is_valid:
+        was_collection = geom.geom_type == "GeometryCollection"
         dimension = shapely.get_dimensions(geom)
         geom = shapely.make_valid(geom)
-        if geom.geom_type == "GeometryCollection":
-            # Repairing may add lower-dimension parts: keep the original dimension.
+        if geom.geom_type == "GeometryCollection" and not was_collection:
+            # Repairing a simple geometry may add lower-dimension parts: keep its dimension.
             parts = shapely.get_parts(geom)
             geom = shapely.union_all(parts[shapely.get_dimensions(parts) == dimension])
-    if geom.is_empty or geom.geom_type not in GEOMETRY_TYPES:
-        return None
-    return geom
+    return None if geom.is_empty else geom
 
 
 def describe_errors(errors: list[tuple[int, str, str]], limit: int = 10) -> str:
@@ -201,7 +199,7 @@ class OfferParser:
             elif practice.lower() not in practices:
                 error = f"unknown practice \"{practice}\""
             elif geom is None:
-                error = "missing or empty geometry, or not a point, line or polygon"
+                error = "missing or empty geometry"
             elif line_uuid and valid_uuid is None:
                 error = "invalid uuid"
             elif uuid_double:

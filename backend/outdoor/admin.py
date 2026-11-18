@@ -95,7 +95,7 @@ class OfferImportAdmin(admin.ModelAdmin):
             "GeoPackage (.gpkg) with a single layer and a coordinate reference system. "
             "Columns: <code>id</code> (the offer's id in its source), <code>name</code>, "
             '<code>practice</code> (a <a href="{}">practice code</a>), <code>uuid</code> '
-            "(optional). Geometry: points, lines or polygons. Other columns are ignored.",
+            "(optional). Geometry: points, lines, polygons or collections. Other columns are ignored.",
             reverse("admin:commons_practice_changelist"),
         )
         return form

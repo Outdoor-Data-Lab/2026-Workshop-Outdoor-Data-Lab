@@ -116,14 +116,18 @@ class OfferParserTests(OfferImportTestCase):
                     line("zones", "snowshoeing", geometry=shapely.MultiPolygon(
                         [shapely.box(6.3, 44.6, 6.31, 44.61), shapely.box(6.4, 44.6, 6.41, 44.61)]
                     )),
+                    line("take-off", "paragliding", geometry=shapely.GeometryCollection(
+                        [shapely.LineString([(6.5, 44.5), (6.51, 44.51)]), shapely.box(6.5, 44.5, 6.52, 44.52)]
+                    )),
                 ]
             )
         )
         offers = self.offers()
-        self.assertEqual((data_import.line_numbers, data_import.error_numbers), (4, 0))
+        self.assertEqual((data_import.line_numbers, data_import.error_numbers), (5, 0))
         self.assertEqual(
             {k: o.geom.geom_type for k, o in offers.items()},
-            {"site": "Point", "rando": "LineString", "zone": "Polygon", "zones": "MultiPolygon"},
+            {"site": "Point", "rando": "LineString", "zone": "Polygon", "zones": "MultiPolygon",
+             "take-off": "GeometryCollection"},
         )
         self.assertFalse(offers["rando"].geom.hasz)
         self.assertEqual(offers["site"].name, "Offre site")
@@ -157,7 +161,7 @@ class OfferParserTests(OfferImportTestCase):
                     line("null-name", name=None),
                     {**line("no-geometry"), "geometry": None},
                     line("empty-geometry", geometry=shapely.Point()),
-                    line("collection", geometry=shapely.GeometryCollection([shapely.Point(6, 44)])),
+                    line("empty-collection", geometry=shapely.GeometryCollection()),
                     line("bad-uuid", uuid="not-a-uuid"),
                     line("double"),
                     line("double"),
