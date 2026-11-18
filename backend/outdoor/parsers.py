@@ -23,6 +23,7 @@ deleting that import deletes the offer.
 """
 
 import uuid
+from itertools import batched
 
 import geopandas as gpd
 import pandas as pd
@@ -231,20 +232,20 @@ class OfferParser:
             Offer.objects.filter(pk__in=gone[i : i + BATCH_SIZE]).delete()
 
         now = timezone.now()
-        Offer.objects.bulk_update(
-            [
-                Offer(pk=known[offer["external_id"]], data_import=self.data_import, date_update=now, **offer)
-                for offer in offers
-                if offer["external_id"] in known
-            ],
-            ["name", "practice", "uuid", "geom", "data_import", "date_update"],
-            batch_size=BATCH_SIZE,
+        updated = (
+            Offer(pk=known[offer["external_id"]], data_import=self.data_import, date_update=now, **offer)
+            for offer in offers
+            if offer["external_id"] in known
         )
-        Offer.objects.bulk_create(
-            [
-                Offer(source=self.source, data_import=self.data_import, **offer)
-                for offer in offers
-                if offer["external_id"] not in known
-            ],
-            batch_size=BATCH_SIZE,
+        created = (
+            Offer(source=self.source, data_import=self.data_import, **offer)
+            for offer in offers
+            if offer["external_id"] not in known
         )
+        # One call per batch, so the model instances are not all built at once.
+        for batch in batched(updated, BATCH_SIZE):
+            Offer.objects.bulk_update(
+                batch, ["name", "practice", "uuid", "geom", "data_import", "date_update"]
+            )
+        for batch in batched(created, BATCH_SIZE):
+            Offer.objects.bulk_create(batch)
