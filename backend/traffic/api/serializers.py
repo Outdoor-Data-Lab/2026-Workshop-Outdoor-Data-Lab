@@ -141,7 +141,12 @@ class AreaCountsSerializer(DynamicFieldsMixin, GeoFeatureModelSerializer):
     """A grid cell with its counts (``context["counts"]``:
     ``{id_area: {"counts", "count_segment", "count_presence"}}``) and its scores
     (``context["scores"]``: ``{score name: {id_area: value}}``), both computed
-    by AreasViewSet."""
+    by AreasViewSet.
+
+    A score with details (``context["score_details"]``: ``{score name: dict}``)
+    is an object: ``{"score": value, **details}``, else the bare value. For
+    "cazalis": ``source_weights`` and, when estimated, ``source_correlations``
+    and ``reference_counters``."""
 
     counts = serializers.SerializerMethodField()
     count_segment = serializers.SerializerMethodField()
@@ -166,8 +171,10 @@ class AreaCountsSerializer(DynamicFieldsMixin, GeoFeatureModelSerializer):
     def get_count_presence(self, area) -> int:
         return self._count(area, "count_presence")
 
-    def get_score(self, area) -> dict[str, float]:
-        return {
-            name: values.get(area.id_area, 0)
-            for name, values in self.context.get("scores", {}).items()
-        }
+    def get_score(self, area) -> dict[str, float | dict]:
+        details = self.context.get("score_details", {})
+        result = {}
+        for name, values in self.context.get("scores", {}).items():
+            value = values.get(area.id_area, 0)
+            result[name] = {"score": value, **details[name]} if details.get(name) else value
+        return result

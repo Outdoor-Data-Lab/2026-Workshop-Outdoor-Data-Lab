@@ -131,12 +131,37 @@ class AreasViewSet(viewsets.ReadOnlyModelViewSet):
         )
 
     @cached_property
+    def estimate(self):
+        """BTA estimate of the "cazalis" weights (``weights``, ``correlations``,
+        ``counters``), or None when the weights are given or the score is not requested."""
+        if self.params.get("source_weights") is None and "cazalis" in self.params.get("scores", ()):
+            return SCORES["cazalis"].cached_estimate()
+        return None
+
+    @cached_property
     def source_weights(self):
         """Weights of the "cazalis" score: given, or estimated (BTA) when omitted."""
-        weights = self.params.get("source_weights")
-        if weights is None and "cazalis" in self.params.get("scores", ()):
-            weights = SCORES["cazalis"].cached_source_weights()
-        return weights
+        if self.estimate is not None:
+            return self.estimate["weights"]
+        return self.params.get("source_weights")
+
+    @cached_property
+    def score_details(self):
+        """``{score name: dict}``: what goes next to the value of that score in
+        every cell (``score[name]`` becomes ``{"score": value, **dict}``).
+
+        "cazalis": the weight of each source (``source_weights``) and, when
+        estimated, its correlation with the eco-counters (``source_correlations``:
+        ``{source id: {"r": Pearson's r or null, "counters": n}}``) and the
+        number of eco-counters used (``reference_counters``).
+        """
+        details = {}
+        if "cazalis" in self.params.get("scores", ()):
+            details["cazalis"] = {"source_weights": self.source_weights}
+            if self.estimate is not None:
+                details["cazalis"]["source_correlations"] = self.estimate["correlations"]
+                details["cazalis"]["reference_counters"] = self.estimate["counters"]
+        return details
 
     def compute_scores(self, measures):
         """``{score name: {id_area: value}}`` for the requested scores."""
@@ -160,6 +185,7 @@ class AreasViewSet(viewsets.ReadOnlyModelViewSet):
             **self.get_serializer_context(),
             "counts": counts_by_area(measures),
             "scores": self.compute_scores(self.measures),
+            "score_details": self.score_details,
         }
         return self.get_serializer(areas if many else areas[0], many=many, context=context)
 
