@@ -4,7 +4,7 @@ from rest_framework import viewsets
 from rest_framework_gis.filters import InBBoxFilter
 
 from ref_geo.filters import LAreaFilter
-from ref_geo.pagination import GeoJsonLimitOffsetPagination
+from commons.api.geo import GeoJsonLimitOffsetPagination
 
 from . import serializers
 from .querysets import GRID, TAXA_GRID
