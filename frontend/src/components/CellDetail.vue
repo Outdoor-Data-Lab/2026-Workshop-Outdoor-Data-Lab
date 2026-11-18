@@ -3,6 +3,7 @@
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
+import { getAreaTaxa, type AreaTaxon } from '@/api/biodiv'
 import { describeError } from '@/api/errors'
 import { getAreaOffers } from '@/api/outdoor'
 import { getTrafficArea, type SourceCount } from '@/api/traffic'
@@ -16,8 +17,12 @@ const { t, te, n } = useI18n()
 
 const { data, error, loading } = useAsync(async () => {
   const id = Number(props.cell.id)
-  const [traffic, offers] = await Promise.all([getTrafficArea(id), getAreaOffers(id)])
-  return { traffic: traffic.properties, offers }
+  const [traffic, offers, taxa] = await Promise.all([
+    getTrafficArea(id),
+    getAreaOffers(id),
+    getAreaTaxa(id),
+  ])
+  return { traffic: traffic.properties, offers, taxa: taxa.properties.taxa }
 })
 
 /** Score de la carte (0 à 100). */
@@ -37,12 +42,22 @@ function countText(source: SourceCount) {
   return t(key, { n: n(source.count) }, source.count)
 }
 
-/** Années couvertes par les mesures, ex. « 2021–2024 ». */
-function years(source: SourceCount) {
-  const [first, last] = [source.first_data, source.latest_data].map((d) =>
-    new Date(d).getFullYear(),
-  )
+/** Années couvertes, ex. « 2021–2024 ». */
+function years(from: string, to: string) {
+  const [first, last] = [from, to].map((d) => new Date(d).getFullYear())
   return first === last ? String(first) : `${first}–${last}`
+}
+
+/** Statuts, observations et années d'un taxon, ex. « protégé · menacé (VU) · 4 observations · 2017–2024 ». */
+function taxonText(taxon: AreaTaxon) {
+  return [
+    taxon.protection.length && t('cell.protected'),
+    ...taxon.threatened.map((s) => t('cell.threatened', { code: s.code_statut })),
+    t('cell.observations', { n: n(taxon.count) }, taxon.count),
+    years(taxon.date_min, taxon.date_max),
+  ]
+    .filter(Boolean)
+    .join(' · ')
 }
 </script>
 
@@ -54,7 +69,7 @@ function years(source: SourceCount) {
       <dt>{{ $t('cell.traffic') }}</dt>
       <dd>{{ score }}/100</dd>
       <dt>{{ $t('cell.biodiversity') }}</dt>
-      <dd class="hint">{{ $t('cell.soon') }}</dd>
+      <dd>{{ $t('cell.taxa', data.taxa.length) }}</dd>
       <dt>{{ $t('cell.outdoor') }}</dt>
       <dd>{{ $t('cell.offers', data.offers.count) }}</dd>
       <dt>{{ $t('cell.zonings') }}</dt>
@@ -66,11 +81,25 @@ function years(source: SourceCount) {
       <li v-for="source in data.traffic.sources" :key="source.code">
         <strong>{{ source.label }}</strong> : {{ countText(source) }}
         <div class="hint">
-          {{ source.absolute ? $t('cell.absolute') : $t('cell.relative') }} · {{ years(source) }}
+          {{ source.absolute ? $t('cell.absolute') : $t('cell.relative') }} ·
+          {{ years(source.first_data, source.latest_data) }}
         </div>
       </li>
     </ul>
     <p class="hint note">{{ $t('cell.countsNote') }}</p>
+
+    <h3>{{ $t('cell.biodiversity') }}</h3>
+    <p>{{ $t('cell.taxa', data.taxa.length) }}</p>
+    <details v-if="data.taxa.length">
+      <summary>{{ $t('cell.taxaList') }}</summary>
+      <ul>
+        <li v-for="taxon in data.taxa" :key="taxon.cd_ref">
+          {{ taxon.nom_vern ?? taxon.lb_nom }} <em v-if="taxon.nom_vern">{{ taxon.lb_nom }}</em>
+          <div class="hint">{{ taxonText(taxon) }}</div>
+        </li>
+      </ul>
+    </details>
+    <p class="hint note">{{ $t('cell.taxaNote') }}</p>
 
     <h3>{{ $t('cell.outdoor') }}</h3>
     <p>{{ $t('cell.offers', data.offers.count) }}</p>
