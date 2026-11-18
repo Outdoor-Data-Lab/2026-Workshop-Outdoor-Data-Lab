@@ -59,6 +59,7 @@ INSTALLED_APPS = [
     "outdoor",
     "biodiversity",
     "ref_geo",
+    "taxhub",
     "django_filters",
     "rest_framework_gis",
     "rest_framework",
@@ -168,4 +169,4 @@ SPECTACULAR_SETTINGS = {
     "SERVE_INCLUDE_SCHEMA": False,
 }
 
-MIGRATION_MODULES = {"ref_geo": None}
+MIGRATION_MODULES = {"ref_geo": None, "taxhub": None}
