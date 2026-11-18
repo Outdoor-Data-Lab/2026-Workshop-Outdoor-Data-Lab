@@ -10,7 +10,8 @@ from ref_geo.models import LArea
 from ref_geo.serializers import LAreaSerializer, LAreaGeoSerializer
 from ref_geo.views import GeoViewSet
 from ..models import Offer
-from .serializers import OfferSerializer, OfferGeoSerializer
+from .serializers import OfferSerializer, OfferGeoSerializer, LAreaWithOffersCountSerializer, \
+    LAreaGeoWithOffersCountSerializer
 from .filters import OfferFilter
 from ref_geo.renderers import FormatFirstNegotiation, GeoJSONRenderer
 from ref_geo.pagination import GeoJsonLimitOffsetPagination
@@ -60,13 +61,17 @@ class OfferViewSet(viewsets.ReadOnlyModelViewSet):
         return super().paginator
 
 
-class LAreaViewSet(GeoViewSet):
-    """Areas (communes, grids, zonings...).
+class LAreaCountViewSet(GeoViewSet):
+    """API endpoint for listing areas with optional offers count.
 
-    Filters: ``type_code``, ``area_code``, ``name``, ``enable``,
-    ``bbox=minlon,minlat,maxlon,maxlat``. Add ``format=geojson`` for a
-    GeoJSON FeatureCollection (WGS84 geometry).
+    When type_code parameter is provided, areas are filtered by type and include offers count.
+
+    Example requests:
+    - GET /api/areas/ -> List all areas
+    - GET /api/areas/?type_code=COM -> List areas of type COM with offers count
+    - GET /api/areas/?type_code=COM&format=geojson -> Same in GeoJSON format
     """
+
     queryset = (
         LArea.objects.select_related("type")
         .defer("geom", "centroid")
@@ -79,51 +84,21 @@ class LAreaViewSet(GeoViewSet):
 
     def get_queryset(self):
         qs = super().get_queryset()
+
+        # Si type_code est fourni, filtrer par type
+        type_code = self.request.query_params.get('type_code')
+        if type_code:
+            qs = qs.filter(type__type_code=type_code)
+
         if not self.is_geojson():
             qs = qs.defer("geom_4326")
         return qs
 
-    @action(detail=False, methods=['get'])
-    def by_type_with_offers(self, request):
-        """Get all areas by type_code with offers count in each area.
-
-        Query parameters:
-            - type_code: Filter by area type code (required)
-
-        Example: GET /api/areas/by_type_with_offers/?type_code=COM
-        """
-        type_code = request.query_params.get('type_code')
-
-        if not type_code:
-            return Response(
-                {"error": "type_code parameter is required"},
-                status=400
-            )
-
-        # Get areas of the specified type
-        areas = (
-            LArea.objects
-            .select_related("type")
-            .filter(type__type_code=type_code)
-            .defer("geom", "centroid", "geom_4326")
-            .order_by("id_area")
-        )
-
-        # Annotate with offers count
-        areas_with_counts = []
-        for area in areas:
-            if area.geom_4326:
-                offers_count = Offer.objects.filter(geom__intersects=area.geom_4326).count()
-            else:
-                offers_count = 0
-
-            areas_with_counts.append({
-                **LAreaSerializer(area).data,
-                "offers_count": offers_count
-            })
-
-        return Response({
-            "type_code": type_code,
-            "count": len(areas_with_counts),
-            "results": areas_with_counts
-        })
+    def get_serializer_class(self):
+        """Retourner le serializer avec comptage des offres si type_code est fourni."""
+        type_code = self.request.query_params.get('type_code')
+        if type_code:
+            if self.is_geojson():
+                return LAreaGeoWithOffersCountSerializer
+            return LAreaWithOffersCountSerializer
+        return super().get_serializer_class()
