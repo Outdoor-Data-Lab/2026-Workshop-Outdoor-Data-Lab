@@ -62,7 +62,13 @@ docker compose -f docker-compose-dev.yaml down -v
 Start the development stack, then load the sample traffic data with the Django management command:
 
 ```sh
-docker compose -f docker-compose-dev.yaml exec web python manage.py load_traffic_demo
+docker compose -f docker-compose-dev.yaml exec web python backend/manage.py load_traffic_demo
 ```
 
-The command runs `backend/workshop2026/processing/insert_traffic_data.sql` and refreshes the traffic score materialized view. The script creates ten synthetic counters or segments around the Ecrins, with daily counts for July 7–20, 2025. It is safe to rerun: only rows with the script's `demo_*` external IDs are replaced. These records are sample data, not real observations.
+The command runs `backend/workshop2026/processing/insert_traffic_data.sql`. The script creates five synthetic counters or segments in the first three 1 km grid cells of ref_geo, with counts on the 5th, 15th and 25th of January–March 2023 (and 2024 for one counter). It is safe to rerun: only rows with the script's `demo_m1_*` external IDs are replaced. These records are sample data, not real observations.
+
+Counts and scores per 1 km grid cell are computed on the fly from the measures. The cells of each counting object are kept in `traffic.counting_object_areas` by a database trigger. If ref_geo was loaded or reloaded after the counting objects, rebuild that table:
+
+```sh
+docker compose -f docker-compose-dev.yaml exec web python backend/manage.py sync_counting_object_areas
+```
