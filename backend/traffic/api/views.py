@@ -1,10 +1,4 @@
-from django_filters.rest_framework import DjangoFilterBackend
-from drf_spectacular.utils import extend_schema
-from rest_framework import viewsets
-from rest_framework.decorators import action
-from rest_framework.pagination import PageNumberPagination
-from rest_framework.response import Response
-from rest_framework_gis.pagination import GeoJsonPagination
+from commons.api.geo import GeoViewSet, ReadOnlyViewSet
 
 from ..models import (
     CountingMeasure,
@@ -12,56 +6,51 @@ from ..models import (
     CountingObjectType,
     Unit,
 )
+from .filters import CountingMeasureFilter, CountingObjectFilter
 from .serializers import (
     CountingMeasureSerializer,
+    CountingObjectGeoSerializer,
     CountingObjectSerializer,
     CountingObjectTypeSerializer,
-    UnitSerializer, GeometrySearchSerializer,
+    UnitSerializer,
 )
 
-class UnitViewSet(viewsets.ReadOnlyModelViewSet):
 
+class UnitViewSet(ReadOnlyViewSet):
     queryset = Unit.objects.order_by("id")
     serializer_class = UnitSerializer
+    filterset_fields = ["code"]
+    ordering_fields = ("id", "code", "label")
 
-class CountingObjectTypeViewSet(viewsets.ReadOnlyModelViewSet):
 
+class CountingObjectTypeViewSet(ReadOnlyViewSet):
     queryset = CountingObjectType.objects.order_by("id")
     serializer_class = CountingObjectTypeSerializer
+    filterset_fields = ["code"]
+    ordering_fields = ("id", "code", "label")
 
 
-class CountingObjectViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = CountingObject.objects.with_data_range().order_by("date_create")
-    serializer_class = CountingObjectSerializer
-    pagination_class = GeoJsonPagination
-    filter_backends = [DjangoFilterBackend]
-    filterset_fields = ["type"]
-
-    @extend_schema(
-        request=GeometrySearchSerializer,
-        responses=CountingObjectSerializer(many=True),
+class CountingObjectViewSet(GeoViewSet):
+    queryset = (
+        CountingObject.objects.with_data_range()
+        .select_related("type", "source", "origin")
+        .order_by("id")
     )
-    @action(detail=False, methods=["post"], url_path="search")
-    def search(self, request):
-        input_serializer = GeometrySearchSerializer(data=request.data)
-        input_serializer.is_valid(raise_exception=True)
-        geom = input_serializer.validated_data["geometry"]
-        predicate = input_serializer.validated_data["predicate"]
+    serializer_class = CountingObjectSerializer
+    geo_serializer_class = CountingObjectGeoSerializer
+    filterset_class = CountingObjectFilter
+    ordering_fields = ("id", "external_id", "installation_date", "date_update")
 
-        # Applique aussi les filtres en query string (ex: ?type=2)
-        queryset = self.filter_queryset(self.get_queryset())
-        queryset = queryset.filter(**{f"geom__{predicate}": geom})
-
-        page = self.paginate_queryset(queryset)
-        if page is not None:
-            return self.get_paginated_response(self.get_serializer(page, many=True).data)
-        return Response(self.get_serializer(queryset, many=True).data)
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        return queryset if self.is_geojson() else queryset.defer("geom")
 
 
-class CountingMeasureViewSet(viewsets.ReadOnlyModelViewSet):
-
-    queryset = CountingMeasure.objects.order_by("counting_object_id")
+class CountingMeasureViewSet(ReadOnlyViewSet):
+    # Unique order, so that pages do not skip or repeat measures.
+    queryset = CountingMeasure.objects.select_related("unit", "practice").order_by(
+        "counting_object_id", "start_datetime", "id"
+    )
     serializer_class = CountingMeasureSerializer
-    pagination_class = PageNumberPagination
-    filter_backends = [DjangoFilterBackend]
-    filterset_fields = ["counting_object"]
+    filterset_class = CountingMeasureFilter
+    ordering_fields = ("id", "start_datetime", "end_datetime", "count")

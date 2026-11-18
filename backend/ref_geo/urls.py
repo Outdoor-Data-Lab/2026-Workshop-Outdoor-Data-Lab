@@ -1,10 +1,10 @@
-from rest_framework.routers import DefaultRouter
+from rest_framework.routers import SimpleRouter
 
 from . import views
 
 app_name = "ref_geo"
 
-router = DefaultRouter()
+router = SimpleRouter(trailing_slash=False)
 router.register("area-types", views.BibAreasTypeViewSet, "area-type")
 router.register("linear-types", views.BibLinearsTypeViewSet, "linear-type")
 router.register("point-types", views.BibPointsTypeViewSet, "point-type")

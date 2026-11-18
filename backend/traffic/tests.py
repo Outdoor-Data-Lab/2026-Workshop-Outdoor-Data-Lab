@@ -1,10 +1,9 @@
 from datetime import datetime, timedelta, timezone
 
-from django.contrib.auth import get_user_model
 from django.contrib.gis.geos import Point
 from django.db import IntegrityError, connection, transaction
 from django.db.models import ProtectedError
-from django.test import Client, TestCase
+from django.test import TestCase
 
 from commons.models import DataSource, Practice
 
@@ -24,12 +23,8 @@ class TrafficTestCase(TestCase):
         cls.person = Unit.objects.get(code="person")
 
     def make_object(self, **kwargs):
-        return CountingObject.objects.create(
-            type=self.type,
-            source=self.source,
-            geom=Point(6.4, 44.9, srid=4326),
-            **kwargs,
-        )
+        values = {"type": self.type, "source": self.source, "geom": Point(6.4, 44.9, srid=4326)}
+        return CountingObject.objects.create(**(values | kwargs))
 
 
 class SchemaTests(TrafficTestCase):
@@ -126,18 +121,54 @@ class CountingMeasureTests(TrafficTestCase):
 
 
 class CountingObjectApiTests(TrafficTestCase):
-    def test_search_works_for_a_user_logged_in_to_the_admin(self):
-        self.make_object()
-        client = Client(enforce_csrf_checks=True)
-        client.force_login(get_user_model().objects.create_user("user@example.org", "x"))
-        square = [[6, 44], [7, 44], [7, 45], [6, 45], [6, 44]]
-        response = client.post(
-            "/api/traffic/counting-object/search",
-            {"geometry": {"type": "Polygon", "coordinates": [square]}},
-            content_type="application/json",
-        )
+    url = "/api/traffic/counting-objects"
+
+    def setUp(self):
+        self.garmin = DataSource.objects.get(code="garmin")
+        self.inside = self.make_object(external_id="in", origin=self.garmin)
+        self.make_object(external_id="out", geom=Point(-3.7, 40.4, srid=4326))
+
+    def get(self, query=""):
+        response = self.client.get(f"{self.url}?{query}")
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()["count"], 1)
+        return response.json()
+
+    def test_plain_json_with_relation_codes(self):
+        data = self.get("ordering=id")
+        self.assertEqual(data["count"], 2)
+        first = data["results"][0]
+        self.assertEqual(
+            (first["type_code"], first["source_code"], first["origin_code"]),
+            ("counter", "outdoorvision", "garmin"),
+        )
+        self.assertIsNone(data["results"][1]["origin_code"])
+        self.assertNotIn("geom", first)
+
+    def test_geojson(self):
+        data = self.get("format=geojson")
+        self.assertEqual(data["type"], "FeatureCollection")
+        self.assertEqual(data["count"], 2)
+        self.assertEqual(data["features"][0]["geometry"]["type"], "Point")
+
+    def test_spatial_and_code_filters(self):
+        self.assertEqual(self.get("bbox=6,44,7,45")["count"], 1)
+        self.assertEqual(self.get("point=6.4,44.9")["count"], 1)
+        square = '{"type": "Polygon", "coordinates": [[[6,44],[7,44],[7,45],[6,45],[6,44]]]}'
+        self.assertEqual(self.get(f"intersects={square}")["count"], 1)
+        self.assertEqual(self.get("origin_code=garmin")["count"], 1)
+        self.assertEqual(self.get("type_code=segment")["count"], 0)
+
+    def test_measures_paginated_with_codes(self):
+        for day in (15, 16, 17):
+            CountingMeasure.objects.create(
+                counting_object=self.inside, start_datetime=dt(day),
+                end_datetime=dt(day) + timedelta(days=1), count=1, unit=self.person,
+                practice=Practice.objects.get(code="hiking"),
+            )
+        response = self.client.get("/api/traffic/counting-measures?limit=2&practice_code=hiking")
+        data = response.json()
+        self.assertEqual((data["count"], len(data["results"])), (3, 2))
+        self.assertEqual(data["results"][0]["unit_code"], "person")
 
 
 class ReferenceDataTests(TestCase):
