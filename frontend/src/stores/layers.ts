@@ -17,6 +17,7 @@ export interface LayerStatus {
 export interface MapFeatureProperties {
   key: string
   label: string
+  value?: number
 }
 
 /** Couche proposée à l'utilisateur. `load` est appelé au premier affichage. */
@@ -65,7 +66,10 @@ export const useLayersStore = defineStore('layers', () => {
         features: objects.map((o) => ({
           type: 'Feature',
           geometry: o.geometry,
-          properties: { key: o.key, label: o.label },
+          properties:
+            o.value === undefined
+              ? { key: o.key, label: o.label }
+              : { key: o.key, label: o.label, value: o.value },
         })),
       }
     }
