@@ -15,7 +15,7 @@ import uuid
 from django.contrib.gis.db import models
 from django.db.models import F, Q
 
-from commons.models import DataSource
+from commons.models import DataImport, DataSource
 
 DB_SCHEMA = "biodiversity"
 
@@ -119,3 +119,11 @@ class HabitatRecord(models.Model):
 
     def __str__(self):
         return f"{self.station} : {self.cd_hab}"
+
+
+class ObservationImport(DataImport):
+    """An import of taxon records (see biodiversity.parsers): the admin page of the
+    biodiversity imports, which lists the sources of the biodiversity parsers only."""
+
+    class Meta:
+        proxy = True

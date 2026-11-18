@@ -1,0 +1,45 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls %}
+
+{% block extrahead %}{{ block.super }}{{ media }}{% endblock %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">{% translate 'Home' %}</a>
+  &rsaquo; <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_config.verbose_name }}</a>
+  &rsaquo; <a href="{% url opts|admin_urlname:'changelist' %}">{{ opts.verbose_name_plural|capfirst }}</a>
+  &rsaquo; {{ title }}
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+  <p>Source: <strong>{{ data_import.source }}</strong>. File: <strong>{{ file_name }}</strong>, {{ preview.lines }} lines.</p>
+  <table>
+    <tr><th scope="row">Offers created</th><td>{{ preview.created }}</td></tr>
+    <tr><th scope="row">Offers updated</th><td>{{ preview.updated }}</td></tr>
+    <tr><th scope="row">Offers deleted, missing from the file</th><td>{{ preview.deleted }}</td></tr>
+    <tr><th scope="row">Lines in error, skipped</th><td>{{ preview.errors }}</td></tr>
+  </table>
+  {% if errors %}
+  <h2>Lines in error</h2>
+  <table>
+    <thead><tr><th>Line</th><th>id</th><th>Reason</th></tr></thead>
+    <tbody>
+      {% for number, line_id, reason in errors %}
+      <tr><td>{{ number }}</td><td>{{ line_id }}</td><td>{{ reason }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% if more_errors > 0 %}<p>And {{ more_errors }} more lines in error.</p>{% endif %}
+  {% endif %}
+  <form method="post" id="offerimport_form" data-file="{{ file_name }}">
+    {% csrf_token %}
+    <input type="hidden" name="token" value="{{ token }}">
+    <div class="submit-row">
+      <input type="submit" name="_apply" value="Apply the import" class="default">
+      <input type="submit" name="_cancel" value="Cancel">
+    </div>
+  </form>
+</div>
+{% endblock %}

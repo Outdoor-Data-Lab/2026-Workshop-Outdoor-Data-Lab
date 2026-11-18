@@ -25,12 +25,12 @@ api_patterns = [
     path("traffic/", include("traffic.api.urls")),
     path("commons/", include("commons.api.urls")),
     path("biodiversity/", include("biodiversity.urls")),
+    path("ref-geo/", include("ref_geo.urls")),
 ]
 
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/", include(api_patterns)),
-    path("ref_geo/", include("ref_geo.urls")),
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path(
         "api/docs/",
@@ -38,6 +38,11 @@ urlpatterns = [
         name="swagger-ui",
     ),
 ]
+
+if settings.DEBUG:
+    import debug_toolbar
+
+    urlpatterns = [path("__debug__/", include(debug_toolbar.urls)), *urlpatterns]
 
 # Serve uploaded files in development (does nothing when DEBUG is off).
 urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

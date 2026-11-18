@@ -1,7 +1,10 @@
 from django.contrib import admin
 from django.contrib.gis.admin import GISModelAdmin
 
-from .models import CountingMeasure, CountingObject, CountingObjectType, Unit
+from commons.admin import ImportAdmin
+
+from .models import CountingMeasure, CountingObject, CountingObjectType, TrafficImport, Unit
+from .parsers import PARSERS
 
 
 @admin.register(Unit)
@@ -50,3 +53,7 @@ class CountingMeasureAdmin(admin.ModelAdmin):
     def has_change_permission(self, request, obj=None):
         return False
 
+
+@admin.register(TrafficImport)
+class TrafficImportAdmin(ImportAdmin):
+    parsers = PARSERS
