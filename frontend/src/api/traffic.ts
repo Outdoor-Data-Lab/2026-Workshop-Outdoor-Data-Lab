@@ -189,7 +189,7 @@ export async function getCountingObjectsForMap(filters: CountingObjectFilters = 
 export const TRAFFIC_AREA_LAYER: LayerId = 'traffic/area'
 
 /** Zoom minimal des tuiles de compteurs (en dessous, le backend ne renvoie rien : les mailles résument). */
-export const TILE_MIN_ZOOM = 11
+export const TILE_MIN_ZOOM = 10
 
 /** Gabarit d'URL des tuiles vectorielles de compteurs, absolu comme MapLibre l'attend. */
 export function countingObjectTileUrl(filters: { typeCode?: string; areaId?: number } = {}) {

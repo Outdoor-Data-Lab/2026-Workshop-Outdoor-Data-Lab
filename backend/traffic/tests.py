@@ -1059,7 +1059,7 @@ class CountingObjectTileTests(AreasTestCase):
         self.assertGreater(len(response.content), 0)
 
     def test_empty_below_the_minimum_zoom(self):
-        self.assertEqual(self.get(*tile_of(6.2, 44.2, 10)).status_code, 204)
+        self.assertEqual(self.get(*tile_of(6.2, 44.2, 9)).status_code, 204)
 
     def test_filters(self):
         tile = tile_of(6.2, 44.2, 12)

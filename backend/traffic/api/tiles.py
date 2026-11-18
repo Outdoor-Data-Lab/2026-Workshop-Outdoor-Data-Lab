@@ -2,7 +2,7 @@
 
 The Outdoorvision tracks are too many for GeoJSON (40 million points): the map
 asks only the visible tiles, from zoom ``MIN_ZOOM``. Each tile simplifies
-``geom_tiles`` (already simplified to 10 m) to about two pixels of its zoom.
+``geom_tiles`` (already simplified to 10 m) to a few pixels of its zoom.
 """
 
 from django.db import connection
@@ -12,11 +12,16 @@ from ref_geo.models import LArea
 
 from ..models import CountingObject, CountingObjectType
 
-# Below, a tile of the Écrins holds every track (8 MB): the grid cells show them.
-MIN_ZOOM = 11
+# Below, a tile of the Écrins holds every track (2 to 8 MB): the grid cells show them.
+MIN_ZOOM = 10
 EXTENT = 4096  # tile resolution, in pixels
 LAYER = "counting_objects"
 WORLD_WIDTH = 40075016.68  # web mercator, in metres
+
+
+def tolerance_pixels(z):
+    """4 px at zoom 10 (a third lighter, invisible at that scale), then 2 px."""
+    return 4 if z < 11 else 2
 
 SQL = """
 SELECT ST_AsMVT(t, %(layer)s, %(extent)s, 'geom', 'id') FROM (
@@ -56,7 +61,7 @@ def counting_object_tile(request, z, x, y):
     with connection.cursor() as cursor:
         cursor.execute(sql, {
             "layer": LAYER, "extent": EXTENT, "z": z, "x": x, "y": y,
-            "tolerance": 2 * WORLD_WIDTH / 2**z / EXTENT,
+            "tolerance": tolerance_pixels(z) * WORLD_WIDTH / 2**z / EXTENT,
             "type_code": request.GET.get("type_code"),
             "area_id": int(area_id) if area_id is not None else None,
         })
