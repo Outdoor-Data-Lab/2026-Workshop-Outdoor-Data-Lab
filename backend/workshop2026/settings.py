@@ -170,3 +170,5 @@ SPECTACULAR_SETTINGS = {
 }
 
 MIGRATION_MODULES = {"ref_geo": None, "taxhub": None}
+
+DEFAULT_AREA_TYPE = os.environ.get("DEFAULT_AREA_TYPE", "M1")
