@@ -57,6 +57,10 @@ To stop the stack and erase the database
 docker compose -f docker-compose-dev.yaml down -v 
 ```
 
+## Importer des données
+
+Voir [docs/imports.md](docs/imports.md).
+
 ## Load demonstration traffic data
 
 Start the development stack, then load the sample traffic data with the Django management command:
