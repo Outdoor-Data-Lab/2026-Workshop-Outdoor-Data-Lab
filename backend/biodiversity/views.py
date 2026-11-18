@@ -5,7 +5,6 @@ from rest_framework_gis.filters import InBBoxFilter
 
 from ref_geo.filters import LAreaFilter
 from commons.api.geo import GeoJsonLimitOffsetPagination
-from workshop2026.api.mixins import AreaFilterSet
 
 from . import serializers
 from .querysets import GRID, TAXA_GRID
@@ -20,7 +19,7 @@ class TaxonAreaViewSet(viewsets.ReadOnlyModelViewSet):
         DjangoFilterBackend,
         drf_filters.OrderingFilter,
     ]
-    filterset_class = AreaFilterSet
+    filterset_class = LAreaFilter
     ordering_fields = ("id_area", "area_code", "area_name")
     bbox_filter_field = "geom_4326"
     bbox_filter_include_overlapping = True
