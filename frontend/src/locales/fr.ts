@@ -9,6 +9,7 @@ export default {
   },
   layerGroups: {
     traffic: 'Fréquentation',
+    biodiversity: 'Biodiversité',
     outdoor: 'Outdoor',
     external: 'Couches externes',
   },
@@ -23,6 +24,8 @@ export default {
     fromZoom: 'Visible à partir du zoom {zoom} : zoomez sur la carte.',
     trafficArea: 'Maille {id} : score {score}',
     outdoorOffers: 'Offres outdoor',
+    biodivAreas: 'Taxons protégés ou menacés par maille',
+    biodivArea: 'Maille {name} : {count} taxons protégés ou menacés',
     loadError: 'Impossible de charger {label}',
   },
   areaFilter: {
@@ -55,6 +58,13 @@ export default {
     outdoor: 'Outdoor',
     zonings: 'Zonage réglementaire',
     soon: 'à venir',
+    taxa: 'aucun taxon protégé ou menacé | {n} taxon protégé ou menacé | {n} taxons protégés ou menacés',
+    taxaList: 'Liste des taxons',
+    protected: 'protégé',
+    threatened: 'menacé ({code})',
+    observations: '{n} observation | {n} observations',
+    taxaNote:
+      'Protégé : protection nationale. Menacé : liste rouge nationale (RE, CR, EN, VU, EX). Observations GBIF et SINP.',
     offers: 'aucune offre | {n} offre | {n} offres',
     absolute: 'absolu',
     relative: 'relatif',

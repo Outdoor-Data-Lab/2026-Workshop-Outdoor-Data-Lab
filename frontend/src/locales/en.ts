@@ -8,6 +8,7 @@ export default {
   },
   layerGroups: {
     traffic: 'Traffic',
+    biodiversity: 'Biodiversity',
     outdoor: 'Outdoor',
     external: 'External layers',
   },
@@ -23,6 +24,8 @@ export default {
     fromZoom: 'Visible from zoom {zoom}: zoom in on the map.',
     trafficArea: 'Cell {id}: score {score}',
     outdoorOffers: 'Outdoor offers',
+    biodivAreas: 'Protected or threatened taxa per grid cell',
+    biodivArea: 'Cell {name}: {count} protected or threatened taxa',
     loadError: 'Could not load {label}',
   },
   areaFilter: {
@@ -56,6 +59,13 @@ export default {
     outdoor: 'Outdoor',
     zonings: 'Regulatory zoning',
     soon: 'coming soon',
+    taxa: 'no protected or threatened taxon | {n} protected or threatened taxon | {n} protected or threatened taxa',
+    taxaList: 'List of taxa',
+    protected: 'protected',
+    threatened: 'threatened ({code})',
+    observations: '{n} observation | {n} observations',
+    taxaNote:
+      'Protected: national protection. Threatened: national red list (RE, CR, EN, VU, EX). GBIF and SINP observations.',
     offers: 'no offer | {n} offer | {n} offers',
     absolute: 'absolute',
     relative: 'relative',

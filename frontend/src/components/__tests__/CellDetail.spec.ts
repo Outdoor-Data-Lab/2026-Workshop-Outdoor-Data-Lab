@@ -47,15 +47,41 @@ const offers = {
     { id: 2, name: 'Col', practice_label: 'Randonnée', source_label: 'Geotrek' },
   ],
 }
+const taxa = {
+  type: 'Feature',
+  id: 7,
+  properties: {
+    taxa: [
+      {
+        cd_ref: 92,
+        lb_nom: 'Salamandra salamandra',
+        nom_vern: 'Salamandre tachetée',
+        protection: [
+          { lb_type_statut: 'Protection nationale', code_statut: 'FRAR3', label_statut: '' },
+        ],
+        threatened: [
+          { lb_type_statut: 'Liste rouge nationale', code_statut: 'VU', label_statut: '' },
+        ],
+        count: 4,
+        date_min: '2017-04-07',
+        date_max: '2024-03-13',
+      },
+    ],
+  },
+}
 
 describe('CellDetail', () => {
   afterEach(() => vi.unstubAllGlobals())
 
-  it('summarizes the traffic score and sources, and the outdoor offers of the cell', async () => {
+  it('summarizes the traffic score and sources, the protected or threatened taxa and the outdoor offers of the cell', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(async (url: string) => {
-        const body = url.startsWith('/api/traffic/areas/7') ? traffic : offers
+        const body = url.startsWith('/api/traffic/areas/7')
+          ? traffic
+          : url.startsWith('/api/biodiversity/list_taxa/7')
+            ? taxa
+            : offers
         return new Response(JSON.stringify(body))
       }),
     )
@@ -69,6 +95,10 @@ describe('CellDetail', () => {
     expect(text).toContain('Eco-Compteur : 1,000 passages counted absolute · 2024')
     expect(text).toContain(
       'Strava : 500 trips summed over the segments of the cell relative · 2021–2024',
+    )
+    expect(text).toContain('Biodiversity1 protected or threatened taxon')
+    expect(text).toContain(
+      'Salamandre tachetée Salamandra salamandraprotected · threatened (VU) · 4 observations · 2017–2024',
     )
     expect(text).toContain('Randonnée (2)')
   })

@@ -1,4 +1,5 @@
 /** Couches proposées, construites depuis les tables de référence de l'API. */
+import { BIODIV_AREA_LAYER, getBiodivAreasForMap } from '@/api/biodiv'
 import { getExternalLayers, getFeatures } from '@/api/externalLayers'
 import { OFFER_LAYER, getOffersForMap } from '@/api/outdoor'
 import {
@@ -54,6 +55,18 @@ export async function trafficLayers(): Promise<LayerDefinition[]> {
       label: i18n.global.t('layers.trafficAreas'),
       group: 'traffic',
       load: ({ areaId }) => getTrafficAreasForMap({ areaId }),
+    },
+  ]
+}
+
+/** Mailles ayant des taxons protégés ou menacés. */
+export async function biodiversityLayers(): Promise<LayerDefinition[]> {
+  return [
+    {
+      id: BIODIV_AREA_LAYER,
+      label: i18n.global.t('layers.biodivAreas'),
+      group: 'biodiversity',
+      load: () => getBiodivAreasForMap(),
     },
   ]
 }
