@@ -1,26 +1,63 @@
 <script setup lang="ts">
+import ConceptTabs from '@/components/ConceptTabs.vue'
+import DetailPanel from '@/components/DetailPanel.vue'
+import LayerSwitcher from '@/components/LayerSwitcher.vue'
 import MapView from '@/components/MapView.vue'
-import { COUNTING_OBJECT_LAYER, getCountingObjectsForMap } from '@/api/traffic'
-import { useMapObjectsStore } from '@/stores/mapObjects'
+import { trafficLayers } from '@/catalog'
+import { useLayersStore } from '@/stores/layers'
 
-const mapObjects = useMapObjectsStore()
+const layers = useLayersStore()
 
-// Les erreurs sont notifiées par le store.
-mapObjects.loadLayer(COUNTING_OBJECT_LAYER, () => getCountingObjectsForMap(), {
-  label: 'les compteurs',
-})
+// Un échec est notifié par le gestionnaire global des promesses rejetées (main.ts).
+trafficLayers().then(layers.addDefinitions)
 </script>
 
 <template>
-  <main>
-    <MapView />
+  <main class="home">
+    <aside class="panel left">
+      <ConceptTabs />
+    </aside>
+    <div class="map">
+      <MapView />
+      <LayerSwitcher class="layer-switcher" />
+    </div>
+    <aside class="panel right">
+      <DetailPanel />
+    </aside>
   </main>
 </template>
 
 <style scoped>
-main {
-  flex: 1; /* hauteur restante sous le header */
+.home {
+  flex: 1; /* hauteur restante sous la barre de navigation */
   min-height: 0;
+  display: grid;
+  grid-template-columns: var(--panel-width) 1fr var(--panel-width);
+}
+
+.panel {
+  overflow-y: auto;
+  padding: var(--space);
+  background: var(--color-panel);
+}
+
+.left {
+  border-right: 1px solid var(--color-border);
+}
+
+.right {
+  border-left: 1px solid var(--color-border);
+}
+
+.map {
   position: relative;
+  min-width: 0;
+}
+
+/* Sous les boutons de zoom de MapLibre, en haut à droite. */
+.layer-switcher {
+  position: absolute;
+  top: 100px;
+  right: 10px;
 }
 </style>

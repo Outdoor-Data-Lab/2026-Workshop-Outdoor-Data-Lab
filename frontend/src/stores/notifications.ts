@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
 import { describeError } from '@/api/errors'
+import { i18n } from '@/i18n'
 
 export type NotificationType = 'error' | 'warning' | 'info' | 'success'
 
@@ -54,9 +55,14 @@ export const useNotificationsStore = defineStore('notifications', () => {
 
   /** Notifie une erreur en clair et la journalise en console. */
   function notifyError(error: unknown, context?: string) {
-    console.error(context ?? 'Erreur', error)
+    console.error(context ?? 'Error', error)
     const description = describeError(error)
-    return notify('error', context ? `${context} : ${description}` : description)
+    return notify(
+      'error',
+      context
+        ? i18n.global.t('notifications.withContext', { context, message: description })
+        : description,
+    )
   }
 
   function dismiss(id: number) {
