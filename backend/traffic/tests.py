@@ -1,9 +1,10 @@
 from datetime import datetime, timedelta, timezone
 
+from django.contrib.auth import get_user_model
 from django.contrib.gis.geos import Point
 from django.db import IntegrityError, connection, transaction
 from django.db.models import ProtectedError
-from django.test import TestCase
+from django.test import Client, TestCase
 
 from commons.models import DataSource, Practice
 
@@ -122,6 +123,21 @@ class CountingMeasureTests(TrafficTestCase):
             self.person.delete()
         with self.assertRaises(ProtectedError):
             Practice.objects.get(code="hiking").delete()
+
+
+class CountingObjectApiTests(TrafficTestCase):
+    def test_search_works_for_a_user_logged_in_to_the_admin(self):
+        self.make_object()
+        client = Client(enforce_csrf_checks=True)
+        client.force_login(get_user_model().objects.create_user("user@example.org", "x"))
+        square = [[6, 44], [7, 44], [7, 45], [6, 45], [6, 44]]
+        response = client.post(
+            "/api/traffic/counting-object/search",
+            {"geometry": {"type": "Polygon", "coordinates": [square]}},
+            content_type="application/json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["count"], 1)
 
 
 class ReferenceDataTests(TestCase):
