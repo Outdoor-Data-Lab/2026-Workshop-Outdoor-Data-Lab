@@ -2,10 +2,12 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
+from django.contrib.auth import get_user_model
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.db import IntegrityError, connection, transaction
 from django.db.models import ProtectedError
 from django.test import SimpleTestCase, TestCase, override_settings
+from django.urls import reverse
 
 from .models import DataImport, DataSource, Practice
 
@@ -132,3 +134,33 @@ class DataImportParserTests(SimpleTestCase):
 
     def test_source_without_parser_is_ignored(self):
         self.assertIsNone(self.make_import("gbif").run_parser())
+
+
+class DataImportAdminTests(TestCase):
+    def setUp(self):
+        self.enterContext(override_settings(MEDIA_ROOT=self.enterContext(tempfile.TemporaryDirectory())))
+        user = get_user_model().objects.create_superuser("admin@example.com", "password")
+        self.client.force_login(user)
+
+    def add_import(self, source_code):
+        return self.client.post(
+            reverse("admin:commons_dataimport_add"),
+            {
+                "source": DataSource.objects.get(code=source_code).pk,
+                "file": SimpleUploadedFile("data.csv", b"content"),
+                "line_numbers": 0,
+                "error_numbers": 0,
+            },
+            follow=True,
+        )
+
+    def test_source_without_parser_is_rejected(self):
+        response = self.add_import("gbif")
+        self.assertContains(response, "Aucun parser n&#x27;est disponible pour la source « GBIF ».")
+        self.assertFalse(DataImport.objects.exists())
+
+    @patch("biodiversity.parsers.inpn.INPNParser")
+    def test_imported_count_is_shown(self, parser_class):
+        parser_class.return_value.import_data.return_value = 12
+        response = self.add_import("inpn")
+        self.assertContains(response, "12 éléments importés.")

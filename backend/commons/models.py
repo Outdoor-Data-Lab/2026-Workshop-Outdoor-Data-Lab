@@ -21,6 +21,14 @@ def table(name):
     return f'{DB_SCHEMA}"."{name}'
 
 
+# Source code -> parser class, run when a file is imported for that source.
+PARSERS = {
+    "outdoorvision": "traffic.parsers.outdoorvision.OutdoorVisionParser",
+    "strava": "traffic.parsers.strava.StravaParser",
+    "inpn": "biodiversity.parsers.inpn.INPNParser",
+}
+
+
 class DataSource(models.Model):
     """Where data comes from: a provider (OutdoorVision, GBIF...) or the
     application that produced it (Garmin, Komoot...). Initial values: migration 0002.
