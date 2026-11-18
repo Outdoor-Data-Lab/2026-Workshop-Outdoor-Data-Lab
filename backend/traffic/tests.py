@@ -18,6 +18,7 @@ from django.core.files.base import ContentFile
 from django.core.management import CommandError, call_command
 from django.db import IntegrityError, connection, transaction
 from django.db.models import ProtectedError
+from django.db.models.signals import pre_delete
 from django.test import Client, SimpleTestCase, TestCase, override_settings
 from rest_framework.test import APIRequestFactory
 
@@ -36,6 +37,7 @@ from .models import (
     CountingObject,
     CountingObjectArea,
     CountingObjectType,
+    TrafficImport,
     Unit,
 )
 from .parsers.compteur import CompteurParser
@@ -382,7 +384,7 @@ class StravaParserTests(TrafficTestCase):
         second.delete()
         self.assertEqual(set(CountingObject.objects.values_list("external_id", flat=True)), {"10", "20"})
         self.assertEqual(sorted(CountingMeasure.objects.values_list("count", flat=True)), [15, 80])
-        first.delete()
+        TrafficImport.objects.get(pk=first.pk).delete()  # as from the traffic import page
         self.assertFalse(CountingObject.objects.exists())
 
     def test_an_object_still_measured_by_another_import_is_kept(self):
@@ -392,6 +394,11 @@ class StravaParserTests(TrafficTestCase):
         self.assertIsNone(CountingObject.objects.get(external_id="10").data_import)  # kept, unlinked
         self.assertFalse(CountingObject.objects.filter(external_id="20").exists())
         self.assertEqual(list(CountingMeasure.objects.values_list("count", flat=True)), [90])
+
+    def test_measures_are_deleted_without_being_loaded(self):
+        # With a pre_delete receiver on CountingMeasure, Django would load every
+        # measure of a deleted import instead of deleting them in one query.
+        self.assertFalse(pre_delete.has_listeners(CountingMeasure))
 
     def test_reimport_replaces_the_year(self):
         self.run_import()
