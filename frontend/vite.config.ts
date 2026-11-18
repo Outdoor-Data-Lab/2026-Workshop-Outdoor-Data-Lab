@@ -10,6 +10,11 @@ export default defineConfig({
     vue(),
     vueDevTools(),
   ],
+  // maplibre-gl v6 charge son worker relativement à son propre fichier
+  // (new URL(..., import.meta.url)) : le pré-bundling de Vite casse ce chemin.
+  optimizeDeps: {
+    exclude: ['maplibre-gl'],
+  },
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
