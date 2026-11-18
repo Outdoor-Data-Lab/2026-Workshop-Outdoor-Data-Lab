@@ -33,6 +33,8 @@ export type CountingObjectFilters = {
   originCode?: string
   /** minlon, minlat, maxlon, maxlat (WGS84) */
   bbox?: [number, number, number, number]
+  /** Zone `ref_geo` : objets qui l'intersectent. */
+  areaId?: number
 }
 
 export type SpatialPredicate = 'intersects' | 'within' | 'contains'
@@ -47,6 +49,7 @@ function countingObjectQuery(filters: CountingObjectFilters) {
     source_code: filters.sourceCode,
     origin_code: filters.originCode,
     bbox: filters.bbox?.join(','),
+    area_id: filters.areaId,
   }
 }
 
@@ -125,6 +128,8 @@ export type TrafficAreaFilters = {
   scores?: TrafficAreaScore[]
   sourceWeights?: Record<number, number>
   bbox?: [number, number, number, number]
+  /** Zone `ref_geo` : objets qui l'intersectent. */
+  areaId?: number
 }
 
 function trafficAreasUrl(
@@ -142,6 +147,7 @@ function trafficAreasUrl(
           .join(',')
       : undefined,
     bbox: filters.bbox?.join(','),
+    area_id: filters.areaId,
     limit,
     offset,
   })

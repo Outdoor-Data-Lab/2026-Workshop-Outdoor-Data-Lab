@@ -2,6 +2,7 @@
 /** Carte MapLibre pilotée par le store layers. */
 import { onMounted, onUnmounted, shallowRef, useTemplateRef, watch } from 'vue'
 import {
+  LngLatBounds,
   Map as MlMap,
   NavigationControl,
   type ExpressionSpecification,
@@ -11,7 +12,7 @@ import {
 } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
 
-import { useLayersStore, type MapFeatureProperties } from '@/stores/layers'
+import { useLayersStore, type MapFeatureProperties, type SelectedArea } from '@/stores/layers'
 import { DOMAIN_COLORS, VALUE_COLORS, layerDomain, valueMax, type LayerId } from '@/types/mapObject'
 import type { FeatureCollection, Geometry } from 'geojson'
 
@@ -130,6 +131,8 @@ function addSource(m: MlMap, source: LayerId) {
   m.addSource(source, { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
   const specs = layerSpecs(source)
   for (const spec of specs) m.addLayer(spec)
+  // Le contour de la zone reste au-dessus des couches.
+  if (m.getLayer(AREA_SOURCE)) m.moveLayer(AREA_SOURCE)
   rendered.set(
     source,
     specs.map((s) => s.id),
@@ -159,6 +162,42 @@ function sync(m: MlMap, collections: typeof store.featureCollections) {
   for (const source of rendered.keys()) {
     if (!(source in collections)) removeSource(m, source)
   }
+}
+
+const AREA_SOURCE = 'selected-area'
+
+function bounds(geometry: Geometry): LngLatBounds {
+  const box = new LngLatBounds()
+  const visit = (coordinates: unknown): void => {
+    if (typeof (coordinates as unknown[])[0] === 'number')
+      box.extend(coordinates as [number, number])
+    else for (const c of coordinates as unknown[]) visit(c)
+  }
+  if (geometry.type === 'GeometryCollection')
+    geometry.geometries.forEach((g) => box.extend(bounds(g)))
+  else visit(geometry.coordinates)
+  return box
+}
+
+/** Contour de la zone qui filtre les couches, et recadrage sur elle. */
+function showArea(m: MlMap, area: SelectedArea | null) {
+  const data: FeatureCollection = {
+    type: 'FeatureCollection',
+    features: area ? [{ type: 'Feature', geometry: area.geometry, properties: {} }] : [],
+  }
+  const source = m.getSource(AREA_SOURCE) as GeoJSONSource | undefined
+  if (source) {
+    source.setData(data)
+  } else {
+    m.addSource(AREA_SOURCE, { type: 'geojson', data })
+    m.addLayer({
+      id: AREA_SOURCE,
+      type: 'line',
+      source: AREA_SOURCE,
+      paint: { 'line-color': '#1f2933', 'line-width': 2.5, 'line-dasharray': [3, 2] },
+    })
+  }
+  if (area) m.fitBounds(bounds(area.geometry), { padding: 40 })
 }
 
 function featureAt(m: MlMap, point: PointLike) {
@@ -197,6 +236,10 @@ watch(
   },
   { immediate: true },
 )
+
+watch([map, () => store.area], ([m, area]) => {
+  if (m) showArea(m, area)
+})
 
 watch(
   () => store.selectedKey,
