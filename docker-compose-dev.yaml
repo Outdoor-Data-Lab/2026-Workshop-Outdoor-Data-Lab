@@ -6,11 +6,17 @@ services:
       - -ec
       - |
         flask db upgrade taxhub-standalone@head -x local-srid=2154
-        flask db upgrade taxhub-standalone-sample@head
         flask db upgrade ref_geo_fr_departments@head
         flask db upgrade ref_geo_fr_municipalities@head
         flask db upgrade ref_geo_inpn_grids_1@head
         flask db autoupgrade
+        # Import TaxRef v18 only if it is not already loaded (no psql in this image).
+        if python -c "import os, sys, sqlalchemy as sa; e = sa.create_engine(os.environ['TAXHUB_SQLALCHEMY_DATABASE_URI']); c = e.connect(); sys.exit(0 if c.execute(sa.text('select 1 from taxonomie.t_meta_taxref tmt where tmt.version = 18')).first() else 1)"; then
+          echo "TaxRef v18 already imported, skipping"
+        else
+          flask taxref import-v18 --taxref-region=fr
+        fi
+
     environment:
       FLASK_APP: apptax.app:create_app
       FLASK_DEBUG: "1"
@@ -89,7 +95,7 @@ services:
     restart: always
     volumes:
       # Persist database data across container restarts.
-      - db-data:/var/lib/postgresql
+      - ./db-data:/var/lib/postgresql
       - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/10-taxhub-extensions.sql:ro
     environment:
       - POSTGRES_DB=myapp
