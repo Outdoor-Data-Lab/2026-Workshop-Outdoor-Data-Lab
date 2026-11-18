@@ -8,7 +8,7 @@ from ..models import Offer
 
 
 OFFER_FIELDS = [
-    "id", "uuid", "external_id",
+    "id", "uuid", "external_id", "name",
     "practice", "practice_label",
     "source", "source_label",
     "date_create", "date_update",

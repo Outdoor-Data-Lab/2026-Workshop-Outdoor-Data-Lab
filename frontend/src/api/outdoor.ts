@@ -61,6 +61,18 @@ export function getOffers(
   return apiFetch<OfferPage>(url)
 }
 
+export type AreaOffer = Pick<Offer, 'id' | 'name' | 'practice_label' | 'source_label'>
+
+/** Offres qui intersectent la zone `ref_geo` `areaId`, sans géométrie. */
+export function getAreaOffers(areaId: number) {
+  const url = withQuery(`${BASE}/offers/`, {
+    area_id: areaId,
+    fields: 'id,name,practice_label,source_label',
+    limit: OFFERS_LIMIT,
+  })
+  return apiFetch<Paginated<AreaOffer>>(url)
+}
+
 /** Détail d'une offre, en JSON. */
 export function getOffer(id: number) {
   return apiFetch<Offer>(`${BASE}/offers/${id}/`)

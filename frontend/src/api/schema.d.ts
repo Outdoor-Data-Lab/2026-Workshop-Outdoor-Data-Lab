@@ -636,7 +636,8 @@ export interface paths {
          *     Only the cells with measures matching ``source`` and the period
          *     ``date_from`` / ``date_to`` (YYYY-MM-DD, both included, on the start of
          *     the measures).
-         *     Properties: ``counts``, ``count_segment``, ``count_presence`` and ``score``
+         *     Properties: ``counts``, ``count_segment``, ``count_presence``, ``sources``
+         *     (counts per data source, absolute or relative) and ``score``
          *     (``{score name: value}`` for the requested ``scores``). Geometry in WGS84.
          *     Scores are computed for the cells of the page only.
          *
@@ -668,7 +669,8 @@ export interface paths {
          *     Only the cells with measures matching ``source`` and the period
          *     ``date_from`` / ``date_to`` (YYYY-MM-DD, both included, on the start of
          *     the measures).
-         *     Properties: ``counts``, ``count_segment``, ``count_presence`` and ``score``
+         *     Properties: ``counts``, ``count_segment``, ``count_presence``, ``sources``
+         *     (counts per data source, absolute or relative) and ``score``
          *     (``{score name: value}`` for the requested ``scores``). Geometry in WGS84.
          *     Scores are computed for the cells of the page only.
          *
@@ -855,7 +857,7 @@ export interface components {
     schemas: {
         /**
          * @description A grid cell with its counts (``context["counts"]``:
-         *     ``{id_area: {"counts", "count_segment", "count_presence"}}``) and its scores
+         *     ``{id_area: {"counts", "count_segment", "count_presence", "sources"}}``) and its scores
          *     (``context["scores"]``: ``{score name: {id_area: value}}``), both computed
          *     by AreasViewSet.
          *
@@ -876,6 +878,7 @@ export interface components {
                 readonly counts?: number;
                 readonly count_segment?: number;
                 readonly count_presence?: number;
+                readonly sources?: components["schemas"]["SourceCount"][];
                 readonly score?: {
                     [key: string]: number | {
                         [key: string]: unknown;
@@ -1130,6 +1133,7 @@ export interface components {
             readonly uuid: string | null;
             /** @default  */
             external_id: string;
+            name: string;
             practice: number;
             readonly practice_label: string;
             source: number;
@@ -1531,6 +1535,23 @@ export interface components {
             code: string;
             label: string;
             readonly parent_code: string;
+        };
+        SourceCount: {
+            code: string;
+            label: string;
+            /** @description Counts every passage, not a sample of users. */
+            absolute: boolean;
+            count: number;
+            /**
+             * Format: date-time
+             * @description Start of the first measure.
+             */
+            first_data: string;
+            /**
+             * Format: date-time
+             * @description Start of the last measure.
+             */
+            latest_data: string;
         };
         TLinearGroup: {
             readonly id_group: number;

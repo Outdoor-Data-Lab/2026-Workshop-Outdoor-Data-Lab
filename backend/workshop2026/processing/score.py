@@ -22,7 +22,7 @@ from django.conf import settings
 from django.contrib.gis.geos import GEOSGeometry
 from django.core.cache import cache
 from django.db import connection
-from django.db.models import Case, Count, F, Max, Q, Sum, Value, When
+from django.db.models import Case, Count, F, Max, Min, Q, Sum, Value, When
 from django.db.models.functions import ExtractMonth, ExtractYear, TruncDate
 from django.utils import timezone
 
@@ -214,17 +214,35 @@ def measures_queryset(
 
 
 def counts_by_area(measures):
-    """``{id_area: {"counts", "count_segment", "count_presence"}}`` for ``measures``.
+    """``{id_area: {"counts", "count_segment", "count_presence", "sources"}}`` for ``measures``.
 
     count_segment: measures of "segment" objects; count_presence: measures of
-    "counter" objects (presence counters).
+    "counter" objects (presence counters); sources: ``[{"code", "label",
+    "absolute", "count", "first_data", "latest_data"}]``, the counts per data
+    source and the start of their first and last measures.
     """
     rows = measures.values("id_area").annotate(
         counts=Sum("count"),
         count_segment=Sum("count", filter=Q(counting_object__type__code="segment"), default=0),
         count_presence=Sum("count", filter=Q(counting_object__type__code="counter"), default=0),
     )
-    return {row.pop("id_area"): row for row in rows}
+    counts = {row.pop("id_area"): {**row, "sources": []} for row in rows}
+    by_source = (
+        measures.values(
+            "id_area",
+            code=F("counting_object__source__code"),
+            label=F("counting_object__source__label"),
+            absolute=F("counting_object__source__absolute_counts"),
+        )
+        .annotate(
+            total=Sum("count"), first_data=Min("start_datetime"), latest_data=Max("start_datetime")
+        )
+        .order_by("id_area", "label")
+    )
+    for row in by_source:
+        row["count"] = row.pop("total")
+        counts[row.pop("id_area")]["sources"].append(row)
+    return counts
 
 
 class Score:

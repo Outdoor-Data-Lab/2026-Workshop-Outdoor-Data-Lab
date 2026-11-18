@@ -1,5 +1,7 @@
 <script setup lang="ts">
 /** Détail de l'objet sélectionné sur la carte. */
+import { TRAFFIC_AREA_LAYER } from '@/api/traffic'
+import CellDetail from '@/components/CellDetail.vue'
 import { useLayersStore } from '@/stores/layers'
 
 const layers = useLayersStore()
@@ -18,7 +20,12 @@ function text(value: unknown): string {
     <h2>{{ $t('detail.title') }}</h2>
     <template v-if="layers.selected">
       <p>{{ layers.selected.label }}</p>
-      <dl v-if="layers.selected.attributes">
+      <CellDetail
+        v-if="layers.selected.layer === TRAFFIC_AREA_LAYER"
+        :key="layers.selected.key"
+        :cell="layers.selected"
+      />
+      <dl v-else-if="layers.selected.attributes">
         <template v-for="(value, name) in layers.selected.attributes" :key="name">
           <dt>{{ name }}</dt>
           <dd>{{ text(value) }}</dd>
