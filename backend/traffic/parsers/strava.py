@@ -26,6 +26,7 @@ PERIODS = {"year": pd.DateOffset(years=1), "date": pd.DateOffset(days=1)}
 
 
 class StravaParser(TrafficParser):
+    LABEL = "Strava Metro export (zip)"
     NAME = "Strava"
     CONTENT = (
         "Holds trail and road edges (lines of the Strava network), with their number "

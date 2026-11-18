@@ -212,7 +212,7 @@ class CountingObjectArea(models.Model):
 
 class TrafficImport(DataImport):
     """An import of counting objects and measures (see traffic.parsers): the admin page
-    of the traffic imports, which lists the sources of the traffic parsers only."""
+    of the traffic imports, which offers the traffic formats and sources only."""
 
     class Meta:
         proxy = True

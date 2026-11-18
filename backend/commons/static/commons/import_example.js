@@ -1,8 +1,8 @@
-// Show what the file of the selected source holds (in bold) and an example of it
+// Show what a file of the selected format holds (in bold) and an example of it
 // (from each parser's CONTENT and EXAMPLE).
 document.addEventListener("DOMContentLoaded", () => {
   const help = document.getElementById("import-example");
-  const select = document.getElementById("id_source");
+  const select = document.getElementById("id_format");
   if (!help || !select) return;
   const parsers = JSON.parse(help.dataset.examples);
   const show = () => {
@@ -10,7 +10,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (!select.value) return;
     const parser = parsers[select.value];
     if (!parser) {
-      help.textContent = "No parser for this source: the import will be refused.";
+      help.textContent = "No parser for this format: the import will be refused.";
       return;
     }
     if (parser.content) {

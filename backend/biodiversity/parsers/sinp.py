@@ -30,6 +30,7 @@ REQUIRED = [
 
 
 class SINPParser(BiodiversityRecordParser):
+    LABEL = "SINP observations (GeoNature synthesis CSV)"
     NAME = "SINP"
     CONTENT = (
         "Holds species observations (one geometry per observation, most often a point), "

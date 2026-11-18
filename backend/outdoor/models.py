@@ -73,7 +73,7 @@ class Offer(models.Model):
 
 class OfferImport(DataImport):
     """An import of offers (see parsers.OfferParser): the admin page of the offer
-    imports, which offers every source but those of the other domains."""
+    imports, which offers the sources of the outdoor domain."""
 
     class Meta:
         proxy = True

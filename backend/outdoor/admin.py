@@ -3,10 +3,9 @@ from django.contrib.gis.forms import OSMWidget
 from django.db.models import Count
 
 from commons.admin import ImportAdmin
-from commons.models import PARSERS, DataSource
 
+from .apps import PARSERS
 from .models import Offer, OfferImport
-from .parsers import OfferParser
 
 
 class ReadOnlyMapWidget(OSMWidget):
@@ -52,18 +51,13 @@ class OfferAdmin(admin.ModelAdmin):
 
 @admin.register(OfferImport)
 class OfferImportAdmin(ImportAdmin):
-    """Import a GeoPackage of offers (see parsers.OfferParser): one parser for every
-    source, any source but those of the other domains (commons.PARSERS)."""
+    """Import a GeoPackage of offers (see parsers.OfferParser)."""
+
+    parsers = PARSERS
 
     list_display = (*ImportAdmin.list_display, "offer_count")
     # The file is the reference for its source: preview the offers it would delete.
     with_preview = True
-
-    def get_sources(self):
-        return DataSource.objects.exclude(code__in=PARSERS)
-
-    def get_parser(self, source):
-        return OfferParser
 
     def get_queryset(self, request):
         return super().get_queryset(request).annotate(offer_count=Count("offers"))

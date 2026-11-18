@@ -14,7 +14,7 @@
 
 {% block content %}
 <div id="content-main">
-  <p>Source: <strong>{{ source }}</strong>. File: <strong>{{ file_name }}</strong>, {{ preview.lines }} lines read.</p>
+  <p>Format: <strong>{{ format }}</strong>. Source: <strong>{{ source }}</strong>. File: <strong>{{ file_name }}</strong>, {{ preview.lines }} lines read.</p>
   <table>
     <tr><th scope="row">Items to import</th><td>{{ preview.rows }}</td></tr>
     {% for label, count in preview.changes.items %}

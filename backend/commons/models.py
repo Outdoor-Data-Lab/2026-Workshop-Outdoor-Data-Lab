@@ -11,6 +11,7 @@ Django has no schema option, so db_table uses the quoted form
 schema itself is created by migration 0001.
 """
 
+from django.contrib.postgres.fields import ArrayField
 from django.core.exceptions import ImproperlyConfigured
 from django.db import models
 from django.db.models import F, Q
@@ -23,28 +24,46 @@ def table(name):
     return f'{DB_SCHEMA}"."{name}'
 
 
-# Source code -> parser class, run when a file is imported for that source.
-# Each domain app registers its own parsers when it starts (register_parsers in
-# its AppConfig.ready()): commons does not know them. Updated in place, never
-# rebound, so the modules that imported it see every parser.
+# The domain apps a file can be imported into.
+DOMAINS = [("traffic", "Traffic"), ("biodiversity", "Biodiversity"), ("outdoor", "Outdoor")]
+
+# File format code -> parser class path. Each domain app registers the formats it
+# reads when it starts (register_parsers in its AppConfig.ready()): commons does
+# not know them. Updated in place, never rebound, so the modules that imported
+# it see every parser.
 PARSERS: dict[str, str] = {}
 
 
 def register_parsers(parsers: dict[str, str]) -> None:
-    """Add the parsers of a domain app: a source has a single parser."""
+    """Add the formats of a domain app: a format has a single parser."""
     taken = {code for code, path in parsers.items() if PARSERS.get(code, path) != path}
     if taken:
-        raise ImproperlyConfigured(f"Sources already having a parser: {', '.join(sorted(taken))}")
+        raise ImproperlyConfigured(f"Formats already having a parser: {', '.join(sorted(taken))}")
     PARSERS.update(parsers)
 
 
 class DataSource(models.Model):
-    """Where data comes from: a provider (OutdoorVision, GBIF...) or the
-    application that produced it (Garmin, Komoot...). Initial values: migration 0002.
+    """Who data comes from. Three notions are kept apart:
+
+    - source: who provided an imported file (OutdoorVision, a park's Geotrek,
+      GBIF...), chosen on the import page (DataImport.source);
+    - origin: the application that produced the data in the first place, when
+      the file says it (Garmin, Openrunner...), stored on the imported objects
+      (CountingObject.origin);
+    - format: how the file is read (DataImport.format), whatever its source.
+
+    Both sources and origins are DataSource rows; `domains` tells which import
+    pages offer a source. Initial values: migrations 0002 and 0005.
     """
 
     code = models.CharField(max_length=50, unique=True)
     label = models.CharField(max_length=500)
+    domains = ArrayField(
+        models.CharField(max_length=20, choices=DOMAINS),
+        default=list,
+        blank=True,
+        help_text="Import pages offering this source; none for a source used only as an origin.",
+    )
 
     class Meta:
         db_table = table("data_sources")
@@ -85,13 +104,16 @@ class Practice(models.Model):
 
 
 class DataImport(models.Model):
-    """One run of an import from a data source."""
+    """One run of an import: a file, in a format, provided by a source (see DataSource)."""
 
     date_import = models.DateTimeField(auto_now_add=True)
+    # How the file is read: a key of PARSERS.
+    format = models.CharField(max_length=50)
     source = models.ForeignKey(
         DataSource,
         on_delete=models.PROTECT,
         related_name="imports",
+        help_text="Who provided the file.",
     )
     # Uploaded file, stored under MEDIA_ROOT/imports/ (a Docker volume in dev).
     file = models.FileField(upload_to="imports", max_length=500)
@@ -102,8 +124,8 @@ class DataImport(models.Model):
         db_table = table("data_imports")
 
     def run_parser(self):
-        """Run the parser associated with this import's source, if available."""
-        parser = PARSERS.get(self.source.code)
+        """Run the parser of this import's format, if available."""
+        parser = PARSERS.get(self.format)
         if parser is None:
             return None
         if not self.pk:

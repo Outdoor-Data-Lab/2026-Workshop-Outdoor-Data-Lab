@@ -123,7 +123,7 @@ class HabitatRecord(models.Model):
 
 class ObservationImport(DataImport):
     """An import of taxon records (see biodiversity.parsers): the admin page of the
-    biodiversity imports, which lists the sources of the biodiversity parsers only."""
+    biodiversity imports, which offers the biodiversity formats and sources only."""
 
     class Meta:
         proxy = True

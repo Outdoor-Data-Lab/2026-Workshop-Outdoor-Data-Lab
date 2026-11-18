@@ -25,6 +25,7 @@ REQUIRED_COLUMNS = ["date_debut", "object_name", "count", "geom"]
 
 
 class CompteurParser(TrafficParser):
+    LABEL = "Hourly counter CSV"
     NAME = "counter"
     CONTENT = "Holds points: one automatic counter per position, with its number of passages per hour."
     EXAMPLE = (

@@ -104,6 +104,7 @@ def name_candidates(taxon: dict) -> list[str]:
 
 
 class GBIFParser(BiodiversityRecordParser):
+    LABEL = "GBIF occurrences (CSV)"
     NAME = "GBIF"
     CONTENT = (
         "Holds species occurrences (points), one per line, matched to TaxRef by their scientific name."

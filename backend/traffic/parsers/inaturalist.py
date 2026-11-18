@@ -58,6 +58,7 @@ OBSCURED_UNCERTAINTY = 27_000
 
 
 class INaturalistParser(TrafficParser):
+    LABEL = "iNaturalist observers (iNaturalist or GBIF export)"
     NAME = "iNaturalist"
     CONTENT = (
         "Holds naturalist observations (points), of which only the observers are kept: "

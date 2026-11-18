@@ -76,6 +76,7 @@ def geometry(geom):
 
 
 class OfferParser(ImportParser):
+    LABEL = "Offers (GPKG)"
     NAME = "Offers"
     CONTENT = (
         "Holds offers (trails, climbing sites, take-offs...). The file is the reference for "

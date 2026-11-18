@@ -30,9 +30,10 @@ def describe_errors(errors: list[tuple[int, str, str]], limit: int = 10) -> str:
 
 
 class ImportParser(ABC):
+    LABEL = ""  # name of the format, offered on the import page
     NAME = ""  # used in error messages
     CONTENT = ""  # what the file holds (traces, points...), shown in the admin above EXAMPLE
-    EXAMPLE = ""  # expected file, shown in the admin when the source is selected
+    EXAMPLE = ""  # expected file, shown in the admin when the format is selected
 
     def __init__(self, data_import: DataImport):
         self.data_import = data_import

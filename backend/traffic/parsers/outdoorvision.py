@@ -14,6 +14,7 @@ REQUIRED_COLUMNS = {"id", "track_id", "date_start", "date_end", "activity", "geo
 
 
 class OutdoorVisionParser(TrafficParser):
+    LABEL = "OutdoorVision raw tracks (GPKG)"
     NAME = "Outdoorvision"
     CONTENT = (
         "Holds GPS tracks of outings (lines): the pieces of the same outing (track_id) "
