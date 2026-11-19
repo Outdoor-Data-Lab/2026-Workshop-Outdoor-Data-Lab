@@ -592,6 +592,8 @@ def cell(xmin, ymin, xmax, ymax):
     return {"geom_4326": wgs84, "geom": wgs84.transform(2154, clone=True)}
 
 
+# The cells below are M1, whatever the default grid of the settings (M0.5 since 65e90d0).
+@override_settings(DEFAULT_GRID_AREA_TYPE="M1")
 class AreasTestCase(TestCase):
     """The view needs ref_geo, which the test database does not have. Its
     tables are created inside the test transaction, before the counting
