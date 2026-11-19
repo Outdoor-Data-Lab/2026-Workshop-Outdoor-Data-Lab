@@ -11,7 +11,7 @@ from django.utils.html import format_html
 from django.utils.http import urlencode
 from django.utils.module_loading import import_string
 
-from .models import DOMAINS, DataImport, DataSource, ExternalLayer, InstanceSettings, Practice
+from .models import DOMAINS, DataImport, DataSource, ExternalLayer, InstanceSettings, LayerOrder, Practice
 from .tasks import run_import
 
 PREVIEW_ERRORS = 20  # lines in error listed on the preview page
@@ -224,3 +224,9 @@ class InstanceSettingsAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+
+@admin.register(LayerOrder)
+class LayerOrderAdmin(admin.ModelAdmin):
+    list_display = ("layer", "order")
+    list_editable = ("order",)

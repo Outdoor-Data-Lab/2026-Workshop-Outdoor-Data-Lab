@@ -234,3 +234,25 @@ class InstanceSettings(models.Model):
 
     def __str__(self):
         return "Instance settings"
+
+
+class LayerOrder(models.Model):
+    """Rank of a layer in its group of the map's layer list, edited in the admin.
+
+    Layers without a rank come last, in their default order.
+    """
+
+    layer = models.CharField(
+        max_length=100,
+        unique=True,
+        help_text="Couche : traffic/<code du type de compteur> (ex. traffic/segment), traffic/area, "
+        "biodiversity/area, outdoor/offer ou external/<id de la couche externe>.",
+    )
+    order = models.PositiveSmallIntegerField(help_text="Rang dans son groupe, le plus petit en premier.")
+
+    class Meta:
+        db_table = table("layer_orders")
+        ordering = ["order"]
+
+    def __str__(self):
+        return self.layer

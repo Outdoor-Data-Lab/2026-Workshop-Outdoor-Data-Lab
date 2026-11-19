@@ -19,6 +19,7 @@ from .models import (
     DataSource,
     ExternalLayer,
     InstanceSettings,
+    LayerOrder,
     Practice,
     register_parsers,
 )
@@ -30,7 +31,7 @@ class CommonsTests(TestCase):
         with connection.cursor() as cursor:
             cursor.execute("select tablename from pg_tables where schemaname = 'commons'")
             tables = {row[0] for row in cursor.fetchall()}
-        self.assertEqual(tables, {"data_sources", "data_imports", "practices", "external_layers", "instance_settings"})
+        self.assertEqual(tables, {"data_sources", "data_imports", "practices", "external_layers", "instance_settings", "layer_orders"})
 
     def test_initial_data_sources(self):
         self.assertEqual(
@@ -360,8 +361,13 @@ class InstanceSettingsApiTests(TestCase):
     def test_no_default_area(self):
         self.assertEqual(
             self.client.get(self.url).json(),
-            {"default_area": None, "grid_area_type": settings.DEFAULT_GRID_AREA_TYPE},
+            {"default_area": None, "grid_area_type": settings.DEFAULT_GRID_AREA_TYPE, "layer_order": {}},
         )
+
+    def test_layer_order(self):
+        LayerOrder.objects.create(layer="traffic/area", order=1)
+        LayerOrder.objects.create(layer="external/3", order=2)
+        self.assertEqual(self.client.get(self.url).json()["layer_order"], {"traffic/area": 1, "external/3": 2})
 
     def test_default_area(self):
         # ref_geo is not created by the migrations of the test database.
@@ -379,5 +385,6 @@ class InstanceSettingsApiTests(TestCase):
         self.assertEqual(self.client.get(self.url).json(), {
             "default_area": {"id_area": 7, "area_name": "Écrins", "area_code": "PNE", "type_code": "PN"},
             "grid_area_type": settings.DEFAULT_GRID_AREA_TYPE,
+            "layer_order": {},
         })
         self.assertEqual(InstanceSettings.objects.count(), 1)

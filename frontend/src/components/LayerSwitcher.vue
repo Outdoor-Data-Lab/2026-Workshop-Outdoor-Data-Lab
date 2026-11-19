@@ -2,18 +2,23 @@
 /** Liste des couches, par groupe, à cocher ; repliable. */
 import { computed, ref } from 'vue'
 
+import { getInstanceSettings } from '@/api/settings'
 import LoadingSpinner from '@/components/LoadingSpinner.vue'
 import { useLayersStore, type LayerDefinition } from '@/stores/layers'
 
 const layers = useLayersStore()
 const open = ref(true)
+/** Rang des couches dans leur groupe, saisi dans l'admin ; sans rang : à la fin, dans leur ordre. */
+const order = ref<Record<string, number>>({})
+getInstanceSettings().then((settings) => (order.value = settings.layer_order))
 
 /** Ordre des groupes : les couches arrivent dans l'ordre des réponses de l'API, donc au hasard. */
 const GROUP_ORDER = ['grid', 'traffic', 'biodiversity', 'outdoor', 'external']
 
 const groups = computed(() => {
+  const layerRank = (d: LayerDefinition) => order.value[d.id] ?? Number.MAX_SAFE_INTEGER
   const byGroup = new Map<string, LayerDefinition[]>()
-  for (const definition of layers.definitions) {
+  for (const definition of [...layers.definitions].sort((a, b) => layerRank(a) - layerRank(b))) {
     byGroup.set(definition.group, [...(byGroup.get(definition.group) ?? []), definition])
   }
   // Un groupe inconnu va à la fin.
