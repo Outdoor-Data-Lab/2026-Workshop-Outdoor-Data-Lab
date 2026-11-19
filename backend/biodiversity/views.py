@@ -8,7 +8,7 @@ from ref_geo.filters import LAreaAreaFilter
 from commons.api.geo import GeoJsonLimitOffsetPagination
 
 from . import serializers
-from .querysets import GRID, TAXA_GRID
+from .querysets import GRID, TAXA_GRID, cells_with_status_taxa
 
 class LAreaAreaTaxonStatusFilter(LAreaAreaFilter):
     has_protected_or_threatened_taxa = filters.BooleanFilter(
@@ -19,7 +19,8 @@ class LAreaAreaTaxonStatusFilter(LAreaAreaFilter):
     def filter_by_protected_or_threatened_taxa(self, queryset, name, value):
         """Filter areas that have protected or threatened taxa (count > 0)."""
         if value:
-            return queryset.filter(protected_or_threatened_taxa_count__gt=0)
+            # Not on the count annotation: it would be computed for every cell of the grid.
+            return queryset.filter(id_area__in=cells_with_status_taxa())
         return queryset
 
 
