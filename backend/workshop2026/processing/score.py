@@ -9,7 +9,9 @@ several scores can run on the same rows. Each score turns those rows into
 ``{id_area: value}``.
 
 A measure belongs to the period [date_from, date_to] when its ``start_datetime``
-falls in it, both dates included, in the current time zone (TIME_ZONE setting).
+falls in it, both dates included, in the current time zone (TIME_ZONE setting);
+to ``months`` (1 to 12, e.g. 12, 1, 2 for the winters of every year) when the
+month of its ``start_datetime`` is one of them.
 """
 
 from collections import defaultdict
@@ -230,7 +232,8 @@ def _length_in_km():
 
 
 def measures_queryset(
-    geoms=None, geom_ids=None, sources=None, date_from=None, date_to=None, area_type=None
+    geoms=None, geom_ids=None, sources=None, date_from=None, date_to=None, area_type=None,
+    months=None,
 ):
     """Measures, one row per (measure, cell), annotated for the scores.
 
@@ -245,6 +248,7 @@ def measures_queryset(
     geom_ids: keep these cells. With both, the union is kept; with neither,
     every cell is kept.
     date_from, date_to: ``datetime.date``, both included.
+    months: months of the year (1 to 12) to keep, whatever the year.
     area_type: ref_geo type_code of the grid (default ``settings.DEFAULT_GRID_AREA_TYPE``).
     """
     area_type = area_type or settings.DEFAULT_GRID_AREA_TYPE
@@ -277,11 +281,14 @@ def measures_queryset(
         queryset = queryset.filter(start_datetime__gte=_start_of_day(date_from))
     if date_to is not None:
         queryset = queryset.filter(start_datetime__lt=_start_of_day(date_to + timedelta(days=1)))
+    if months:
+        queryset = queryset.filter(start_datetime__month__in=months)
     return queryset
 
 
 def cell_counts_queryset(
-    geoms=None, geom_ids=None, sources=None, date_from=None, date_to=None, area_type=None
+    geoms=None, geom_ids=None, sources=None, date_from=None, date_to=None, area_type=None,
+    months=None,
 ):
     """Same filters and fields as ``measures_queryset``, on the precomputed ``CellDayCount``.
 
@@ -297,6 +304,8 @@ def cell_counts_queryset(
         queryset = queryset.filter(day__gte=date_from)
     if date_to is not None:
         queryset = queryset.filter(day__lte=date_to)
+    if months:
+        queryset = queryset.filter(day__month__in=months)
     return queryset
 
 
@@ -397,11 +406,11 @@ class Score:
     @classmethod
     def compute(
         cls, geoms=None, geom_ids=None, sources=None, date_from=None, date_to=None,
-        area_type=None, **params
+        area_type=None, months=None, **params
     ):
         queryset = scored_rows(
             geoms=geoms, geom_ids=geom_ids, sources=sources,
-            date_from=date_from, date_to=date_to, area_type=area_type,
+            date_from=date_from, date_to=date_to, area_type=area_type, months=months,
         )
         return cls.compute_from(queryset, **params)
 

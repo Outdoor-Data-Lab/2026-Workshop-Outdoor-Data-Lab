@@ -1,4 +1,5 @@
 import { flushPromises, mount } from '@vue/test-utils'
+import { createPinia } from 'pinia'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import CellDetail from '@/components/CellDetail.vue'
@@ -93,7 +94,10 @@ describe('CellDetail', () => {
         return new Response(JSON.stringify(body))
       }),
     )
-    const wrapper = mount(CellDetail, { props: { cell }, global: { plugins: [i18n] } })
+    const wrapper = mount(CellDetail, {
+      props: { cell },
+      global: { plugins: [i18n, createPinia()] },
+    })
     await flushPromises()
 
     const text = wrapper.text()

@@ -974,6 +974,15 @@ class AreasApiTests(AreasTestCase):
         response = self.client.get(self.url, {"date_from": "2024-01-01"})
         self.assertEqual([f["id"] for f in response.json()["features"]], [13])
 
+    def test_filters_on_months_of_every_year(self):
+        def ids(months):
+            return [f["id"] for f in self.client.get(self.url, {"months": months}).json()["features"]]
+
+        self.assertEqual(ids([2]), [12])  # February 2023: cell 12 only
+        self.assertEqual(ids([12, 1, 2]), [12, 13])  # the winters: January 2023 and 2024
+        self.assertEqual(ids([6, 7, 8]), [])
+        self.assertEqual(self.client.get(self.url, {"months": [13]}).status_code, 400)
+
     def test_paginates_and_scores_the_page(self):
         response = self.client.get(self.url, {"limit": 1, "offset": 1, "scores": "basic"})
         data = response.json()
@@ -1009,7 +1018,10 @@ class PrecomputedCountsTests(AreasTestCase):
 
     def scores(self):
         kwargs = {"source_weights": {self.s1: 2, self.s2: 3}}
-        periods = [{}, {"date_from": date(2023, 1, 10), "date_to": date(2023, 1, 10)}, {"date_from": date(2023, 2, 1)}]
+        periods = [
+            {}, {"date_from": date(2023, 1, 10), "date_to": date(2023, 1, 10)},
+            {"date_from": date(2023, 2, 1)}, {"months": [2]}, {"months": [12, 1]},
+        ]
         return [
             (
                 BasicFrequentationScore.compute(**period),

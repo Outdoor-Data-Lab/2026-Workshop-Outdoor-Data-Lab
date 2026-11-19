@@ -4,6 +4,7 @@ import type { FeatureCollection, Geometry } from 'geojson'
 
 import { i18n } from '@/i18n'
 import { CONCEPTS, type Concept } from '@/types/concept'
+import { SEASON_MONTHS, type Season } from '@/types/season'
 import { layerDomain, type LayerId, type MapObject } from '@/types/mapObject'
 
 import { useNotificationsStore } from './notifications'
@@ -25,6 +26,8 @@ export interface MapFeatureProperties {
 export interface LayerFilters {
   /** Zone `ref_geo` : seuls les objets qui l'intersectent. */
   areaId?: number
+  /** Mois de l'année d'une saison, toutes années confondues (mailles de fréquentation). */
+  months?: number[]
 }
 
 /** Zone choisie pour filtrer les couches. */
@@ -61,7 +64,11 @@ export const useLayersStore = defineStore('layers', () => {
   const status = ref<Partial<Record<LayerId, LayerStatus>>>({})
   const selectedKey = ref<string | null>(null)
   const area = shallowRef<SelectedArea | null>(null)
-  const filters = computed<LayerFilters>(() => ({ areaId: area.value?.id }))
+  const season = ref<Season | null>(null)
+  const filters = computed<LayerFilters>(() => ({
+    areaId: area.value?.id,
+    months: season.value ? SEASON_MONTHS[season.value] : undefined,
+  }))
 
   const byKey = computed(() => {
     const index = new Map<string, MapObject>()
@@ -183,6 +190,17 @@ export const useLayersStore = defineStore('layers', () => {
   /** Change de zone : les objets chargés sont oubliés, les couches visibles rechargées, les autres le seront à leur affichage. */
   function setArea(value: SelectedArea | null) {
     area.value = value
+    reloadLayers()
+  }
+
+  /** Change de saison : rechargement comme pour la zone. */
+  function setSeason(value: Season | null) {
+    season.value = value
+    reloadLayers()
+  }
+
+  /** Après un changement de filtre : les objets chargés sont oubliés, les couches visibles rechargées, les autres le seront à leur affichage. */
+  function reloadLayers() {
     objectsByLayer.value = {}
     status.value = {}
     selectedKey.value = null
@@ -191,7 +209,7 @@ export const useLayersStore = defineStore('layers', () => {
       if (visible.value[definition.id]) {
         loadLayer(definition.id, definition.load, { label: definition.label })
       } else {
-        // Un chargement en cours avec l'ancienne zone sera ignoré.
+        // Un chargement en cours avec les anciens filtres sera ignoré.
         lastCall[definition.id] = (lastCall[definition.id] ?? 0) + 1
       }
     }
@@ -210,6 +228,7 @@ export const useLayersStore = defineStore('layers', () => {
     selectedKey,
     selected,
     area,
+    season,
     filters,
     featureCollections,
     setLayer,
@@ -219,6 +238,7 @@ export const useLayersStore = defineStore('layers', () => {
     setConcept,
     setVisible,
     setArea,
+    setSeason,
     select,
   }
 })

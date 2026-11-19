@@ -8,12 +8,15 @@ import { describeError } from '@/api/errors'
 import { getAreaOffers } from '@/api/outdoor'
 import { getTrafficArea, type SourceCount } from '@/api/traffic'
 import { useAsync } from '@/composables/useAsync'
+import { useLayersStore } from '@/stores/layers'
 import type { MapObject } from '@/types/mapObject'
 
 // Le parent recrée le composant à chaque maille (`:key`) : un seul chargement.
 const props = defineProps<{ cell: MapObject }>()
 
 const { t, te, n } = useI18n()
+// Même saison que la carte.
+const layers = useLayersStore()
 
 /** Longueur ou personnes·km avec une décimale. */
 const oneDecimal = (value: number) => n(value, { maximumFractionDigits: 1 })
@@ -21,7 +24,7 @@ const oneDecimal = (value: number) => n(value, { maximumFractionDigits: 1 })
 const { data, error, loading } = useAsync(async () => {
   const id = Number(props.cell.id)
   const [traffic, offers, taxa] = await Promise.all([
-    getTrafficArea(id),
+    getTrafficArea(id, layers.filters.months),
     getAreaOffers(id),
     getAreaTaxa(id),
   ])

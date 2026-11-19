@@ -131,6 +131,8 @@ export type TrafficAreaFilters = {
   bbox?: [number, number, number, number]
   /** Zone `ref_geo` : objets qui l'intersectent. */
   areaId?: number
+  /** Mois de l'année à garder, toutes années confondues (ex. 12, 1, 2 : les hivers). */
+  months?: number[]
 }
 
 function trafficAreasUrl(
@@ -141,6 +143,7 @@ function trafficAreasUrl(
     source: filters.sources,
     date_from: filters.dateFrom,
     date_to: filters.dateTo,
+    months: filters.months,
     scores: filters.scores,
     source_weights: filters.sourceWeights
       ? Object.entries(filters.sourceWeights)
@@ -160,8 +163,10 @@ export function getTrafficByArea(filters: TrafficAreaFilters = {}, page: LimitOf
 }
 
 /** Une maille, avec ses comptages par source et le détail du score cazalis (404 si elle n'a pas de mesure). */
-export function getTrafficArea(id: number) {
-  return apiFetch<TrafficAreaFeature>(withQuery(`${BASE}/areas/${id}`, { scores: ['cazalis'] }))
+export function getTrafficArea(id: number, months?: number[]) {
+  return apiFetch<TrafficAreaFeature>(
+    withQuery(`${BASE}/areas/${id}`, { scores: ['cazalis'], months }),
+  )
 }
 
 // Adaptateur vers MapObject

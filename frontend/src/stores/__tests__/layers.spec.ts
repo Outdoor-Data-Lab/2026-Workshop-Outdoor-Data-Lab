@@ -92,6 +92,18 @@ describe('layers store', () => {
     expect(layers.objectsByLayer['traffic/segment']).toBeUndefined()
   })
 
+  it('reloads visible layers with the months of the selected season', async () => {
+    const layers = useLayersStore()
+    const cells = vi.fn().mockResolvedValue([])
+    layers.addDefinitions([definition('traffic/area', cells)])
+    layers.setVisible('traffic/area', true)
+
+    layers.setSeason('winter')
+    expect(cells).toHaveBeenLastCalledWith({ areaId: undefined, months: [12, 1, 2] })
+    layers.setSeason(null)
+    expect(cells).toHaveBeenLastCalledWith({ areaId: undefined, months: undefined })
+  })
+
   it('leaves external layers to the user, whatever the concept', () => {
     const layers = useLayersStore()
     layers.addDefinitions([definition('external/1')])
