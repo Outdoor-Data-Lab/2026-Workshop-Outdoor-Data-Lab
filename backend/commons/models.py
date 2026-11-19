@@ -11,6 +11,8 @@ Django has no schema option, so db_table uses the quoted form
 schema itself is created by migration 0001.
 """
 
+from collections.abc import Callable
+
 from django.contrib.postgres.fields import ArrayField
 from django.core.exceptions import ImproperlyConfigured
 from django.db import models
@@ -42,6 +44,16 @@ def register_parsers(parsers: dict[str, str]) -> None:
     if taken:
         raise ImproperlyConfigured(f"Formats already having a parser: {', '.join(sorted(taken))}")
     PARSERS.update(parsers)
+
+
+# Functions giving the (id, LayerGroup code, label) of the map layers of a domain app
+# (catalog.ts), registered when the app starts (register_layers in its
+# AppConfig.ready()): commons does not know them.
+LAYER_SOURCES: list[Callable[[], list[tuple[str, str, str]]]] = []
+
+
+def register_layers(source: Callable[[], list[tuple[str, str, str]]]) -> None:
+    LAYER_SOURCES.append(source)
 
 
 class DataSource(models.Model):
@@ -236,23 +248,53 @@ class InstanceSettings(models.Model):
         return "Instance settings"
 
 
-class LayerOrder(models.Model):
-    """Rank of a layer in its group of the map's layer list, edited in the admin.
+class LayerGroup(models.Model):
+    """A section of the map's layer list, ranked in the admin. Created by migration 0011."""
 
-    Layers without a rank come last, in their default order.
-    """
-
-    layer = models.CharField(
-        max_length=100,
-        unique=True,
-        help_text="Couche : traffic/<code du type de compteur> (ex. traffic/segment), traffic/area, "
-        "biodiversity/area, outdoor/offer ou external/<id de la couche externe>.",
-    )
-    order = models.PositiveSmallIntegerField(help_text="Rang dans son groupe, le plus petit en premier.")
+    code = models.CharField(max_length=20, unique=True)
+    label = models.CharField(max_length=100)
+    order = models.PositiveSmallIntegerField(help_text="Rang de la section, la plus petite en premier.")
 
     class Meta:
-        db_table = table("layer_orders")
+        db_table = table("layer_groups")
         ordering = ["order"]
 
     def __str__(self):
-        return self.layer
+        return self.label
+
+
+class LayerOrder(models.Model):
+    """Rank of a layer in its section of the map's layer list, edited in the admin.
+
+    The admin lists every layer of the map (``sync``): only their ranks are edited.
+    """
+
+    layer = models.CharField(max_length=100, unique=True)
+    group = models.ForeignKey(LayerGroup, on_delete=models.CASCADE, related_name="layers")
+    label = models.CharField(max_length=255)
+    order = models.PositiveSmallIntegerField(help_text="Rang dans sa section, le plus petit en premier.")
+
+    class Meta:
+        db_table = table("layer_orders")
+        ordering = ["group__order", "order"]
+
+    def __str__(self):
+        return self.label
+
+    @classmethod
+    def sync(cls):
+        """One row per layer of the map: the new layers last, the removed ones deleted."""
+        layers = [layer for source in LAYER_SOURCES for layer in source()] + [
+            (f"external/{layer.pk}", "external", layer.label) for layer in ExternalLayer.objects.order_by("label")
+        ]
+        cls.objects.exclude(layer__in=[layer for layer, _, _ in layers]).delete()
+        groups = {group.code: group for group in LayerGroup.objects.all()}
+        # Existing layers updated first: one that changed section no longer counts in the old one.
+        new = [
+            (layer, groups[code], label)
+            for layer, code, label in layers
+            if not cls.objects.filter(layer=layer).update(label=label, group=groups[code])
+        ]
+        for layer, group, label in new:
+            last = group.layers.aggregate(Max("order"))["order__max"] or 0
+            cls.objects.create(layer=layer, label=label, group=group, order=last + 10)

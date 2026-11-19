@@ -1040,7 +1040,11 @@ export interface components {
             readonly default_area: components["schemas"]["AreaSummary"];
             /** @description ref_geo type_code of the default grid (M0.5, M1...). */
             readonly grid_area_type: string;
-            /** @description Rank of a layer in its group (LayerOrder), by layer id. */
+            /** @description Rank of a section of the layer list (LayerGroup), by code. */
+            readonly group_order: {
+                [key: string]: number;
+            };
+            /** @description Rank of a layer in its section (LayerOrder), by layer id. */
             readonly layer_order: {
                 [key: string]: number;
             };

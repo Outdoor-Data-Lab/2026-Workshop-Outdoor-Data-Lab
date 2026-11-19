@@ -7,7 +7,9 @@ export type InstanceSettings = {
   default_area: AreaMatch | null
   /** Grille des mailles (type ref_geo : M0.5, M1…). */
   grid_area_type: string
-  /** Rang d'une couche dans son groupe, par id de couche (saisi dans l'admin). */
+  /** Rang d'une section de la liste des couches, par code (saisi dans l'admin). */
+  group_order: Record<string, number>
+  /** Rang d'une couche dans sa section, par id de couche (saisi dans l'admin). */
   layer_order: Record<string, number>
 }
 

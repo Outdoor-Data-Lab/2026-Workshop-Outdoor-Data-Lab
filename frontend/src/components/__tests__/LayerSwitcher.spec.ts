@@ -12,13 +12,16 @@ const layer = (id: string, group: string): LayerDefinition =>
 describe('LayerSwitcher', () => {
   afterEach(() => vi.unstubAllGlobals())
 
-  it('sorts the layers of a group by their rank, the unranked ones last', async () => {
+  it('sorts the sections, then the layers of each section, the unranked ones last', async () => {
     vi.stubGlobal(
       'fetch',
       vi.fn(
         async () =>
           new Response(
-            JSON.stringify({ layer_order: { 'traffic/area': 1, 'traffic/segment': 2 } }),
+            JSON.stringify({
+              group_order: { outdoor: 1, traffic: 2 },
+              layer_order: { 'traffic/area': 1, 'traffic/segment': 2 },
+            }),
           ),
       ),
     )
@@ -34,10 +37,10 @@ describe('LayerSwitcher', () => {
     await flushPromises()
 
     expect(wrapper.findAll('label').map((l) => l.text())).toEqual([
+      'outdoor/offer',
       'traffic/area',
       'traffic/segment',
       'traffic/counter',
-      'outdoor/offer',
     ])
   })
 })

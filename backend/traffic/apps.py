@@ -13,16 +13,27 @@ def set_area_types(sender, connection, **kwargs):
             )
 
 
+def map_layers():
+    """Traffic layers of the map (catalog.ts): one per counting object type, then the cells."""
+    from .models import CountingObjectType
+
+    types = CountingObjectType.objects.order_by("id")
+    return [(f"traffic/{t.code}", "traffic", t.label) for t in types] + [
+        ("traffic/area", "grid", "Fréquentation par maille")
+    ]
+
+
 class TrafficConfig(AppConfig):
     name = "traffic"
 
     def ready(self):
         connection_created.connect(set_area_types, dispatch_uid="traffic_set_area_types")
 
-        from commons.models import register_parsers
+        from commons.models import register_layers, register_parsers
 
         from .parsers import PARSERS
 
         register_parsers(PARSERS)
+        register_layers(map_layers)
 
         from . import signals  # noqa: F401 (connects the receivers)

@@ -1,20 +1,18 @@
-# Ordre des couches
+# Layer order
 
-L'ordre des couches du panneau de gauche se règle dans l'admin Django (http://localhost:8000/admin/), page **Commons › Layer orders**.
+The order of the layer list, on the left of the map, is set in the Django admin
+(<http://localhost:8000/admin/>), on two pages. Nothing needs to be added: each
+page already lists everything. Change the numbers of the **Order** column, on as
+many rows as needed, click **Save** at the bottom of the list, then reload the map.
 
-1. Cliquer sur **Add**.
-2. **Layer** : l'identifiant de la couche (voir le tableau).
-3. **Order** : son rang dans son groupe, le plus petit en premier.
-4. **Save**.
+| Page | What it orders |
+|---|---|
+| **Commons › Layer groups** | the sections: Summary per grid cell, Traffic, Biodiversity, Outdoor, External layers |
+| **Commons › Layer orders** | the layers within their section, listed by section |
 
-Pour changer un rang ensuite, modifier la colonne **Order** directement dans la liste, puis **Save**. Rechargez la carte pour voir le nouvel ordre.
+The smallest number comes first. A layer always stays in its section. Ranks are
+spaced by 10, so that an item can be put between two others (e.g. 15 between 10
+and 20).
 
-| Groupe | Couche | Identifiant |
-|---|---|---|
-| Fréquentation | une couche par type de compteur | `traffic/<code du type>`, ex. `traffic/counter`, `traffic/segment` |
-| Fréquentation | fréquentation par maille | `traffic/area` |
-| Biodiversité | taxons menacés par maille | `biodiversity/area` |
-| Outdoor | offres outdoor | `outdoor/offer` |
-| Couches externes | une couche par couche externe | `external/<id>`, l'id de la couche dans l'admin (dans l'URL de sa page) |
-
-Le rang vaut à l'intérieur d'un groupe : l'ordre des groupes ne change pas. Les couches sans rang passent après celles qui en ont un, dans leur ordre habituel.
+A new layer (counting object type, external layer) appears at the end of its
+section the next time **Layer orders** is opened; a deleted layer disappears.
