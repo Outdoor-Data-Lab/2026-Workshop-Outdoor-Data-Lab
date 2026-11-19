@@ -80,23 +80,29 @@ export default {
       other: '{n} mesure | {n} mesures',
     },
     countsNote:
-      "Absolu : le compteur compte tous les passages. Relatif : seuls les usagers d'une application sont comptés ; ces chiffres servent à comparer les mailles entre elles. Le score combine les sources, pondérées selon leur concordance avec les éco-compteurs. Personnes·km : passages × km de tracé dans la maille, la valeur que le score utilise.",
+      "Absolu : tous les passages sont comptés. Relatif : seuls les usagers d'une application, pour comparer les mailles entre elles. Personnes·km : passages × km de tracé dans la maille.",
     score: {
       title: 'Comment le score est calculé',
       reference:
         "Source de référence : elle sert à pondérer les autres, elle n'entre pas dans le score.",
       weight: 'Poids dans le score : {weight} %',
       intro:
-        "Le score (0 à 100) combine les sources de fréquentation, chacune comptant d'autant plus qu'elle reproduit fidèlement les éco-compteurs (méthode BiodivTourAlps, V. Cazalis).",
-      step1:
-        'Poids : pour chaque source, on corrèle (Pearson) ses comptages autour des éco-compteurs avec la moyenne journalière de ces derniers en été (juin à septembre, depuis 2021, quinzaines de plus de 10 jours de données).',
-      step2:
-        'Une source dont la corrélation r ne dépasse pas 0,25 a un poids nul ; sinon son poids brut vaut 1 / (1 − r). Les poids bruts sont ramenés à un total de 100.',
-      step3:
-        "Chaque source est standardisée : pour chaque maille, on retire la moyenne de toutes les mailles et on divise par l'écart-type (z-score ; une maille sans donnée de la source compte pour 0 passage).",
-      step4:
-        'Les z-scores sont additionnés avec leur poids, les valeurs au-dessus du 98e centile sont plafonnées, puis le tout est ramené entre 0 et 100.',
-      equation: 'score = normalisation 0-100( Σ poids(source) × z-score(source, maille) )',
+        'Le score (0 à 100) compare les mailles entre elles en combinant les sources, chacune pesée selon sa fiabilité (méthode BiodivTourAlps).',
+      counts: {
+        title: "Fréquentation d'une source",
+        eq: 'passages × km de tracé dans la maille',
+        text: 'Un tracé qui ne fait que frôler la maille compte peu.',
+      },
+      weights: {
+        title: "Poids d'une source",
+        eq: 'poids = 1 / (1 − r)',
+        text: 'r (de 0 à 1) mesure à quel point la source suit les éco-compteurs. Sous 0,25, elle est ignorée. Les poids sont ramenés à un total de 100.',
+      },
+      final: {
+        title: 'Score de la maille',
+        eq: 'score = Σ poids × (fréquentation − moyenne) ÷ écart-type',
+        text: 'Chaque source est comparée à la moyenne des mailles, puis le total est ramené entre 0 et 100 (les valeurs extrêmes sont plafonnées).',
+      },
       counters: 'Poids estimés sur {n} éco-compteurs.',
     },
   },

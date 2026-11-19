@@ -109,6 +109,8 @@ describe('CellDetail', () => {
     expect(text).toContain('Weights estimated on 12 eco-counters.')
     expect(text).toContain('12.4 km of tracks in the cell · 1,340.5 person·km')
     expect(text).not.toContain('null km')
+    expect(text).toContain('score = Σ weight × (frequentation − mean) ÷ standard deviation')
+    expect(text).toContain('weight = 1 / (1 − r)')
     expect(text).toContain('Biodiversity1 protected or threatened taxon')
     expect(text).toContain(
       'Salamandre tachetée Salamandra salamandraprotected · threatened (VU) · 4 observations · 2017–2024',
