@@ -131,6 +131,22 @@ export default {
     close: 'Close',
     withContext: '{context}: {message}',
   },
+  about: {
+    open: 'About',
+    title: 'About',
+    intro: [
+      'The controlled development of outdoor activities is a major issue for territories, their stakeholders and the managers of natural areas. It also raises growing questions about biodiversity conservation, visitor flow management and the reconciliation of uses.',
+      'This digital tool was designed with this in mind. It was built from open source components by the partners of the Outdoor Data Lab collective, during the Workshop held from 16 to 19 November 2026 in Vallon Pont-d’Arc.',
+      'It aims to make it easier to cross and analyse data on outdoor practices and ecological issues, so as to better take into account the interactions between visitor numbers and biodiversity. It thus seeks to support decision-making by protected area managers, local authorities and outdoor providers, to inform their choices in the planning, organisation and management of activities.',
+    ],
+    schemaAlt:
+      'Diagram of the tool: visitor numbers, biodiversity, outdoor offer and zoning data, and their sources, feed ODL.',
+    outlook:
+      'Designed as an evolving tool, this first development is a working basis meant to be tested, enriched and taken over by its future users, in a project that is yet to be structured and funded.',
+    repository: 'See the GitHub repository of this open source tool:',
+    credits: 'Version 0.1 made in November 2026 by:',
+    close: 'Close',
+  },
   errors: {
     network: 'Cannot reach the server. Check your connection.',
     server: 'The server is unavailable at the moment. Try again later.',
