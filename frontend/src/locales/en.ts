@@ -77,6 +77,7 @@ export default {
     soon: 'coming soon',
     taxa: 'no protected or threatened taxon | {n} protected or threatened taxon | {n} protected or threatened taxa',
     taxaList: 'List of taxa',
+    habitats: 'Habitat',
     protected: 'protected',
     threatened: 'threatened ({code})',
     observations: '{n} observation | {n} observations',

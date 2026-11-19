@@ -225,6 +225,8 @@ function taxonText(taxon: AreaTaxon) {
           </ul>
         </details>
         <p class="hint note">{{ $t('cell.taxaNote') }}</p>
+        <h4>{{ $t('cell.habitats') }}</h4>
+        <p class="hint">{{ $t('cell.soon') }}</p>
       </section>
 
       <section v-else>
@@ -268,6 +270,10 @@ h3 {
   padding-top: calc(var(--space) / 2);
   border-top: 1px solid var(--color-border);
   font-size: 1.2rem;
+}
+
+h4 {
+  margin: var(--space) 0 calc(var(--space) / 3);
 }
 
 p {

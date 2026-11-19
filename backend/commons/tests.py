@@ -19,6 +19,8 @@ from .models import (
     DataSource,
     ExternalLayer,
     InstanceSettings,
+    LayerGroup,
+    LayerOrder,
     Practice,
     register_parsers,
 )
@@ -30,7 +32,7 @@ class CommonsTests(TestCase):
         with connection.cursor() as cursor:
             cursor.execute("select tablename from pg_tables where schemaname = 'commons'")
             tables = {row[0] for row in cursor.fetchall()}
-        self.assertEqual(tables, {"data_sources", "data_imports", "practices", "external_layers", "instance_settings"})
+        self.assertEqual(tables, {"data_sources", "data_imports", "practices", "external_layers", "instance_settings", "layer_groups", "layer_orders"})
 
     def test_initial_data_sources(self):
         self.assertEqual(
@@ -354,14 +356,41 @@ class ParserExamplesTests(SimpleTestCase):
                 self.assertTrue(parser.LABEL and parser.EXAMPLE)
 
 
+class LayerOrderTests(TestCase):
+    def test_admin_lists_every_layer_of_the_map_by_section(self):
+        layer = ExternalLayer.objects.create(label="Suricate", url="https://example.org/a.geojson")
+        LayerGroup.objects.filter(code="outdoor").update(order=1)
+        LayerOrder.objects.create(layer="traffic/area", group=LayerGroup.objects.get(code="traffic"), label="Old", order=5)
+        LayerOrder.objects.create(layer="external/999", group=LayerGroup.objects.get(code="external"), label="Gone", order=1)
+        self.client.force_login(get_user_model().objects.create_superuser("admin@example.org", "admin"))
+
+        response = self.client.get(reverse("admin:commons_layerorder_changelist"))
+
+        self.assertContains(response, "Suricate")
+        self.assertEqual(list(LayerOrder.objects.values_list("group__code", "layer", "label", "order")), [
+            ("outdoor", "outdoor/offer", "Offres outdoor", 10),  # its section first
+            ("grid", "traffic/area", "Fréquentation par maille", 5),  # kept its rank, new section and label
+            ("grid", "biodiversity/area", "Taxons menacés par maille", 15),  # new ones last in their section
+            ("traffic", "traffic/counter", "Compteur", 10),
+            ("traffic", "traffic/segment", "Segment", 20),
+            ("external", f"external/{layer.pk}", "Suricate", 10),
+        ])
+
+
 class InstanceSettingsApiTests(TestCase):
     url = "/api/commons/instance-settings"
 
     def test_no_default_area(self):
         self.assertEqual(
             self.client.get(self.url).json(),
-            {"default_area": None, "grid_area_type": settings.DEFAULT_GRID_AREA_TYPE},
+            {"default_area": None, "grid_area_type": settings.DEFAULT_GRID_AREA_TYPE,
+             "group_order": {"grid": 10, "traffic": 20, "biodiversity": 30, "outdoor": 40, "external": 50}, "layer_order": {}},
         )
+
+    def test_layer_order(self):
+        LayerOrder.objects.create(layer="traffic/area", group=LayerGroup.objects.get(code="traffic"), order=1)
+        LayerOrder.objects.create(layer="external/3", group=LayerGroup.objects.get(code="external"), order=2)
+        self.assertEqual(self.client.get(self.url).json()["layer_order"], {"traffic/area": 1, "external/3": 2})
 
     def test_default_area(self):
         # ref_geo is not created by the migrations of the test database.
@@ -379,5 +408,7 @@ class InstanceSettingsApiTests(TestCase):
         self.assertEqual(self.client.get(self.url).json(), {
             "default_area": {"id_area": 7, "area_name": "Écrins", "area_code": "PNE", "type_code": "PN"},
             "grid_area_type": settings.DEFAULT_GRID_AREA_TYPE,
+            "group_order": {"grid": 10, "traffic": 20, "biodiversity": 30, "outdoor": 40, "external": 50},
+            "layer_order": {},
         })
         self.assertEqual(InstanceSettings.objects.count(), 1)

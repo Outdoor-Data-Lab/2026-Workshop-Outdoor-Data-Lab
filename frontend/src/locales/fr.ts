@@ -76,6 +76,7 @@ export default {
     soon: 'à venir',
     taxa: 'aucun taxon protégé ou menacé | {n} taxon protégé ou menacé | {n} taxons protégés ou menacés',
     taxaList: 'Liste des taxons',
+    habitats: 'Habitat',
     protected: 'protégé',
     threatened: 'menacé ({code})',
     observations: '{n} observation | {n} observations',

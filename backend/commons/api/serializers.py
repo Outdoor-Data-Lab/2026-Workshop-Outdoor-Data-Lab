@@ -4,7 +4,7 @@ from rest_framework import serializers
 from workshop2026.api.mixins import DynamicFieldsMixin
 from ref_geo.models import LArea
 
-from ..models import DataImport, DataSource, ExternalLayer, InstanceSettings, Practice
+from ..models import DataImport, DataSource, ExternalLayer, InstanceSettings, LayerGroup, LayerOrder, Practice
 from .geo import code_field
 
 
@@ -56,10 +56,18 @@ class InstanceSettingsSerializer(serializers.ModelSerializer):
     default_area = AreaSummarySerializer(read_only=True)
     # Not in the admin: set by DEFAULT_GRID_AREA_TYPE (the grid of the database triggers).
     grid_area_type = serializers.SerializerMethodField(help_text="ref_geo type_code of the default grid (M0.5, M1...).")
+    group_order = serializers.SerializerMethodField(help_text="Rank of a section of the layer list (LayerGroup), by code.")
+    layer_order = serializers.SerializerMethodField(help_text="Rank of a layer in its section (LayerOrder), by layer id.")
 
     class Meta:
         model = InstanceSettings
-        fields = ("default_area", "grid_area_type")
+        fields = ("default_area", "grid_area_type", "group_order", "layer_order")
 
     def get_grid_area_type(self, settings) -> str:
         return django_settings.DEFAULT_GRID_AREA_TYPE
+
+    def get_group_order(self, settings) -> dict[str, int]:
+        return dict(LayerGroup.objects.values_list("code", "order"))
+
+    def get_layer_order(self, settings) -> dict[str, int]:
+        return dict(LayerOrder.objects.values_list("layer", "order"))

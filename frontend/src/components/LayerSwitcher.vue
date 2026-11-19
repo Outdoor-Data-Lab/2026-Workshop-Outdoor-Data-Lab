@@ -2,23 +2,30 @@
 /** Liste des couches, par groupe, à cocher ; repliable. */
 import { computed, ref } from 'vue'
 
+import { getInstanceSettings, type InstanceSettings } from '@/api/settings'
 import LoadingSpinner from '@/components/LoadingSpinner.vue'
 import { useLayersStore, type LayerDefinition } from '@/stores/layers'
 
 const layers = useLayersStore()
 const open = ref(true)
-
-/** Ordre des groupes : les couches arrivent dans l'ordre des réponses de l'API, donc au hasard. */
-const GROUP_ORDER = ['grid', 'traffic', 'biodiversity', 'outdoor', 'external']
+/** Rangs saisis dans l'admin : des sections, et des couches dans leur section. Sans rang : à la fin. */
+const ranks = ref<Pick<InstanceSettings, 'group_order' | 'layer_order'>>({
+  group_order: {},
+  layer_order: {},
+})
+getInstanceSettings().then((settings) => (ranks.value = settings))
+const rank = (byKey: Record<string, number>, key: string) => byKey[key] ?? Number.MAX_SAFE_INTEGER
 
 const groups = computed(() => {
+  const { group_order, layer_order } = ranks.value
+  const sorted = [...layers.definitions].sort(
+    (a, b) => rank(layer_order, a.id) - rank(layer_order, b.id),
+  )
   const byGroup = new Map<string, LayerDefinition[]>()
-  for (const definition of layers.definitions) {
+  for (const definition of sorted) {
     byGroup.set(definition.group, [...(byGroup.get(definition.group) ?? []), definition])
   }
-  // Un groupe inconnu va à la fin.
-  const rank = (group: string) => GROUP_ORDER.indexOf(group) + 1 || GROUP_ORDER.length + 1
-  return [...byGroup].sort(([a], [b]) => rank(a) - rank(b))
+  return [...byGroup].sort(([a], [b]) => rank(group_order, a) - rank(group_order, b))
 })
 
 /** Groupe de couches `exclusive` : boutons radio, une seule couche à la fois. */

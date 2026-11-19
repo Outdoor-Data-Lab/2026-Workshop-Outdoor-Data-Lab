@@ -21,3 +21,5 @@ a time by following the `next` link. Limit the amount of data in the URL, for
 example by specifying a bounding box.
 
 Layer URLs are shared internally and are not stored in this public repository.
+
+To place a layer in the layer list, see [ordre-des-couches.md](ordre-des-couches.md).

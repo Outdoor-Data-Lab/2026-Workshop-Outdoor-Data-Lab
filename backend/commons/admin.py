@@ -11,7 +11,7 @@ from django.utils.html import format_html
 from django.utils.http import urlencode
 from django.utils.module_loading import import_string
 
-from .models import DOMAINS, DataImport, DataSource, ExternalLayer, InstanceSettings, Practice
+from .models import DOMAINS, DataImport, DataSource, ExternalLayer, InstanceSettings, LayerGroup, LayerOrder, Practice
 from .tasks import run_import
 
 PREVIEW_ERRORS = 20  # lines in error listed on the preview page
@@ -224,3 +224,35 @@ class InstanceSettingsAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
+
+
+class LayerRankAdmin(admin.ModelAdmin):
+    """Rows listed for their rank only, all edited at once in the list."""
+
+    list_display_links = None
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+
+@admin.register(LayerGroup)
+class LayerGroupAdmin(LayerRankAdmin):
+    list_display = ("label", "order")
+    list_editable = ("order",)
+
+    def has_add_permission(self, request):
+        return False
+
+
+@admin.register(LayerOrder)
+class LayerOrderAdmin(LayerRankAdmin):
+    """Every layer of the map (LayerOrder.sync), by section. A row added by hand for a
+    layer that is not on the map is deleted on the next opening of the list."""
+
+    list_display = ("group", "label", "order")
+    list_editable = ("order",)
+    list_filter = ("group",)
+
+    def changelist_view(self, request, extra_context=None):
+        LayerOrder.sync()
+        return super().changelist_view(request, extra_context)

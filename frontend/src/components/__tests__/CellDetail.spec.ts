@@ -125,6 +125,7 @@ describe('CellDetail', () => {
       'Salamandre tachetée Salamandra salamandraprotected · threatened (VU) · 4 observations · 2017–2024',
     )
     expect(text).toContain('Randonnée (2)')
+    expect(text).toContain('Habitatcoming soon')
   })
 
   it('puts biodiversity first from the biodiversity layer, and tolerates a cell without traffic', async () => {

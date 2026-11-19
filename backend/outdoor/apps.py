@@ -9,6 +9,7 @@ class OutdoorConfig(AppConfig):
     name = "outdoor"
 
     def ready(self):
-        from commons.models import register_parsers
+        from commons.models import register_layers, register_parsers
 
         register_parsers(PARSERS)
+        register_layers(lambda: [("outdoor/offer", "outdoor", "Offres outdoor")])
