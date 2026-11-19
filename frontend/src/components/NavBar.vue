@@ -15,7 +15,8 @@ import AboutDialog from '@/components/AboutDialog.vue'
   align-items: center;
   justify-content: space-between;
   padding: var(--space);
-  border-bottom: 1px solid var(--color-border);
+  background: #2e6b3f;
+  color: #fff;
 }
 
 .title {
