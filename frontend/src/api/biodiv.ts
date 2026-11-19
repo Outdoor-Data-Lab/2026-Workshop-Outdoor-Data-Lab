@@ -67,16 +67,12 @@ export const BIODIV_AREA_LAYER: LayerId = 'biodiversity/area'
 
 export function biodivAreaToMapObject(feature: BiodivAreaFeature): MapObject {
   if (feature.id === undefined) throw new Error('Maille sans identifiant dans la réponse API')
-  const count = feature.properties.protected_or_threatened_taxa_count
   return {
     key: mapObjectKey(BIODIV_AREA_LAYER, feature.id),
     id: feature.id,
     domain: 'biodiversity',
     layer: BIODIV_AREA_LAYER,
-    label: i18n.global.t('layers.biodivArea', {
-      name: feature.properties.area_name ?? feature.id,
-      count,
-    }),
+    label: `${i18n.global.t('layers.cellName')} ${feature.id}`,
     geometry: feature.geometry,
   }
 }

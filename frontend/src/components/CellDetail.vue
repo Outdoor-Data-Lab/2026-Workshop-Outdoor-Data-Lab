@@ -1,10 +1,14 @@
 <script setup lang="ts">
-/** Synthèse d'une maille : fréquentation, biodiversité, offres outdoor, zonages réglementaires. */
+/**
+ * Synthèse d'une maille : fréquentation, biodiversité, offres outdoor, zonages réglementaires.
+ * Le domaine de la couche cliquée (`focus`) passe en premier.
+ */
 import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { getAreaTaxa, type AreaTaxon } from '@/api/biodiv'
 import LoadingSpinner from '@/components/LoadingSpinner.vue'
+import { ApiError } from '@/api/client'
 import { describeError } from '@/api/errors'
 import { getAreaOffers } from '@/api/outdoor'
 import { getTrafficArea, type SourceCount } from '@/api/traffic'
@@ -13,7 +17,16 @@ import { useLayersStore } from '@/stores/layers'
 import type { MapObject } from '@/types/mapObject'
 
 // Le parent recrée le composant à chaque maille (`:key`) : un seul chargement.
-const props = defineProps<{ cell: MapObject }>()
+const props = withDefaults(defineProps<{ cell: MapObject; focus?: 'traffic' | 'biodiversity' }>(), {
+  focus: 'traffic',
+})
+
+/** Sections dans l'ordre d'affichage. */
+const sections = computed(() =>
+  props.focus === 'biodiversity'
+    ? (['biodiversity', 'traffic', 'outdoor'] as const)
+    : (['traffic', 'biodiversity', 'outdoor'] as const),
+)
 
 const { t, te, n } = useI18n()
 // Même saison que la carte.
@@ -25,18 +38,26 @@ const oneDecimal = (value: number) => n(value, { maximumFractionDigits: 1 })
 const { data, error, loading } = useAsync(async () => {
   const id = Number(props.cell.id)
   const [traffic, offers, taxa] = await Promise.all([
-    getTrafficArea(id, layers.filters.months),
+    // 404 : pas de mesure de fréquentation sur la maille (cliquée depuis la biodiversité).
+    getTrafficArea(id, layers.filters.months).catch((e) => {
+      if (e instanceof ApiError && e.status === 404) return null
+      throw e
+    }),
     getAreaOffers(id),
     getAreaTaxa(id),
   ])
-  return { traffic: traffic.properties, offers, taxa: taxa.properties.taxa }
+  return { traffic: traffic?.properties ?? null, offers, taxa: taxa.properties.taxa }
 })
 
 /** Les trois formules de l'explication du score, dans l'ordre. */
 const scoreSteps = ['counts', 'weights', 'final'] as const
 
-/** Score de la carte (0 à 100). */
-const score = computed(() => (props.cell.value === undefined ? '–' : Math.round(props.cell.value)))
+/** Score de fréquentation (0 à 100), lu dans la réponse : la couleur de la maille cliquée peut être celle d'un autre domaine. */
+const score = computed(() => {
+  const value = data.value?.traffic?.score.cazalis
+  const number = typeof value === 'object' ? (value as { score?: number }).score : value
+  return number === undefined ? '–' : Math.round(number)
+})
 
 const practices = computed(() => {
   const groups = new Map<string, NonNullable<typeof data.value>['offers']['results']>()
@@ -59,7 +80,7 @@ type Cazalis = {
 
 /** Détail du score cazalis : poids de chaque source (clés = id de source). */
 const cazalis = computed<Cazalis>(() => {
-  const score = data.value?.traffic.score.cazalis
+  const score = data.value?.traffic?.score.cazalis
   return typeof score === 'object' ? (score as Cazalis) : {}
 })
 
@@ -92,86 +113,107 @@ function taxonText(taxon: AreaTaxon) {
   <p v-else-if="error" class="hint">{{ describeError(error) }}</p>
   <div v-else-if="data" class="cell">
     <dl>
-      <dt>{{ $t('cell.traffic') }}</dt>
-      <dd>
-        {{ score }} <span class="hint">{{ $t('cell.scoreRange') }}</span>
-      </dd>
-      <dt>{{ $t('cell.biodiversity') }}</dt>
-      <dd>{{ $t('cell.taxa', data.taxa.length) }}</dd>
-      <dt>{{ $t('cell.outdoor') }}</dt>
-      <dd>{{ $t('cell.offers', data.offers.count) }}</dd>
+      <template v-for="section in sections" :key="section">
+        <template v-if="section === 'traffic'">
+          <dt>{{ $t('cell.traffic') }}</dt>
+          <dd v-if="data.traffic">
+            {{ score }} <span class="hint">{{ $t('cell.scoreRange') }}</span>
+          </dd>
+          <dd v-else class="hint">{{ $t('cell.noTraffic') }}</dd>
+        </template>
+        <template v-else-if="section === 'biodiversity'">
+          <dt>{{ $t('cell.biodiversity') }}</dt>
+          <dd>{{ $t('cell.taxa', data.taxa.length) }}</dd>
+        </template>
+        <template v-else>
+          <dt>{{ $t('cell.outdoor') }}</dt>
+          <dd>{{ $t('cell.offers', data.offers.count) }}</dd>
+        </template>
+      </template>
       <dt>{{ $t('cell.zonings') }}</dt>
       <dd class="hint">{{ $t('cell.soon') }}</dd>
     </dl>
 
-    <h3>{{ $t('cell.traffic') }}</h3>
-    <ul class="sources">
-      <li v-for="source in data.traffic.sources" :key="source.code">
-        <strong>{{ source.label }}</strong> : {{ countText(source) }}
-        <div class="hint">
-          {{ source.absolute ? $t('cell.absolute') : $t('cell.relative') }} ·
-          {{ years(source.first_data, source.latest_data) }}
-        </div>
-        <div
-          v-if="source.length_km != null && source.person_km != null"
-          class="hint has-tip"
-          :title="$t('cell.kmHelp')"
-        >
-          {{
-            $t('cell.km', {
-              km: oneDecimal(source.length_km),
-              personKm: oneDecimal(source.person_km),
-            })
-          }}
-        </div>
-        <div v-if="source.code === 'ecocompteur'" class="hint">
-          {{ $t('cell.score.reference') }}
-        </div>
-        <div v-else-if="weight(source) !== undefined" class="weight">
-          {{ $t('cell.score.weight', { weight: weight(source) }) }}
-        </div>
-      </li>
-    </ul>
-    <p class="hint note">{{ $t('cell.countsNote') }}</p>
+    <template v-for="section in sections" :key="section">
+      <section v-if="section === 'traffic'">
+        <h3>{{ $t('cell.traffic') }}</h3>
+        <template v-if="data.traffic">
+          <ul class="sources">
+            <li v-for="source in data.traffic.sources" :key="source.code">
+              <strong>{{ source.label }}</strong> : {{ countText(source) }}
+              <div class="hint">
+                {{ source.absolute ? $t('cell.absolute') : $t('cell.relative') }} ·
+                {{ years(source.first_data, source.latest_data) }}
+              </div>
+              <div
+                v-if="source.length_km != null && source.person_km != null"
+                class="hint has-tip"
+                :title="$t('cell.kmHelp')"
+              >
+                {{
+                  $t('cell.km', {
+                    km: oneDecimal(source.length_km),
+                    personKm: oneDecimal(source.person_km),
+                  })
+                }}
+              </div>
+              <div v-if="source.code === 'ecocompteur'" class="hint">
+                {{ $t('cell.score.reference') }}
+              </div>
+              <div v-else-if="weight(source) !== undefined" class="weight">
+                {{ $t('cell.score.weight', { weight: weight(source) }) }}
+              </div>
+            </li>
+          </ul>
+          <p class="hint note">{{ $t('cell.countsNote') }}</p>
 
-    <details class="formula">
-      <summary>{{ $t('cell.score.title') }}</summary>
-      <p>{{ $t('cell.score.intro') }}</p>
-      <ol>
-        <li v-for="step in scoreSteps" :key="step">
-          <strong>{{ $t(`cell.score.${step}.title`) }}</strong>
-          <code class="formula-eq">{{ $t(`cell.score.${step}.eq`) }}</code>
-          <span class="hint">{{ $t(`cell.score.${step}.text`) }}</span>
-        </li>
-      </ol>
-      <p v-if="cazalis.reference_counters" class="hint">
-        {{ $t('cell.score.counters', { n: cazalis.reference_counters }) }}
-      </p>
-    </details>
+          <details class="formula">
+            <summary>{{ $t('cell.score.title') }}</summary>
+            <p>{{ $t('cell.score.intro') }}</p>
+            <ol>
+              <li v-for="step in scoreSteps" :key="step">
+                <strong>{{ $t(`cell.score.${step}.title`) }}</strong>
+                <code class="formula-eq">{{ $t(`cell.score.${step}.eq`) }}</code>
+                <span class="hint">{{ $t(`cell.score.${step}.text`) }}</span>
+              </li>
+            </ol>
+            <p v-if="cazalis.reference_counters" class="hint">
+              {{ $t('cell.score.counters', { n: cazalis.reference_counters }) }}
+            </p>
+          </details>
+        </template>
+        <p v-else class="hint">{{ $t('cell.noTraffic') }}</p>
+      </section>
 
-    <h3>{{ $t('cell.biodiversity') }}</h3>
-    <p>{{ $t('cell.taxa', data.taxa.length) }}</p>
-    <details v-if="data.taxa.length">
-      <summary>{{ $t('cell.taxaList') }}</summary>
-      <ul>
-        <li v-for="taxon in data.taxa" :key="taxon.cd_ref">
-          {{ taxon.nom_vern ?? taxon.lb_nom }} <em v-if="taxon.nom_vern">{{ taxon.lb_nom }}</em>
-          <div class="hint">{{ taxonText(taxon) }}</div>
-        </li>
-      </ul>
-    </details>
-    <p class="hint note">{{ $t('cell.taxaNote') }}</p>
+      <section v-else-if="section === 'biodiversity'">
+        <h3>{{ $t('cell.biodiversity') }}</h3>
+        <p>{{ $t('cell.taxa', data.taxa.length) }}</p>
+        <details v-if="data.taxa.length">
+          <summary>{{ $t('cell.taxaList') }}</summary>
+          <ul>
+            <li v-for="taxon in data.taxa" :key="taxon.cd_ref">
+              {{ taxon.nom_vern ?? taxon.lb_nom }}
+              <em v-if="taxon.nom_vern">{{ taxon.lb_nom }}</em>
+              <div class="hint">{{ taxonText(taxon) }}</div>
+            </li>
+          </ul>
+        </details>
+        <p class="hint note">{{ $t('cell.taxaNote') }}</p>
+      </section>
 
-    <h3>{{ $t('cell.outdoor') }}</h3>
-    <p>{{ $t('cell.offers', data.offers.count) }}</p>
-    <details v-for="[practice, offers] in practices" :key="practice">
-      <summary>{{ practice }} ({{ offers.length }})</summary>
-      <ul>
-        <li v-for="offer in offers" :key="offer.id">
-          {{ offer.name }} <span class="hint">· {{ offer.source_label }}</span>
-        </li>
-      </ul>
-    </details>
+      <section v-else>
+        <h3>{{ $t('cell.outdoor') }}</h3>
+        <p>{{ $t('cell.offers', data.offers.count) }}</p>
+        <details v-for="[practice, offers] in practices" :key="practice">
+          <summary>{{ practice }} ({{ offers.length }})</summary>
+          <ul>
+            <li v-for="offer in offers" :key="offer.id">
+              {{ offer.name }} <span class="hint">· {{ offer.source_label }}</span>
+            </li>
+          </ul>
+        </details>
+      </section>
+    </template>
   </div>
 </template>
 

@@ -39,6 +39,7 @@ export async function trafficLayers(): Promise<LayerDefinition[]> {
       id,
       label,
       group: 'traffic',
+      itemLabel: i18n.global.t('items.counter'),
       // L'adaptateur range tous les compteurs dans une même couche : on les rattache à celle du type.
       load: async ({ areaId }) =>
         (await getCountingObjectsForMap({ typeCode: type.code, areaId })).map((o) => ({
@@ -54,6 +55,7 @@ export async function trafficLayers(): Promise<LayerDefinition[]> {
       id: TRAFFIC_AREA_LAYER,
       label: i18n.global.t('layers.trafficAreas'),
       group: 'traffic',
+      itemLabel: i18n.global.t('items.cell'),
       load: ({ areaId, months }) => getTrafficAreasForMap({ areaId, months }),
     },
   ]
@@ -66,6 +68,7 @@ export async function biodiversityLayers(): Promise<LayerDefinition[]> {
       id: BIODIV_AREA_LAYER,
       label: i18n.global.t('layers.biodivAreas'),
       group: 'biodiversity',
+      itemLabel: i18n.global.t('items.cell'),
       load: () => getBiodivAreasForMap(),
     },
   ]
@@ -78,6 +81,7 @@ export async function outdoorLayers(): Promise<LayerDefinition[]> {
       id: OFFER_LAYER,
       label: i18n.global.t('layers.outdoorOffers'),
       group: 'outdoor',
+      itemLabel: i18n.global.t('items.offer'),
       load: ({ areaId }) => getOffersForMap({ areaId }),
     },
   ]

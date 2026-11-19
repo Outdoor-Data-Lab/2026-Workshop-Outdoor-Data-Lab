@@ -27,7 +27,6 @@ export default {
     counterName: 'Counter {id}',
     outdoorOffers: 'Outdoor offers',
     biodivAreas: 'Protected or threatened taxa per grid cell',
-    biodivArea: 'Cell {name}: {count} protected or threatened taxa',
     loadError: 'Could not load {label}',
   },
   season: {
@@ -60,7 +59,13 @@ export default {
   detail: {
     close: 'Close',
   },
+  items: {
+    counter: 'Counter',
+    offer: 'Outdoor offer',
+    cell: 'Grid cell',
+  },
   cell: {
+    noTraffic: 'No traffic data in this cell.',
     traffic: 'Traffic',
     biodiversity: 'Biodiversity',
     outdoor: 'Outdoor',

@@ -2,15 +2,28 @@
 /** Détail de l'objet sélectionné sur la carte : titré par son nom, sous le nom de sa couche. */
 import { computed } from 'vue'
 
+import { BIODIV_AREA_LAYER } from '@/api/biodiv'
 import { TRAFFIC_AREA_LAYER } from '@/api/traffic'
 import CellDetail from '@/components/CellDetail.vue'
 import { useLayersStore } from '@/stores/layers'
 
 const layers = useLayersStore()
 
-const layerLabel = computed(
-  () => layers.definitions.find((d) => d.id === layers.selected?.layer)?.label,
-)
+/** Type de l'objet (ex. « Maille »), sinon le nom de sa couche (couches externes). */
+const kind = computed(() => {
+  const definition = layers.definitions.find((d) => d.id === layers.selected?.layer)
+  return definition?.itemLabel ?? definition?.label
+})
+
+/** Une maille : la même synthèse depuis la fréquentation ou la biodiversité, son domaine en premier. */
+const cellFocus = computed(() => {
+  const layer = layers.selected?.layer
+  return layer === TRAFFIC_AREA_LAYER
+    ? 'traffic'
+    : layer === BIODIV_AREA_LAYER
+      ? 'biodiversity'
+      : null
+})
 
 /** Valeur en texte : sans balises HTML, listes séparées par des virgules. */
 function text(value: unknown): string {
@@ -26,7 +39,7 @@ function text(value: unknown): string {
     <template v-if="layers.selected">
       <header>
         <div>
-          <p class="layer">{{ layerLabel }}</p>
+          <p class="layer">{{ kind }}</p>
           <h2>{{ layers.selected.label }}</h2>
         </div>
         <button type="button" :aria-label="$t('detail.close')" @click="layers.select(null)">
@@ -34,9 +47,10 @@ function text(value: unknown): string {
         </button>
       </header>
       <CellDetail
-        v-if="layers.selected.layer === TRAFFIC_AREA_LAYER"
+        v-if="cellFocus"
         :key="layers.selected.key"
         :cell="layers.selected"
+        :focus="cellFocus"
       />
       <dl v-else-if="layers.selected.attributes">
         <template v-for="(value, name) in layers.selected.attributes" :key="name">

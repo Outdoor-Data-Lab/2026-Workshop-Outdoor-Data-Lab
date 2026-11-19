@@ -27,7 +27,6 @@ export default {
     counterName: 'Compteur {id}',
     outdoorOffers: 'Offres outdoor',
     biodivAreas: 'Taxons protégés ou menacés par maille',
-    biodivArea: 'Maille {name} : {count} taxons protégés ou menacés',
     loadError: 'Impossible de charger {label}',
   },
   season: {
@@ -59,7 +58,13 @@ export default {
   detail: {
     close: 'Fermer',
   },
+  items: {
+    counter: 'Compteur',
+    offer: 'Offre outdoor',
+    cell: 'Maille',
+  },
   cell: {
+    noTraffic: 'Pas de données de fréquentation sur cette maille.',
     traffic: 'Fréquentation',
     biodiversity: 'Biodiversité',
     outdoor: 'Outdoor',
