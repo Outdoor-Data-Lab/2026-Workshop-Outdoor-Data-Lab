@@ -52,8 +52,8 @@ export default {
   },
   legend: {
     title: 'Legend',
-    counters: 'Counters',
     trafficAreas: 'Traffic per grid cell (score)',
+    otherValues: 'Other',
   },
   offer: {
     practice: 'Practice',

@@ -1,21 +1,7 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
 
-export interface LegendSwatch {
-  label: string
-  color: string
-  shape: 'point' | 'line' | 'polygon'
-}
-
-/** Dégradé de valeurs, de `min` (première couleur) à `max` (dernière). */
-export interface LegendGradient {
-  label: string
-  colors: readonly string[]
-  min: number
-  max: number
-}
-
-export type LegendItem = LegendSwatch | LegendGradient
+import type { LegendItem } from '@/types/legend'
 
 defineProps<{ items: LegendItem[] }>()
 
@@ -27,7 +13,7 @@ const formatNumber = (n: number) => n.toLocaleString(locale.value, { maximumFrac
   <section class="legend" aria-labelledby="legend-title">
     <h2 id="legend-title">{{ $t('legend.title') }}</h2>
     <ul>
-      <li v-for="item in items" :key="item.label">
+      <li v-for="(item, i) in items" :key="i">
         <template v-if="'colors' in item">
           <div class="gradient">
             {{ item.label }}
@@ -41,6 +27,19 @@ const formatNumber = (n: number) => n.toLocaleString(locale.value, { maximumFrac
             </span>
           </div>
         </template>
+        <div v-else-if="'categories' in item" class="group">
+          {{ item.label }}
+          <ul>
+            <li v-for="category in item.categories" :key="category.label">
+              <span
+                class="swatch"
+                :class="item.shape"
+                :style="{ '--color': category.color }"
+              ></span>
+              {{ category.label }}
+            </li>
+          </ul>
+        </div>
         <template v-else>
           <span class="swatch" :class="item.shape" :style="{ '--color': item.color }"></span>
           {{ item.label }}
@@ -102,6 +101,15 @@ li {
 
 .swatch.line {
   height: 3px;
+}
+
+/* Nom au bord, comme le début de chaque couche ; valeurs en retrait, sous le nom. */
+.group {
+  width: 100%;
+}
+
+.group ul {
+  padding-left: 1.4rem;
 }
 
 .gradient {

@@ -51,8 +51,8 @@ export default {
   },
   legend: {
     title: 'Légende',
-    counters: 'Compteurs',
     trafficAreas: 'Fréquentation par maille (score)',
+    otherValues: 'Autre',
   },
   offer: {
     practice: 'Pratique',

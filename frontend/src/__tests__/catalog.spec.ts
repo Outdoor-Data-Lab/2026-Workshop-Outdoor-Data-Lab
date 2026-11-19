@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import type { LineString } from 'geojson'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ExternalLayer } from '@/api/externalLayers'
 import { externalLayers } from '@/catalog'
@@ -34,13 +35,15 @@ const responses: Record<string, unknown> = {
 }
 
 describe('externalLayers', () => {
-  afterEach(() => vi.unstubAllGlobals())
-
-  it('loads every page, colors by value and keeps the chosen attributes', async () => {
+  beforeEach(() =>
     vi.stubGlobal(
       'fetch',
       vi.fn(async (url: string) => new Response(JSON.stringify(responses[url]))),
-    )
+    ),
+  )
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('loads every page, colors by value and keeps the chosen attributes', async () => {
     const [definition] = await externalLayers()
     const objects = await definition!.load!({})
 
@@ -49,5 +52,29 @@ describe('externalLayers', () => {
     // L'attribut du nom est en titre, pas dans les attributs.
     expect(objects[0]!.attributes).toEqual({ CODE_CB: '61.2' })
     expect(objects[0]!.label).toBe('Eboulis')
+  })
+
+  it('lists the attribute values under the layer name, then the layer color if used', async () => {
+    const [definition] = await externalLayers()
+    const point = { key: 'k', id: 1, domain: 'external', layer: 'external/1', label: 'x' } as const
+    const line: LineString = { type: 'LineString', coordinates: [] }
+
+    expect(definition!.legend!([])).toEqual([])
+    // Un objet sans couleur de valeur : « Other », à la couleur de la couche.
+    expect(definition!.legend!([{ ...point, geometry: line, color: '#3388ff' }])).toEqual([
+      {
+        label: 'Habitats',
+        shape: 'line',
+        categories: [
+          { label: 'PR', color: '#c0392b' },
+          { label: 'Other', color: '#3388ff' },
+        ],
+      },
+    ])
+    expect(
+      definition!.legend!([{ ...point, geometry: { type: 'MultiLineString', coordinates: [] } }]),
+    ).toEqual([
+      { label: 'Habitats', shape: 'line', categories: [{ label: 'PR', color: '#c0392b' }] },
+    ])
   })
 })
