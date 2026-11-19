@@ -14,7 +14,7 @@ export default {
     external: 'Couches externes',
   },
   countingObjectTypes: {
-    counter: 'Compteur',
+    counter: 'Compteurs',
     segment: 'Segments et traces',
   },
   layers: {

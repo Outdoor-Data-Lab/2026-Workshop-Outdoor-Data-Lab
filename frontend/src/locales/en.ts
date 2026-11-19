@@ -14,7 +14,7 @@ export default {
   },
   /** Valeurs de référence de l'API, par code (repli : le libellé de l'API). */
   countingObjectTypes: {
-    counter: 'Counter',
+    counter: 'Counters',
     segment: 'Segments and tracks',
   },
   layers: {
