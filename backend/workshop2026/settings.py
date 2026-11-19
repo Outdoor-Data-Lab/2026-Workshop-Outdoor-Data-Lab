@@ -218,7 +218,8 @@ if REDIS_CACHE_URL and "test" not in sys.argv:
         }
     }
 
-DEFAULT_GRID_AREA_TYPE = os.environ.get("DEFAULT_GRID_AREA_TYPE", "M0.5")
+# Empty values (unset in .env, see docker-compose.yaml) fall back to the defaults.
+DEFAULT_GRID_AREA_TYPE = os.environ.get("DEFAULT_GRID_AREA_TYPE") or "M0.5"
 # ref_geo grids the counting objects are linked to (traffic.counting_object_areas)
 # and that the API accepts as ``area_type``. After changing it, run
 # ``manage.py sync_counting_object_areas``.
@@ -227,7 +228,7 @@ AREA_TYPES = list(
         [DEFAULT_GRID_AREA_TYPE]
         + [
             t.strip()
-            for t in os.environ.get("AREA_TYPES", "M1,M0.5").split(",")
+            for t in (os.environ.get("AREA_TYPES") or "M1,M0.5").split(",")
             if t.strip()
         ]
     )

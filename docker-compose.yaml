@@ -19,6 +19,9 @@ x-django-env: &django-env
   CELERY_BROKER_URL: redis://redis:6379/0
   # Shared cache of the score weights and results (database 1; the broker uses 0).
   REDIS_CACHE_URL: redis://redis:6379/1
+  # ref_geo grids (see settings.py); empty: the defaults of settings.py.
+  DEFAULT_GRID_AREA_TYPE: ${DEFAULT_GRID_AREA_TYPE:-}
+  AREA_TYPES: ${AREA_TYPES:-}
 
 services:
   db:
