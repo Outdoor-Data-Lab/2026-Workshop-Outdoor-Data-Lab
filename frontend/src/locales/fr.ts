@@ -9,6 +9,7 @@ export default {
     biodiversity: 'Biodiversité',
   },
   layerGroups: {
+    grid: 'Synthèse par mailles',
     traffic: 'Fréquentation',
     biodiversity: 'Biodiversité',
     outdoor: 'Outdoor',
@@ -21,12 +22,13 @@ export default {
   layers: {
     title: 'Couches',
     failed: '(échec)',
-    trafficAreas: 'Fréquentation par maille',
+    trafficAreas: 'Fréquentation',
     fromZoom: 'Visible à partir du zoom {zoom} : zoomez sur la carte.',
     cellName: 'Maille',
     counterName: 'Compteur {id}',
     outdoorOffers: 'Offres outdoor',
-    biodivAreas: 'Taxons menacés par maille',
+    biodivAreas: 'Taxons menacés',
+    none: 'Aucune',
     loadError: 'Impossible de charger {label}',
   },
   season: {
