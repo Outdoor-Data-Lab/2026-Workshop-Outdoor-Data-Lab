@@ -229,6 +229,9 @@ class CountingObjectApiTests(TrafficTestCase):
         self.assertEqual(self.get(f"intersects={square}")["count"], 1)
         self.assertEqual(self.get("origin_code=garmin")["count"], 1)
         self.assertEqual(self.get("type_code=segment")["count"], 0)
+        self.assertEqual(self.get("type_code=counter")["count"], 2)
+        self.assertEqual(self.get("type_code=counter&bbox=6,44,7,45")["count"], 1)
+        self.assertEqual(self.get("type_code=unknown")["count"], 0)
 
     def test_measures_paginated_with_codes(self):
         for day in (15, 16, 17):
