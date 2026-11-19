@@ -80,7 +80,9 @@ const legend = computed<LegendItem[]>(() => {
   left: 10px;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  /* Recherche et couches à la même largeur : celle du plus long libellé de couche stable,
+     « Protected or threatened taxa per grid cell » (353 px). Les couches externes passent à la ligne. */
+  width: min(24rem, calc(100% - 20px));
   gap: calc(var(--space) / 1.5);
   /* Au-dessus de la légende et de l'échelle, en bas à gauche ; la liste défile au-delà. */
   max-height: calc(100% - 200px);

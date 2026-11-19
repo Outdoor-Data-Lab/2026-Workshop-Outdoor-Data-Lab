@@ -98,7 +98,6 @@ async function choose(area: AreaMatch) {
   display: flex;
   flex-direction: column;
   gap: calc(var(--space) / 3);
-  width: 18rem;
   background: var(--color-background);
   border-radius: var(--radius);
   box-shadow: var(--shadow);

@@ -8,12 +8,17 @@ import { useLayersStore, type LayerDefinition } from '@/stores/layers'
 const layers = useLayersStore()
 const open = ref(true)
 
+/** Ordre des groupes : les couches arrivent dans l'ordre des réponses de l'API, donc au hasard. */
+const GROUP_ORDER = ['traffic', 'biodiversity', 'outdoor', 'external']
+
 const groups = computed(() => {
   const byGroup = new Map<string, LayerDefinition[]>()
   for (const definition of layers.definitions) {
     byGroup.set(definition.group, [...(byGroup.get(definition.group) ?? []), definition])
   }
-  return byGroup
+  // Un groupe inconnu va à la fin.
+  const rank = (group: string) => GROUP_ORDER.indexOf(group) + 1 || GROUP_ORDER.length + 1
+  return [...byGroup].sort(([a], [b]) => rank(a) - rank(b))
 })
 </script>
 
@@ -72,8 +77,11 @@ legend {
   font-weight: bold;
 }
 
+/* Un libellé sur deux lignes reste aligné à droite de sa case. */
 label {
-  display: block;
+  display: flex;
+  align-items: baseline;
+  gap: 0.35em;
 }
 
 .error {
