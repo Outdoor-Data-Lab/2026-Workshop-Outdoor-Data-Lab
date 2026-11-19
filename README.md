@@ -101,6 +101,10 @@ docker compose exec web python backend/manage.py createsuperuser
 
 Voir [docs/imports.md](docs/imports.md).
 
+## Layer order
+
+See [docs/ordre-des-couches.md](docs/ordre-des-couches.md).
+
 ## Load demonstration traffic data
 
 Start the development stack, then load the sample traffic data with the Django management command:
