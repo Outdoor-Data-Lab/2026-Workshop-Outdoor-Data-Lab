@@ -11,10 +11,9 @@ Tiles are cached (cache "tiles") until the data changes: the key holds
 from django.conf import settings
 from django.core.cache.backends.filebased import FileBasedCache
 from django.db import connection
-from django.db.models import Count, Max
 from django.http import HttpResponse, HttpResponseBadRequest
 
-from commons.models import DataImport
+from commons.models import data_version
 from ref_geo.models import LArea
 
 from ..models import CountingObject, CountingObjectType
@@ -47,14 +46,6 @@ SELECT ST_AsMVT(t, %(layer)s, %(extent)s, 'geom', 'id') FROM (
 cache = FileBasedCache(
     settings.TILES_CACHE_DIR, {"TIMEOUT": 24 * 3600, "OPTIONS": {"MAX_ENTRIES": 3000}}
 )
-
-
-def data_version():
-    """Changes when an import ends (done) or is deleted. Not when an object is
-    edited in the admin: its tiles are then refreshed within a day (TIMEOUT)."""
-    done = DataImport.objects.filter(status=DataImport.Status.DONE)
-    version = done.aggregate(count=Count("id"), last=Max("id"))
-    return f"{version['count']}-{version['last']}"
 
 
 def counting_object_tile(request, z, x, y):
