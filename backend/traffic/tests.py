@@ -15,7 +15,6 @@ import shapely
 
 from django.contrib.auth import get_user_model
 from django.contrib.gis.geos import LineString, MultiPolygon, Point, Polygon
-from django.core.cache import caches
 from django.core.files.base import ContentFile
 from django.core.management import CommandError, call_command
 from django.db import IntegrityError, connection, transaction
@@ -42,6 +41,7 @@ from .models import (
     TrafficImport,
     Unit,
 )
+from .api import tiles
 from .parsers.compteur import CompteurParser
 from .parsers.inaturalist import INaturalistParser, observer_day_id
 from .parsers.outdoorvision import OutdoorVisionParser
@@ -1057,7 +1057,7 @@ class CountingObjectTileTests(AreasTestCase):
     """Objects of cell 12 around (6.2, 44.2): a counter and two segments."""
 
     def setUp(self):
-        caches["tiles"].clear()
+        tiles.cache.clear()
 
     def get(self, z, x, y, **params):
         return self.client.get(f"/api/traffic/tiles/{z}/{x}/{y}.pbf", params)

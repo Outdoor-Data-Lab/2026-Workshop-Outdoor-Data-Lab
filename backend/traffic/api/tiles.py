@@ -8,7 +8,8 @@ Tiles are cached (cache "tiles") until the data changes: the key holds
 ``data_version()``, which changes when an import ends or is deleted.
 """
 
-from django.core.cache import caches
+from django.conf import settings
+from django.core.cache.backends.filebased import FileBasedCache
 from django.db import connection
 from django.db.models import Count, Max
 from django.http import HttpResponse, HttpResponseBadRequest
@@ -40,6 +41,14 @@ SELECT ST_AsMVT(t, %(layer)s, %(extent)s, 'geom', 'id') FROM (
 """
 
 
+# On disk: shared by the gunicorn workers, and kept out of Redis, which also queues
+# the imports (a tile of a dense area weighs up to 2 MB). Not in settings.CACHES,
+# which other features may redefine.
+cache = FileBasedCache(
+    settings.TILES_CACHE_DIR, {"TIMEOUT": 24 * 3600, "OPTIONS": {"MAX_ENTRIES": 3000}}
+)
+
+
 def data_version():
     """Changes when an import ends (done) or is deleted. Not when an object is
     edited in the admin: its tiles are then refreshed within a day (TIMEOUT)."""
@@ -57,7 +66,6 @@ def counting_object_tile(request, z, x, y):
     area_id = request.GET.get("area_id")
     if area_id is not None and not area_id.isdigit():
         return HttpResponseBadRequest("area_id must be an integer.")
-    cache = caches["tiles"]
     key = f"{data_version()}:{z}/{x}/{y}:{type_code}:{area_id}"
     tile = cache.get(key)
     if tile is None:
