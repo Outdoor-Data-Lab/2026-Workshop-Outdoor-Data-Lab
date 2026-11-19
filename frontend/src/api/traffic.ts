@@ -116,7 +116,7 @@ export function getCountingObjectTypes({ limit, offset }: LimitOffset = {}) {
 
 // Synthèse de fréquentation par maille de 1 km
 
-export type TrafficAreaScore = 'basic' | 'cazalis'
+export type TrafficAreaScore = 'basic' | 'cazalis' | 'synthesis'
 export type SourceCount = Schemas['SourceCount']
 export type TrafficAreaProperties = Required<NonNullable<Schemas['AreaCounts']['properties']>>
 export type TrafficAreaFeature = Feature<MultiPolygon, TrafficAreaProperties>
@@ -226,6 +226,34 @@ export function trafficAreaToMapObject(feature: TrafficAreaFeature): MapObject {
     geometry: feature.geometry,
     value: score,
   }
+}
+
+export const SYNTHESIS_AREA_LAYER: LayerId = 'traffic/synthesis'
+
+/** Couleur des zones à enjeu : un rouge distinct de l'orange des compteurs. */
+export const SYNTHESIS_COLOR = '#c0392b'
+
+/**
+ * Zones à enjeu : les mailles au score de synthèse 1 (fréquentation forte et au moins
+ * une espèce menacée), les autres (0) ne sont pas dessinées.
+ */
+export async function getSynthesisAreasForMap(filters: TrafficAreaFilters = {}) {
+  const url = trafficAreasUrl({ ...filters, scores: ['synthesis'] }, {})
+  const features = await fetchAllFeatures<TrafficAreaFeature>(url)
+  return features
+    .filter((feature) => scoreValue(feature.properties.score.synthesis) === 1)
+    .map((feature): MapObject => {
+      if (feature.id === undefined) throw new Error('Maille sans identifiant dans la réponse API')
+      return {
+        key: mapObjectKey(SYNTHESIS_AREA_LAYER, feature.id),
+        id: feature.id,
+        domain: 'traffic',
+        layer: SYNTHESIS_AREA_LAYER,
+        label: `${i18n.global.t('layers.cellName')} ${feature.id}`,
+        geometry: feature.geometry,
+        color: SYNTHESIS_COLOR,
+      }
+    })
 }
 
 /** Toutes les mailles, page par page. Les scores portent sur toutes les mailles, pas sur la page ; sans `sourceWeights`, le backend estime les poids de `cazalis`. */

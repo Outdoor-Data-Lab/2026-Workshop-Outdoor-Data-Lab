@@ -29,6 +29,9 @@ export default {
     outdoorOffers: 'Offres outdoor',
     biodivAreas: 'Taxons menacés',
     none: 'Aucune',
+    synthesisAreas: 'Zones à enjeu',
+    synthesisDescription:
+      'Mailles au score de fréquentation supérieur à 40 avec au moins une espèce menacée (liste rouge nationale).',
     loadError: 'Impossible de charger {label}',
   },
   season: {
@@ -53,6 +56,7 @@ export default {
     title: 'Légende',
     trafficAreas: 'Fréquentation par maille (score)',
     otherValues: 'Autre',
+    synthesisAreas: 'Zones à enjeu : forte fréquentation et espèce menacée',
   },
   offer: {
     practice: 'Pratique',

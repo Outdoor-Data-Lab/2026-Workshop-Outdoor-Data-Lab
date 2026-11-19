@@ -4,10 +4,13 @@ import { getExternalLayers, getFeatures } from '@/api/externalLayers'
 import { OFFER_LAYER, getOffersForMap } from '@/api/outdoor'
 import {
   TILE_MIN_ZOOM,
+  SYNTHESIS_AREA_LAYER,
+  SYNTHESIS_COLOR,
   TRAFFIC_AREA_LAYER,
   countingObjectTileUrl,
   getCountingObjectTypes,
   getCountingObjectsForMap,
+  getSynthesisAreasForMap,
   getTrafficAreasForMap,
 } from '@/api/traffic'
 import { gridSize, getInstanceSettings } from '@/api/settings'
@@ -92,6 +95,22 @@ export async function trafficLayers(): Promise<LayerDefinition[]> {
           max: valueMax(objects.map((o) => o.value)),
         },
       ],
+    },
+  ]
+}
+
+/** Croisement fréquentation × biodiversité : les zones à enjeu. */
+export async function synthesisLayers(): Promise<LayerDefinition[]> {
+  return [
+    {
+      id: SYNTHESIS_AREA_LAYER,
+      label: i18n.global.t('layers.synthesisAreas'),
+      group: 'grid',
+      exclusive: true,
+      description: i18n.global.t('layers.synthesisDescription'),
+      itemLabel: await cellItemLabel(),
+      load: ({ areaId, months }) => getSynthesisAreasForMap({ areaId, months }),
+      legend: swatch(i18n.global.t('legend.synthesisAreas'), SYNTHESIS_COLOR),
     },
   ]
 }

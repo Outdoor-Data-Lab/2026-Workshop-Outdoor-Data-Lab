@@ -7,7 +7,7 @@ from rest_framework_gis.serializers import GeoFeatureModelSerializer
 
 from commons.api.geo import code_field
 from workshop2026.api.mixins import DynamicFieldsMixin
-from workshop2026.processing.score import SCORES
+from workshop2026.processing.score import SCORES, SynthesisScore
 
 from ref_geo.models import LArea
 
@@ -124,6 +124,15 @@ class AreasQuerySerializer(DynamicFieldsMixin, serializers.Serializer):
     source_weights = serializers.CharField(
         required=False,
         help_text='Weights of the "cazalis" score, as source_id:weight pairs, e.g. "1:2,3:0.5".',
+    )
+    synthesis_threshold = serializers.FloatField(
+        required=False,
+        min_value=0,
+        max_value=100,
+        help_text=(
+            'Threshold of the "synthesis" score on the 0-100 "cazalis" score: a cell above it '
+            f"with a threatened taxon scores 1. Default: {SynthesisScore.DEFAULT_THRESHOLD}."
+        ),
     )
 
     def validate_source_weights(self, value):
