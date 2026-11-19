@@ -1,3 +1,4 @@
+from django.conf import settings as django_settings
 from rest_framework import serializers
 
 from workshop2026.api.mixins import DynamicFieldsMixin
@@ -36,7 +37,7 @@ class ExternalLayerSerializer(DynamicFieldsMixin, serializers.ModelSerializer):
         model = ExternalLayer
         fields = [
             "id", "label", "url", "description",
-            "properties", "color", "color_property", "colors",
+            "properties", "label_property", "color", "color_property", "colors",
         ]
         read_only_fields = fields  # all always present in the schema
 
@@ -53,7 +54,12 @@ class AreaSummarySerializer(serializers.ModelSerializer):
 
 class InstanceSettingsSerializer(serializers.ModelSerializer):
     default_area = AreaSummarySerializer(read_only=True)
+    # Not in the admin: set by DEFAULT_GRID_AREA_TYPE (the grid of the database triggers).
+    grid_area_type = serializers.SerializerMethodField(help_text="ref_geo type_code of the default grid (M0.5, M1...).")
 
     class Meta:
         model = InstanceSettings
-        fields = ("default_area",)
+        fields = ("default_area", "grid_area_type")
+
+    def get_grid_area_type(self, settings) -> str:
+        return django_settings.DEFAULT_GRID_AREA_TYPE

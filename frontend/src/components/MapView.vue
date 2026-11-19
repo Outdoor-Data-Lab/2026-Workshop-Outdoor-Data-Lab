@@ -5,6 +5,7 @@ import {
   LngLatBounds,
   Map as MlMap,
   NavigationControl,
+  ScaleControl,
   type ExpressionSpecification,
   type GeoJSONSource,
   type LayerSpecification,
@@ -218,7 +219,9 @@ onMounted(() => {
     center: props.center ?? [6.08, 45.2],
     zoom: props.zoom ?? 9,
   })
-  m.addControl(new NavigationControl(), 'top-right')
+  m.addControl(new NavigationControl(), 'bottom-right')
+  // Sous la légende (MapLegend), en bas à gauche.
+  m.addControl(new ScaleControl({ unit: 'metric' }), 'bottom-left')
 
   // Clic dans le vide = désélection.
   m.on('click', (e) => {
@@ -228,6 +231,16 @@ onMounted(() => {
   m.on('mousemove', (e) => {
     m.getCanvas().style.cursor = featureAt(m, e.point) ? 'pointer' : ''
   })
+
+  // Couches en tuiles : roue tant que des tuiles demandées ne sont pas arrivées.
+  const tilesStatus = () => {
+    for (const source of tiled.keys()) {
+      const loading = !m.isSourceLoaded(source)
+      if (store.status[source]?.loading !== loading) store.status[source] = { loading }
+    }
+  }
+  m.on('render', tilesStatus)
+  m.on('idle', tilesStatus)
 
   m.on('load', () => {
     map.value = m
@@ -288,6 +301,7 @@ function syncTiles(m: MlMap, urls: typeof tileUrls.value) {
     m.removeLayer(`${source}/tiles`)
     m.removeSource(source)
     tiled.delete(source)
+    delete store.status[source]
   }
 }
 

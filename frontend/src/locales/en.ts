@@ -1,5 +1,6 @@
 /** Textes de référence : `fr.ts` doit avoir les mêmes clés (vérifié par le typage). */
 export default {
+  loading: 'Loading',
   concepts: {
     label: 'Concept',
     global: 'Global',
@@ -18,14 +19,14 @@ export default {
     segment: 'Segments and tracks',
   },
   layers: {
-    loading: '(loading)',
+    title: 'Layers',
     failed: '(failed)',
     trafficAreas: 'Traffic per grid cell',
     fromZoom: 'Visible from zoom {zoom}: zoom in on the map.',
     cellName: 'Cell',
+    counterName: 'Counter {id}',
     outdoorOffers: 'Outdoor offers',
     biodivAreas: 'Protected or threatened taxa per grid cell',
-    biodivArea: 'Cell {name}: {count} protected or threatened taxa',
     loadError: 'Could not load {label}',
   },
   season: {
@@ -56,11 +57,16 @@ export default {
     practice: 'Practice',
   },
   detail: {
-    title: 'Detail',
-    empty: 'Select an object on the map.',
+    close: 'Close',
+  },
+  items: {
+    counter: 'Counter',
+    offer: 'Outdoor offer',
+    cell: 'Grid cell',
+    cellOfSize: '{size} grid cell',
   },
   cell: {
-    loading: 'Loading…',
+    noTraffic: 'No traffic data in this cell.',
     traffic: 'Traffic',
     biodiversity: 'Biodiversity',
     outdoor: 'Outdoor',

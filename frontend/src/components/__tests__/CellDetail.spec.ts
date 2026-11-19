@@ -122,4 +122,35 @@ describe('CellDetail', () => {
     )
     expect(text).toContain('Randonnée (2)')
   })
+
+  it('puts biodiversity first from the biodiversity layer, and tolerates a cell without traffic', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) =>
+        url.startsWith('/api/traffic/areas/7')
+          ? new Response(JSON.stringify({ detail: 'Not found.' }), { status: 404 })
+          : new Response(
+              JSON.stringify(url.startsWith('/api/biodiversity/list_taxa/7') ? taxa : offers),
+            ),
+      ),
+    )
+    const wrapper = mount(CellDetail, {
+      props: { cell, focus: 'biodiversity' },
+      global: { plugins: [i18n] },
+    })
+    await flushPromises()
+
+    expect(wrapper.findAll('h3').map((h) => h.text())).toEqual([
+      'Biodiversity',
+      'Traffic',
+      'Outdoor',
+    ])
+    expect(wrapper.findAll('dt').map((dt) => dt.text())).toEqual([
+      'Biodiversity',
+      'Traffic',
+      'Outdoor',
+      'Regulatory zoning',
+    ])
+    expect(wrapper.text()).toContain('TrafficNo traffic data in this cell.')
+  })
 })

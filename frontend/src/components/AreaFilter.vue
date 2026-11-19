@@ -66,9 +66,7 @@ async function choose(area: AreaMatch) {
 <template>
   <section class="area-filter">
     <div v-if="layers.area" class="selected">
-      <span>
-        {{ layers.area.name }} <span class="type">{{ typeLabel(layers.area.typeCode) }}</span>
-      </span>
+      <span>{{ layers.area.name }} ({{ typeLabel(layers.area.typeCode) }})</span>
       <button type="button" :aria-label="$t('areaFilter.clear')" @click="layers.setArea(null)">
         ×
       </button>
@@ -85,8 +83,8 @@ async function choose(area: AreaMatch) {
       <ul v-if="matches?.length">
         <li v-for="area in matches" :key="area.id_area">
           <button type="button" @click="choose(area)">
-            {{ area.area_name }}
-            <span class="type">{{ typeLabel(area.type_code) }} {{ area.area_code }}</span>
+            {{ area.area_name }} ({{ typeLabel(area.type_code) }})
+            <span class="type">{{ area.area_code }}</span>
           </button>
         </li>
       </ul>
@@ -100,7 +98,6 @@ async function choose(area: AreaMatch) {
   display: flex;
   flex-direction: column;
   gap: calc(var(--space) / 3);
-  width: 18rem;
   background: var(--color-background);
   border-radius: var(--radius);
   box-shadow: var(--shadow);

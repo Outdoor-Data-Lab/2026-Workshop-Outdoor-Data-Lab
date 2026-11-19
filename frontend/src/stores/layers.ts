@@ -46,6 +46,8 @@ export interface LayerDefinition {
   group: string
   /** Affichée au survol du nom. */
   description?: string
+  /** Type d'un objet de la couche, au singulier, en tête de son détail ; sinon `label`. */
+  itemLabel?: string
   /** Objets chargés en entier. Sans `load`, la couche est servie en `tiles`. */
   load?: (filters: LayerFilters) => Promise<MapObject[]>
   /** Tuiles vectorielles, dessinées par la carte à partir de `minzoom`. */

@@ -1,10 +1,29 @@
 <script setup lang="ts">
-/** Détail de l'objet sélectionné sur la carte. */
+/** Détail de l'objet sélectionné sur la carte : titré par son nom, sous le nom de sa couche. */
+import { computed } from 'vue'
+
+import { BIODIV_AREA_LAYER } from '@/api/biodiv'
 import { TRAFFIC_AREA_LAYER } from '@/api/traffic'
 import CellDetail from '@/components/CellDetail.vue'
 import { useLayersStore } from '@/stores/layers'
 
 const layers = useLayersStore()
+
+/** Type de l'objet (ex. « Maille »), sinon le nom de sa couche (couches externes). */
+const kind = computed(() => {
+  const definition = layers.definitions.find((d) => d.id === layers.selected?.layer)
+  return definition?.itemLabel ?? definition?.label
+})
+
+/** Une maille : la même synthèse depuis la fréquentation ou la biodiversité, son domaine en premier. */
+const cellFocus = computed(() => {
+  const layer = layers.selected?.layer
+  return layer === TRAFFIC_AREA_LAYER
+    ? 'traffic'
+    : layer === BIODIV_AREA_LAYER
+      ? 'biodiversity'
+      : null
+})
 
 /** Valeur en texte : sans balises HTML, listes séparées par des virgules. */
 function text(value: unknown): string {
@@ -17,16 +36,21 @@ function text(value: unknown): string {
 
 <template>
   <section class="detail">
-    <h2>{{ $t('detail.title') }}</h2>
     <template v-if="layers.selected">
-      <p v-if="layers.selected.layer === TRAFFIC_AREA_LAYER">
-        <strong>{{ $t('layers.cellName') }}</strong> {{ layers.selected.id }}
-      </p>
-      <p v-else>{{ layers.selected.label }}</p>
+      <header>
+        <div>
+          <p class="layer">{{ kind }}</p>
+          <h2>{{ layers.selected.label }}</h2>
+        </div>
+        <button type="button" :aria-label="$t('detail.close')" @click="layers.select(null)">
+          ×
+        </button>
+      </header>
       <CellDetail
-        v-if="layers.selected.layer === TRAFFIC_AREA_LAYER"
+        v-if="cellFocus"
         :key="layers.selected.key"
         :cell="layers.selected"
+        :focus="cellFocus"
       />
       <dl v-else-if="layers.selected.attributes">
         <template v-for="(value, name) in layers.selected.attributes" :key="name">
@@ -35,14 +59,35 @@ function text(value: unknown): string {
         </template>
       </dl>
     </template>
-    <p v-else class="hint">{{ $t('detail.empty') }}</p>
   </section>
 </template>
 
 <style scoped>
-h2 {
+header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space);
   margin: 0 0 var(--space);
+}
+
+.layer {
+  color: var(--color-muted);
+  font-size: 0.85rem;
+}
+
+h2 {
+  margin: 0;
   font-size: 1.4rem;
+}
+
+header button {
+  border: 0;
+  background: none;
+  color: inherit;
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
 }
 
 p {
@@ -60,9 +105,5 @@ dt {
 dd {
   margin: 0 0 calc(var(--space) / 2);
   overflow-wrap: anywhere;
-}
-
-.hint {
-  color: var(--color-muted);
 }
 </style>

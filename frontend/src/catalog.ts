@@ -10,6 +10,7 @@ import {
   getCountingObjectsForMap,
   getTrafficAreasForMap,
 } from '@/api/traffic'
+import { gridSize, getInstanceSettings } from '@/api/settings'
 import { i18n, referenceLabel } from '@/i18n'
 import type { LayerDefinition } from '@/stores/layers'
 import { mapObjectKey, type LayerId, type MapObject } from '@/types/mapObject'
@@ -17,9 +18,15 @@ import { mapObjectKey, type LayerId, type MapObject } from '@/types/mapObject'
 /** Types trop nombreux pour être chargés en entier (traces Outdoorvision) : servis en tuiles. */
 const TILED_TYPES = ['segment']
 
+/** Type d'objet des mailles, avec leur taille : « Maille de 500 m ». */
+async function cellItemLabel() {
+  const size = gridSize((await getInstanceSettings()).grid_area_type)
+  return size ? i18n.global.t('items.cellOfSize', { size }) : i18n.global.t('items.cell')
+}
+
 /** Une couche par type de compteur, puis la fréquentation par maille. */
 export async function trafficLayers(): Promise<LayerDefinition[]> {
-  const { results } = await getCountingObjectTypes()
+  const [{ results }, cell] = await Promise.all([getCountingObjectTypes(), cellItemLabel()])
   const byType = results.map((type): LayerDefinition => {
     const id: LayerId = `traffic/${type.code}`
     const label = referenceLabel('countingObjectTypes', type.code, type.label)
@@ -39,6 +46,7 @@ export async function trafficLayers(): Promise<LayerDefinition[]> {
       id,
       label,
       group: 'traffic',
+      itemLabel: i18n.global.t('items.counter'),
       // L'adaptateur range tous les compteurs dans une même couche : on les rattache à celle du type.
       load: async ({ areaId }) =>
         (await getCountingObjectsForMap({ typeCode: type.code, areaId })).map((o) => ({
@@ -54,6 +62,7 @@ export async function trafficLayers(): Promise<LayerDefinition[]> {
       id: TRAFFIC_AREA_LAYER,
       label: i18n.global.t('layers.trafficAreas'),
       group: 'traffic',
+      itemLabel: cell,
       load: ({ areaId, months }) => getTrafficAreasForMap({ areaId, months }),
     },
   ]
@@ -66,6 +75,7 @@ export async function biodiversityLayers(): Promise<LayerDefinition[]> {
       id: BIODIV_AREA_LAYER,
       label: i18n.global.t('layers.biodivAreas'),
       group: 'biodiversity',
+      itemLabel: await cellItemLabel(),
       load: () => getBiodivAreasForMap(),
     },
   ]
@@ -78,6 +88,7 @@ export async function outdoorLayers(): Promise<LayerDefinition[]> {
       id: OFFER_LAYER,
       label: i18n.global.t('layers.outdoorOffers'),
       group: 'outdoor',
+      itemLabel: i18n.global.t('items.offer'),
       load: ({ areaId }) => getOffersForMap({ areaId }),
     },
   ]
@@ -104,15 +115,20 @@ export async function externalLayers(): Promise<LayerDefinition[]> {
             id: feature.id ?? i,
             domain: 'external',
             layer: id,
-            label: layer.label,
+            // Le nom de l'objet si l'admin a choisi l'attribut qui le porte, sinon celui de la couche.
+            label:
+              (layer.label_property && String(properties[layer.label_property] ?? '')) ||
+              layer.label,
             geometry: feature.geometry,
             color:
               (layer.color_property && layer.colors[String(properties[layer.color_property])]) ||
               layer.color,
-            // Sans attribut choisi : tous.
-            attributes: layer.properties.length
-              ? Object.fromEntries(layer.properties.map((name) => [name, properties[name]]))
-              : properties,
+            // Sans attribut choisi : tous ; sauf celui du nom, déjà en titre.
+            attributes: Object.fromEntries(
+              (layer.properties.length ? layer.properties : Object.keys(properties))
+                .filter((name) => name !== layer.label_property)
+                .map((name) => [name, properties[name]]),
+            ),
           }
         }),
     }

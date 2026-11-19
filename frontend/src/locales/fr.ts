@@ -1,6 +1,7 @@
 import type en from './en'
 
 export default {
+  loading: 'Chargement',
   concepts: {
     label: 'Concept',
     global: 'Global',
@@ -18,14 +19,14 @@ export default {
     segment: 'Segments et traces',
   },
   layers: {
-    loading: '(chargement)',
+    title: 'Couches',
     failed: '(échec)',
     trafficAreas: 'Fréquentation par maille',
     fromZoom: 'Visible à partir du zoom {zoom} : zoomez sur la carte.',
     cellName: 'Maille',
+    counterName: 'Compteur {id}',
     outdoorOffers: 'Offres outdoor',
     biodivAreas: 'Taxons protégés ou menacés par maille',
-    biodivArea: 'Maille {name} : {count} taxons protégés ou menacés',
     loadError: 'Impossible de charger {label}',
   },
   season: {
@@ -55,11 +56,16 @@ export default {
     practice: 'Pratique',
   },
   detail: {
-    title: 'Détail',
-    empty: 'Sélectionnez un objet sur la carte.',
+    close: 'Fermer',
+  },
+  items: {
+    counter: 'Compteur',
+    offer: 'Offre outdoor',
+    cell: 'Maille',
+    cellOfSize: 'Maille de {size}',
   },
   cell: {
-    loading: 'Chargement…',
+    noTraffic: 'Pas de données de fréquentation sur cette maille.',
     traffic: 'Fréquentation',
     biodiversity: 'Biodiversité',
     outdoor: 'Outdoor',

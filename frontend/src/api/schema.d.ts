@@ -1017,6 +1017,8 @@ export interface components {
             readonly description: string;
             /** @description Attributs affichés au clic, séparés par des virgules ; vide : tous. */
             readonly properties: string[];
+            /** @description Attribute holding the name of each feature, shown as the title of its detail (optional). */
+            readonly label_property: string;
             readonly color: string;
             /** @description Attribut dont la valeur choisit la couleur (facultatif). */
             readonly color_property: string;
@@ -1030,6 +1032,8 @@ export interface components {
         GisFeatureEnum: "Feature";
         InstanceSettings: {
             readonly default_area: components["schemas"]["AreaSummary"];
+            /** @description ref_geo type_code of the default grid (M0.5, M1...). */
+            readonly grid_area_type: string;
         };
         LArea: {
             readonly id_area: number;
@@ -2586,12 +2590,12 @@ export interface operations {
                 area_code?: string;
                 area_id?: number;
                 /**
-                 * @description Grid (ref_geo type_code). Default: M1.
+                 * @description Grid (ref_geo type_code). Default: M0.5.
                  *
-                 *     * `M1` - M1
                  *     * `M0.5` - M0.5
+                 *     * `M1` - M1
                  */
-                area_type?: "M1" | "M0.5";
+                area_type?: "M0.5" | "M1";
                 bbox?: string;
                 contains?: string;
                 /** @description First day of the period (YYYY-MM-DD), included. */
@@ -2637,12 +2641,12 @@ export interface operations {
         parameters: {
             query?: {
                 /**
-                 * @description Grid (ref_geo type_code). Default: M1.
+                 * @description Grid (ref_geo type_code). Default: M0.5.
                  *
-                 *     * `M1` - M1
                  *     * `M0.5` - M0.5
+                 *     * `M1` - M1
                  */
-                area_type?: "M1" | "M0.5";
+                area_type?: "M0.5" | "M1";
                 /** @description First day of the period (YYYY-MM-DD), included. */
                 date_from?: string;
                 /** @description Last day of the period (YYYY-MM-DD), included. */
