@@ -4,6 +4,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 
 import { getAreaTaxa, type AreaTaxon } from '@/api/biodiv'
+import LoadingSpinner from '@/components/LoadingSpinner.vue'
 import { describeError } from '@/api/errors'
 import { getAreaOffers } from '@/api/outdoor'
 import { getTrafficArea, type SourceCount } from '@/api/traffic'
@@ -87,7 +88,7 @@ function taxonText(taxon: AreaTaxon) {
 </script>
 
 <template>
-  <p v-if="loading" class="hint">{{ $t('cell.loading') }}</p>
+  <LoadingSpinner v-if="loading" />
   <p v-else-if="error" class="hint">{{ describeError(error) }}</p>
   <div v-else-if="data" class="cell">
     <dl>

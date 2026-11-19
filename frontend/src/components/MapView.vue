@@ -218,7 +218,7 @@ onMounted(() => {
     center: props.center ?? [6.08, 45.2],
     zoom: props.zoom ?? 9,
   })
-  m.addControl(new NavigationControl(), 'top-right')
+  m.addControl(new NavigationControl(), 'bottom-right')
 
   // Clic dans le vide = désélection.
   m.on('click', (e) => {

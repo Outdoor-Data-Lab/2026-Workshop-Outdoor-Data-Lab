@@ -1,6 +1,7 @@
 import type en from './en'
 
 export default {
+  loading: 'Chargement',
   concepts: {
     label: 'Concept',
     global: 'Global',
@@ -18,7 +19,7 @@ export default {
     segment: 'Segments et traces',
   },
   layers: {
-    loading: '(chargement)',
+    title: 'Couches',
     failed: '(échec)',
     trafficAreas: 'Fréquentation par maille',
     fromZoom: 'Visible à partir du zoom {zoom} : zoomez sur la carte.',
@@ -56,10 +57,9 @@ export default {
   },
   detail: {
     title: 'Détail',
-    empty: 'Sélectionnez un objet sur la carte.',
+    close: 'Fermer',
   },
   cell: {
-    loading: 'Chargement…',
     traffic: 'Fréquentation',
     biodiversity: 'Biodiversité',
     outdoor: 'Outdoor',

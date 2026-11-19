@@ -17,7 +17,10 @@ function text(value: unknown): string {
 
 <template>
   <section class="detail">
-    <h2>{{ $t('detail.title') }}</h2>
+    <header>
+      <h2>{{ $t('detail.title') }}</h2>
+      <button type="button" :aria-label="$t('detail.close')" @click="layers.select(null)">×</button>
+    </header>
     <template v-if="layers.selected">
       <p v-if="layers.selected.layer === TRAFFIC_AREA_LAYER">
         <strong>{{ $t('layers.cellName') }}</strong> {{ layers.selected.id }}
@@ -35,14 +38,29 @@ function text(value: unknown): string {
         </template>
       </dl>
     </template>
-    <p v-else class="hint">{{ $t('detail.empty') }}</p>
   </section>
 </template>
 
 <style scoped>
-h2 {
+header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   margin: 0 0 var(--space);
+}
+
+h2 {
+  margin: 0;
   font-size: 1.4rem;
+}
+
+header button {
+  border: 0;
+  background: none;
+  color: inherit;
+  font-size: 1.25rem;
+  line-height: 1;
+  cursor: pointer;
 }
 
 p {
@@ -60,9 +78,5 @@ dt {
 dd {
   margin: 0 0 calc(var(--space) / 2);
   overflow-wrap: anywhere;
-}
-
-.hint {
-  color: var(--color-muted);
 }
 </style>

@@ -1,5 +1,6 @@
 /** Textes de référence : `fr.ts` doit avoir les mêmes clés (vérifié par le typage). */
 export default {
+  loading: 'Loading',
   concepts: {
     label: 'Concept',
     global: 'Global',
@@ -18,7 +19,7 @@ export default {
     segment: 'Segments and tracks',
   },
   layers: {
-    loading: '(loading)',
+    title: 'Layers',
     failed: '(failed)',
     trafficAreas: 'Traffic per grid cell',
     fromZoom: 'Visible from zoom {zoom}: zoom in on the map.',
@@ -57,10 +58,9 @@ export default {
   },
   detail: {
     title: 'Detail',
-    empty: 'Select an object on the map.',
+    close: 'Close',
   },
   cell: {
-    loading: 'Loading…',
     traffic: 'Traffic',
     biodiversity: 'Biodiversity',
     outdoor: 'Outdoor',
