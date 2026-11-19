@@ -334,11 +334,15 @@ def counts_by_area(measures):
 
     count_segment: measures of "segment" objects; count_presence: measures of
     "counter" objects (presence counters); sources: ``[{"id", "code", "label",
-    "absolute", "count", "first_data", "latest_data"}]``, the counts per data
-    source and the start of their first and last measures. One grouped query.
+    "absolute", "count", "first_data", "latest_data", "length_km", "person_km"}]``,
+    the counts per data source and the start of their first and last measures;
+    length_km: km of the source's line objects inside the cell (any period, from
+    the stored link lengths), person_km: sum of count x km over ``measures``; both
+    None for sources without line objects in the cell. Two grouped queries.
     """
     rows = measures.values("id_area", "id_source").annotate(
         total=Sum("count"),
+        person_km=Sum("weighted"),
         segment=Sum("n_segment"),
         presence=Sum("n_presence"),
         first_data=Min("first_start"),
@@ -348,8 +352,18 @@ def counts_by_area(measures):
         source.pk: source
         for source in DataSource.objects.only("code", "label", "absolute_counts")
     }
+    rows = list(rows)
+    lengths = {
+        (row["area_id"], row["counting_object__source_id"]): row["total"] / 1000
+        for row in CountingObjectArea.objects.filter(
+            area_id__in={row["id_area"] for row in rows}, length_m__isnull=False
+        )
+        .values("area_id", "counting_object__source_id")
+        .annotate(total=Sum("length_m"))
+    }
     counts = {}
     for row in rows:
+        length_km = lengths.get((row["id_area"], row["id_source"]))
         area = counts.setdefault(
             row["id_area"], {"counts": 0, "count_segment": 0, "count_presence": 0, "sources": []}
         )
@@ -366,6 +380,8 @@ def counts_by_area(measures):
                 "count": row["total"],
                 "first_data": row["first_data"],
                 "latest_data": row["latest_data"],
+                "length_km": length_km,
+                "person_km": row["person_km"] if length_km is not None else None,
             }
         )
     for area in counts.values():

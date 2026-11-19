@@ -865,6 +865,15 @@ class AreasApiScoreCacheTests(AreasTestCase):
 class AreasApiTests(AreasTestCase):
     url = "/api/traffic/areas"
 
+    def without_km(self, properties):
+        """``properties`` without the km of the sources (checked in the counts tests), which must be there."""
+        sources = []
+        for source in properties["sources"]:
+            self.assertIn("length_km", source)
+            self.assertIn("person_km", source)
+            sources.append({k: v for k, v in source.items() if k not in ("length_km", "person_km")})
+        return {**properties, "sources": sources}
+
     def test_returns_geojson_with_counts_and_scores(self):
         response = self.client.get(self.url, {
             "date_from": "2023-01-01", "date_to": "2023-01-31",
@@ -876,7 +885,7 @@ class AreasApiTests(AreasTestCase):
         self.assertEqual(data["count"], 2)
         features = {f["id"]: f for f in data["features"]}
         self.assertEqual(features[12]["geometry"]["type"], "MultiPolygon")
-        self.assertEqual(features[12]["properties"], {
+        self.assertEqual(self.without_km(features[12]["properties"]), {
             "counts": 15, "count_segment": 9, "count_presence": 6,
             "sources": [
                 {"id": self.s2, "code": "ecocompteur", "label": "Eco-Compteur", "absolute": True,
@@ -890,7 +899,7 @@ class AreasApiTests(AreasTestCase):
                 "score": 100.0, "source_weights": {str(self.s1): 2, str(self.s2): 3},
             }},
         })
-        self.assertEqual(features[13]["properties"], {
+        self.assertEqual(self.without_km(features[13]["properties"]), {
             "counts": 4, "count_segment": 0, "count_presence": 4,
             "sources": [
                 {"id": self.s1, "code": "outdoorvision", "label": "OutdoorVision", "absolute": False,
@@ -981,7 +990,7 @@ class AreasApiTests(AreasTestCase):
         data = response.json()
         self.assertEqual(data["type"], "Feature")
         self.assertEqual(data["id"], 12)
-        self.assertEqual(data["properties"], {
+        self.assertEqual(self.without_km(data["properties"]), {
             "counts": 17, "count_segment": 4, "count_presence": 13,
             "sources": [
                 {"id": self.s1, "code": "outdoorvision", "label": "OutdoorVision", "absolute": False,
@@ -1097,6 +1106,19 @@ class CountingObjectAreasTests(AreasTestCase):
                 self.assertIsNone(got[key])
             else:
                 self.assertAlmostEqual(got[key], length, places=3)
+
+    def test_counts_give_the_km_of_line_objects_in_each_cell(self):
+        self.moving.geom = LineString((6.4, 44.2), (7.2, 44.2), srid=4326)  # 0.1 deg in 12, 0.2 in 13
+        self.moving.save()
+        counts = counts_by_area(scored_rows(date_from=date(2024, 1, 1)))
+        (source,) = counts[13]["sources"]
+        self.assertAlmostEqual(source["length_km"], 16.0, delta=0.3)
+        self.assertAlmostEqual(source["person_km"], 3 * source["length_km"], places=6)  # count 3
+        # Cell 12 has two s1 objects (a line and a point counter) and one s2 line.
+        by_code = {s["code"]: s for s in counts_by_area(scored_rows())[12]["sources"]}
+        self.assertGreater(by_code["ecocompteur"]["length_km"], 0)
+        # A source with points only: nothing to measure.
+        self.assertIsNone(counts_by_area(scored_rows(sources=[self.s1]))[13]["sources"][0]["length_km"])
 
     def test_cazalis_weights_segments_by_the_length_inside_each_cell(self):
         self.moving.geom = LineString((6.4, 44.2), (7.2, 44.2), srid=4326)

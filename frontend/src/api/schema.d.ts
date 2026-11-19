@@ -1554,6 +1554,10 @@ export interface components {
              * @description Start of the last measure.
              */
             latest_data: string;
+            /** @description Km of the source's line objects inside the cell (whatever the period); null for points. */
+            length_km: number | null;
+            /** @description Sum of count x km of the object inside the cell over the period and filters (what the cazalis score uses); null for points. */
+            person_km: number | null;
         };
         TLinearGroup: {
             readonly id_group: number;

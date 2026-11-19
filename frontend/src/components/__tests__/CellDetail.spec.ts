@@ -31,6 +31,8 @@ const traffic = {
         count: 1000,
         first_data: '2024-07-01T10:00:00Z',
         latest_data: '2024-07-31T10:00:00Z',
+        length_km: null,
+        person_km: null,
       },
       {
         id: 3,
@@ -40,6 +42,8 @@ const traffic = {
         count: 500,
         first_data: '2021-07-01T10:00:00Z',
         latest_data: '2024-07-01T10:00:00Z',
+        length_km: 12.44,
+        person_km: 1340.52,
       },
     ],
   },
@@ -103,6 +107,8 @@ describe('CellDetail', () => {
     expect(text).toContain('Reference source: it is used to weight the others')
     expect(text).toContain('Weight in the score: 100%')
     expect(text).toContain('Weights estimated on 12 eco-counters.')
+    expect(text).toContain('12.4 km of tracks in the cell · 1,340.5 person·km')
+    expect(text).not.toContain('null km')
     expect(text).toContain('Biodiversity1 protected or threatened taxon')
     expect(text).toContain(
       'Salamandre tachetée Salamandra salamandraprotected · threatened (VU) · 4 observations · 2017–2024',

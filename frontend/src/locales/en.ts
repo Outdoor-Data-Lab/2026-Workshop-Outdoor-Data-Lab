@@ -69,6 +69,7 @@ export default {
     offers: 'no offer | {n} offer | {n} offers',
     absolute: 'absolute',
     relative: 'relative',
+    km: '{km} km of tracks in the cell · {personKm} person·km',
     /** What each source counts, by code. */
     units: {
       ecocompteur: '{n} passage counted | {n} passages counted',
@@ -79,7 +80,7 @@ export default {
       other: '{n} measure | {n} measures',
     },
     countsNote:
-      'Absolute: the counter counts every passage. Relative: only the users of an app are counted; these figures compare cells with each other. The score combines the sources, weighted by how well they match the eco-counters.',
+      'Absolute: the counter counts every passage. Relative: only the users of an app are counted; these figures compare cells with each other. The score combines the sources, weighted by how well they match the eco-counters. Person·km: passages × km of track in the cell, the value the score uses.',
     score: {
       title: 'How the score is computed',
       reference: 'Reference source: it is used to weight the others and is not part of the score.',

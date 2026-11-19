@@ -68,6 +68,7 @@ export default {
     offers: 'aucune offre | {n} offre | {n} offres',
     absolute: 'absolu',
     relative: 'relatif',
+    km: '{km} km de tracés dans la maille · {personKm} personnes·km',
     /** Ce que compte chaque source, par code. */
     units: {
       ecocompteur: '{n} passage compté | {n} passages comptés',
@@ -79,7 +80,7 @@ export default {
       other: '{n} mesure | {n} mesures',
     },
     countsNote:
-      "Absolu : le compteur compte tous les passages. Relatif : seuls les usagers d'une application sont comptés ; ces chiffres servent à comparer les mailles entre elles. Le score combine les sources, pondérées selon leur concordance avec les éco-compteurs.",
+      "Absolu : le compteur compte tous les passages. Relatif : seuls les usagers d'une application sont comptés ; ces chiffres servent à comparer les mailles entre elles. Le score combine les sources, pondérées selon leur concordance avec les éco-compteurs. Personnes·km : passages × km de tracé dans la maille, la valeur que le score utilise.",
     score: {
       title: 'Comment le score est calculé',
       reference:

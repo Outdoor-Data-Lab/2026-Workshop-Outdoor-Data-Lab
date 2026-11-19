@@ -15,6 +15,9 @@ const props = defineProps<{ cell: MapObject }>()
 
 const { t, te, n } = useI18n()
 
+/** Longueur ou personnes·km avec une décimale. */
+const oneDecimal = (value: number) => n(value, { maximumFractionDigits: 1 })
+
 const { data, error, loading } = useAsync(async () => {
   const id = Number(props.cell.id)
   const [traffic, offers, taxa] = await Promise.all([
@@ -101,6 +104,14 @@ function taxonText(taxon: AreaTaxon) {
         <div class="hint">
           {{ source.absolute ? $t('cell.absolute') : $t('cell.relative') }} ·
           {{ years(source.first_data, source.latest_data) }}
+        </div>
+        <div v-if="source.length_km != null && source.person_km != null" class="hint">
+          {{
+            $t('cell.km', {
+              km: oneDecimal(source.length_km),
+              personKm: oneDecimal(source.person_km),
+            })
+          }}
         </div>
         <div v-if="source.code === 'ecocompteur'" class="hint">
           {{ $t('cell.score.reference') }}
