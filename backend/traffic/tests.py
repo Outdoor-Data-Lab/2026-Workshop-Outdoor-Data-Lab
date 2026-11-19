@@ -852,6 +852,25 @@ class AreasApiScoreCacheTests(AreasTestCase):
         other = self.client.get(self.url, {**params, "source_weights": f"{self.s1}:1,{self.s2}:0"})
         self.assertEqual(other.status_code, 200)
 
+    def test_same_request_is_served_from_the_cache(self):
+        refresh_cell_day_counts()
+        params = {"scores": ["basic", "cazalis"], "source_weights": f"{self.s1}:2,{self.s2}:3", "limit": 1}
+        first = self.client.get(self.url, params).json()
+        with self.assertNumQueries(1):  # the data version
+            second = self.client.get(self.url, params).json()
+        self.assertEqual(second, first)
+        # A new measure: stale counts, computed again.
+        CountingMeasure.objects.create(
+            counting_object=self.moving, start_datetime=datetime(2025, 1, 1, tzinfo=timezone.utc),
+            end_datetime=datetime(2025, 1, 2, tzinfo=timezone.utc), count=1,
+            unit=Unit.objects.get(code="person"),
+        )
+        with patch.object(
+            BasicFrequentationScore, "compute_from", wraps=BasicFrequentationScore.compute_from
+        ) as basic:
+            self.client.get(self.url, params)
+            self.assertEqual(basic.call_count, 1)
+
     def test_stale_counts_are_not_cached(self):
         params = {"scores": "basic", "limit": 1}
         with patch.object(

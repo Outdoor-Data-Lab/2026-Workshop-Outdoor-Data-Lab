@@ -98,6 +98,9 @@ services:
   redis:
     image: redis:8.2-alpine
     restart: unless-stopped
+    # Memory cap: only the keys with an expiry (the cached area responses) are
+    # evicted, never the Celery messages nor the scores (no expiry).
+    command: redis-server --maxmemory ${REDIS_MAXMEMORY:-512mb} --maxmemory-policy volatile-lru
     expose:
       - 6379
 
