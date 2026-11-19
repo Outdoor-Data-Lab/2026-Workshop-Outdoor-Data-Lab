@@ -25,6 +25,15 @@ export type BiodivAreaFilters = {
   areaCode?: string
   /** Seulement les mailles ayant au moins un taxon protégé ou menacé */
   withTaxa?: boolean
+    /**
+   * Filtre par statut de conservation :
+   * - 'protected': uniquement les mailles avec des taxons protégés
+   * - 'threatened': uniquement les mailles avec des taxons menacés
+   * - 'either': mailles avec au moins un taxon protégé OU menacé
+   * - 'both': mailles avec des taxons protégés ET menacés
+   */
+  taxaStatus?: 'protected' | 'threatened' | 'either' | 'both'
+
 }
 
 const BASE = '/api/biodiversity'
@@ -34,7 +43,7 @@ const AREAS_LIMIT = 1000
 function areaQuery(filters: BiodivAreaFilters) {
   return {
     area_code: filters.areaCode,
-    has_protected_or_threatened_taxa: filters.withTaxa || undefined,
+    taxa_status: filters.taxaStatus ?? 'threatened',
   }
 }
 
