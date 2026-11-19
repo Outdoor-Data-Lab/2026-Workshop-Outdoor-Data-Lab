@@ -63,6 +63,7 @@ export default {
     counter: 'Counter',
     offer: 'Outdoor offer',
     cell: 'Grid cell',
+    cellOfSize: '{size} grid cell',
   },
   cell: {
     noTraffic: 'No traffic data in this cell.',

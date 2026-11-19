@@ -2,6 +2,7 @@ import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.core.exceptions import ImproperlyConfigured
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -357,7 +358,10 @@ class InstanceSettingsApiTests(TestCase):
     url = "/api/commons/instance-settings"
 
     def test_no_default_area(self):
-        self.assertEqual(self.client.get(self.url).json(), {"default_area": None})
+        self.assertEqual(
+            self.client.get(self.url).json(),
+            {"default_area": None, "grid_area_type": settings.DEFAULT_GRID_AREA_TYPE},
+        )
 
     def test_default_area(self):
         # ref_geo is not created by the migrations of the test database.
@@ -368,11 +372,12 @@ class InstanceSettingsApiTests(TestCase):
                 editor.create_model(model)
         park = BibAreasType.objects.create(type_name="Parcs nationaux", type_code="PN")
         area = LArea.objects.create(id_area=7, type=park, area_name="Écrins", area_code="PNE")
-        settings = InstanceSettings.load()
-        settings.default_area = area
-        settings.save()
+        instance = InstanceSettings.load()
+        instance.default_area = area
+        instance.save()
 
         self.assertEqual(self.client.get(self.url).json(), {
             "default_area": {"id_area": 7, "area_name": "Écrins", "area_code": "PNE", "type_code": "PN"},
+            "grid_area_type": settings.DEFAULT_GRID_AREA_TYPE,
         })
         self.assertEqual(InstanceSettings.objects.count(), 1)

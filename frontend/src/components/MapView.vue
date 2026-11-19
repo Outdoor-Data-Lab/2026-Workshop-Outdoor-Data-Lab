@@ -5,6 +5,7 @@ import {
   LngLatBounds,
   Map as MlMap,
   NavigationControl,
+  ScaleControl,
   type ExpressionSpecification,
   type GeoJSONSource,
   type LayerSpecification,
@@ -219,6 +220,8 @@ onMounted(() => {
     zoom: props.zoom ?? 9,
   })
   m.addControl(new NavigationControl(), 'bottom-right')
+  // Sous la légende (MapLegend), en bas à gauche.
+  m.addControl(new ScaleControl({ unit: 'metric' }), 'bottom-left')
 
   // Clic dans le vide = désélection.
   m.on('click', (e) => {

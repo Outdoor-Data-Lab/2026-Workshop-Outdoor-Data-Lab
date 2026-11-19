@@ -62,6 +62,7 @@ export default {
     counter: 'Compteur',
     offer: 'Offre outdoor',
     cell: 'Maille',
+    cellOfSize: 'Maille de {size}',
   },
   cell: {
     noTraffic: 'Pas de données de fréquentation sur cette maille.',

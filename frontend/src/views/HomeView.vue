@@ -82,7 +82,8 @@ const legend = computed<LegendItem[]>(() => {
   flex-direction: column;
   align-items: flex-start;
   gap: calc(var(--space) / 1.5);
-  max-height: calc(100% - 20px);
+  /* Au-dessus de la légende et de l'échelle, en bas à gauche ; la liste défile au-delà. */
+  max-height: calc(100% - 200px);
   overflow-y: auto;
 }
 
@@ -91,9 +92,9 @@ const legend = computed<LegendItem[]>(() => {
   z-index: 1;
   top: 10px;
   right: 10px;
-  width: var(--panel-width);
-  /* Au-dessus du zoom et de l'attribution, en bas à droite. */
-  max-height: calc(100% - 150px);
+  /* Large, donc moins haute : elle s'arrête au-dessus du zoom et de l'attribution. */
+  width: min(26rem, calc(100% - 20px));
+  max-height: calc(100% - 170px);
   overflow-y: auto;
   padding: var(--space);
   background: var(--color-background);

@@ -10,6 +10,7 @@ import {
   getCountingObjectsForMap,
   getTrafficAreasForMap,
 } from '@/api/traffic'
+import { gridSize, getInstanceSettings } from '@/api/settings'
 import { i18n, referenceLabel } from '@/i18n'
 import type { LayerDefinition } from '@/stores/layers'
 import { mapObjectKey, type LayerId, type MapObject } from '@/types/mapObject'
@@ -17,9 +18,15 @@ import { mapObjectKey, type LayerId, type MapObject } from '@/types/mapObject'
 /** Types trop nombreux pour être chargés en entier (traces Outdoorvision) : servis en tuiles. */
 const TILED_TYPES = ['segment']
 
+/** Type d'objet des mailles, avec leur taille : « Maille de 500 m ». */
+async function cellItemLabel() {
+  const size = gridSize((await getInstanceSettings()).grid_area_type)
+  return size ? i18n.global.t('items.cellOfSize', { size }) : i18n.global.t('items.cell')
+}
+
 /** Une couche par type de compteur, puis la fréquentation par maille. */
 export async function trafficLayers(): Promise<LayerDefinition[]> {
-  const { results } = await getCountingObjectTypes()
+  const [{ results }, cell] = await Promise.all([getCountingObjectTypes(), cellItemLabel()])
   const byType = results.map((type): LayerDefinition => {
     const id: LayerId = `traffic/${type.code}`
     const label = referenceLabel('countingObjectTypes', type.code, type.label)
@@ -55,7 +62,7 @@ export async function trafficLayers(): Promise<LayerDefinition[]> {
       id: TRAFFIC_AREA_LAYER,
       label: i18n.global.t('layers.trafficAreas'),
       group: 'traffic',
-      itemLabel: i18n.global.t('items.cell'),
+      itemLabel: cell,
       load: ({ areaId, months }) => getTrafficAreasForMap({ areaId, months }),
     },
   ]
@@ -68,7 +75,7 @@ export async function biodiversityLayers(): Promise<LayerDefinition[]> {
       id: BIODIV_AREA_LAYER,
       label: i18n.global.t('layers.biodivAreas'),
       group: 'biodiversity',
-      itemLabel: i18n.global.t('items.cell'),
+      itemLabel: await cellItemLabel(),
       load: () => getBiodivAreasForMap(),
     },
   ]

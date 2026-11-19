@@ -1032,6 +1032,8 @@ export interface components {
         GisFeatureEnum: "Feature";
         InstanceSettings: {
             readonly default_area: components["schemas"]["AreaSummary"];
+            /** @description ref_geo type_code of the default grid (M0.5, M1...). */
+            readonly grid_area_type: string;
         };
         LArea: {
             readonly id_area: number;
