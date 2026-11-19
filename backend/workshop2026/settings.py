@@ -45,6 +45,19 @@ DATABASES = {
     }
 }
 
+CACHES = {
+    "default": {"BACKEND": "django.core.cache.backends.locmem.LocMemCache"},
+    # Vector tiles (traffic/api/tiles.py), on disk: shared by the gunicorn workers,
+    # and kept out of Redis, which also queues the imports. A tile of a dense
+    # area weighs up to 2 MB.
+    "tiles": {
+        "BACKEND": "django.core.cache.backends.filebased.FileBasedCache",
+        "LOCATION": os.environ.get("TILES_CACHE_DIR", "/tmp/tiles-cache"),
+        "TIMEOUT": 24 * 3600,
+        "OPTIONS": {"MAX_ENTRIES": 3000},
+    },
+}
+
 # Comma-separated lists, set in production (see docker-compose-prod.yaml).
 ALLOWED_HOSTS = [h for h in os.environ.get("DJANGO_ALLOWED_HOSTS", "").split(",") if h]
 CSRF_TRUSTED_ORIGINS = [

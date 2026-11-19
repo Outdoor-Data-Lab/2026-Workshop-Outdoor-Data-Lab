@@ -15,6 +15,7 @@ import shapely
 
 from django.contrib.auth import get_user_model
 from django.contrib.gis.geos import LineString, MultiPolygon, Point, Polygon
+from django.core.cache import caches
 from django.core.files.base import ContentFile
 from django.core.management import CommandError, call_command
 from django.db import IntegrityError, connection, transaction
@@ -1055,6 +1056,9 @@ def tile_of(lon, lat, z):
 class CountingObjectTileTests(AreasTestCase):
     """Objects of cell 12 around (6.2, 44.2): a counter and two segments."""
 
+    def setUp(self):
+        caches["tiles"].clear()
+
     def get(self, z, x, y, **params):
         return self.client.get(f"/api/traffic/tiles/{z}/{x}/{y}.pbf", params)
 
@@ -1074,3 +1078,12 @@ class CountingObjectTileTests(AreasTestCase):
         self.assertGreater(len(self.get(*tile, area_id=12).content), 0)
         self.assertEqual(len(self.get(*tile, area_id=13).content), 0)
         self.assertEqual(self.get(*tile, area_id="x").status_code, 400)
+
+    def test_cached_until_an_import_ends(self):
+        tile = tile_of(6.2, 44.2, 12)
+        content = self.get(*tile).content
+        CountingObject.objects.all().delete()
+        self.assertEqual(self.get(*tile).content, content)
+
+        DataImport.objects.create(source_id=self.s1, format="outdoorvision", status=DataImport.Status.DONE)
+        self.assertEqual(len(self.get(*tile).content), 0)
