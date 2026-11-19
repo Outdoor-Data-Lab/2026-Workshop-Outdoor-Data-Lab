@@ -131,6 +131,22 @@ export default {
     close: 'Fermer',
     withContext: '{context} : {message}',
   },
+  about: {
+    open: 'À propos',
+    title: 'À propos',
+    intro: [
+      "Le développement maîtrisé des activités de pleine nature constitue un enjeu important pour les territoires, leurs acteurs et les gestionnaires d'espaces naturels. Il soulève également des questions croissantes en matière de préservation de la biodiversité, de gestion des flux de fréquentation et de conciliation des usages.",
+      "C'est dans cette perspective qu'a été imaginé cet outil numérique, développé à partir de briques open source par les partenaires du collectif Outdoor Data Lab, à l'occasion du Workshop qui s'est déroulé du 16 au 19 novembre 2026 à Vallon Pont-d'Arc.",
+      "Son ambition est de faciliter le croisement et l'analyse de données relatives aux pratiques outdoor et aux enjeux écologiques, afin de mieux prendre en compte les interactions entre fréquentation et biodiversité. Il vise ainsi à apporter une aide à la décision aux gestionnaires d'espaces protégés, aux collectivités et aux acteurs de l'offre outdoor, pour éclairer leurs choix d'aménagement, d'organisation et de gestion des activités.",
+    ],
+    schemaAlt:
+      "Schéma de l'outil : les données de fréquentation, de biodiversité, d'offre outdoor et de zonages, et leurs sources, alimentent ODL.",
+    outlook:
+      'Conçu comme un outil évolutif, ce premier développement constitue une base de travail qui a vocation à être expérimentée, enrichie et appropriée par ses futurs utilisateurs dans un projet qui reste à structurer et financer.',
+    repository: 'Consulter le dépôt GitHub de cet outil open source :',
+    credits: 'Version 0.1 réalisée en novembre 2026 par :',
+    close: 'Fermer',
+  },
   errors: {
     network: 'Connexion au serveur impossible. Vérifiez votre réseau.',
     server: 'Le serveur est indisponible pour le moment. Réessayez plus tard.',
