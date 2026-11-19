@@ -17,6 +17,8 @@ x-django-env: &django-env
   # Uploaded files (data imports), kept in the media-data volume.
   MEDIA_ROOT: /app/media
   CELERY_BROKER_URL: redis://redis:6379/0
+  # Shared cache of the score weights and results (database 1; the broker uses 0).
+  REDIS_CACHE_URL: redis://redis:6379/1
 
 services:
   db:

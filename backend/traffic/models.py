@@ -20,7 +20,7 @@ from django.contrib.postgres.indexes import GistIndex
 from django.db.models import F, Func, Max, Min, Q, Value
 
 from commons.models import DataImport, DataSource, Practice
-from ref_geo.models import LArea
+from ref_geo.models import BibAreasType, LArea
 
 DB_SCHEMA = "traffic"
 
@@ -240,9 +240,76 @@ class CountingObjectArea(models.Model):
         db_column="id_area",
         related_name="counting_object_areas",
     )
+    # Copied from ref_geo.l_areas.id_type: selecting a grid needs no join.
+    area_type = models.ForeignKey(
+        BibAreasType,
+        on_delete=models.DO_NOTHING,
+        db_constraint=False,
+        db_column="id_type",
+        related_name="+",
+        null=True,
+        blank=True,
+    )
+    # Metres of a line object inside the cell (NULL for points): the scores
+    # weight the counts by it, as the R analysis does.
+    length_m = models.FloatField(null=True, blank=True)
 
     class Meta:
         db_table = table("counting_object_areas")
+        indexes = [
+            models.Index(fields=["area_type", "area", "counting_object"], name="coa_type_area_object"),
+        ]
+
+
+class CellDayCount(models.Model):
+    """Precomputed counts per (grid cell, source, day), see ``refresh_cell_day_counts``.
+
+    One row replaces every measure of a source in a cell on a day (in the
+    TIME_ZONE of the database session), so the scores aggregate this table instead
+    of joining millions of measures to the cell links. Rebuilt as a whole by
+    ``manage.py refresh_cell_counts`` and after each traffic import. The scores
+    use it only while ``CellCountsState`` is not stale
+    (workshop2026.processing.score.counts_are_fresh), else they read the measures.
+    Field names are those of the per-row annotations of ``measures_queryset``.
+    """
+
+    area_type = models.ForeignKey(
+        BibAreasType, on_delete=models.DO_NOTHING, db_constraint=False,
+        db_column="id_type", related_name="+",
+    )
+    id_area = models.IntegerField()
+    id_source = models.IntegerField()
+    day = models.DateField()
+    count = models.BigIntegerField()
+    # count x km of the object inside the cell (1 km for points), see length_weighted_count.
+    weighted = models.FloatField()
+    n_segment = models.BigIntegerField()  # count of "segment" objects
+    n_presence = models.BigIntegerField()  # count of "counter" objects
+    first_start = models.DateTimeField()
+    last_start = models.DateTimeField()
+
+    class Meta:
+        db_table = table("cell_day_counts")
+        constraints = [
+            models.UniqueConstraint(
+                fields=["area_type", "id_area", "id_source", "day"], name="cell_day_count_key"
+            ),
+        ]
+        indexes = [models.Index(fields=["area_type", "day"], name="cell_day_count_period")]
+
+
+class CellCountsState(models.Model):
+    """One row (id 1): whether CellDayCount is out of date.
+
+    ``stale`` is set by triggers on the measures and the object/cell links
+    (migration 0012) and cleared by ``traffic.refresh_cell_day_counts()``.
+    """
+
+    stale = models.BooleanField(default=True)
+    refreshed_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = table("cell_day_counts_state")
 
 
 class TrafficImport(DataImport):

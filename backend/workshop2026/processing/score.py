@@ -22,13 +22,18 @@ from django.conf import settings
 from django.contrib.gis.geos import GEOSGeometry
 from django.core.cache import cache
 from django.db import connection
-from django.db.models import Case, Count, F, Max, Min, Q, Sum, Value, When
-from django.db.models.functions import ExtractMonth, ExtractYear, TruncDate
+from django.db.models import Case, Count, F, FloatField, Max, Min, Q, Subquery, Sum, Value, When
+from django.db.models.functions import Cast, ExtractMonth, ExtractYear, TruncDate
 from django.utils import timezone
 
 from commons.models import DataSource
-from ref_geo.models import LArea
-from traffic.models import CountingMeasure, CountingObject
+from ref_geo.models import BibAreasType, LArea
+from traffic.models import (
+    CellCountsState,
+    CellDayCount,
+    CountingMeasure,
+    CountingObject,
+)
 
 BTA_REFERENCE_SOURCE = "ecocompteur"
 # How each weighted source is matched to an eco-counter (BTA_PrepareCorrelation):
@@ -174,10 +179,44 @@ def _start_of_day(date):
     return datetime.combine(date, time.min, tzinfo=timezone.get_current_timezone())
 
 
+def _filter_cells(queryset, geoms, geom_ids, area_type):
+    if geoms is not None or geom_ids is not None:
+        cells = Q(id_area__in=list(geom_ids or []))
+        if geoms is not None:
+            cells |= Q(
+                id_area__in=LArea.objects.filter(
+                    type__type_code=area_type,
+                    geom__intersects=_to_lambert93(geoms),
+                ).values("id_area")
+            )
+        queryset = queryset.filter(cells)
+    return queryset
+
+
+def _area_type_id(area_type):
+    return Subquery(BibAreasType.objects.filter(type_code=area_type).values("pk")[:1])
+
+
+def _length_in_km():
+    """Km of the object inside the cell, 1 for a point (no length)."""
+    return Case(
+        When(area_length_m__isnull=True, then=Value(1.0)),
+        default=F("area_length_m") / 1000.0,
+        output_field=FloatField(),
+    )
+
+
 def measures_queryset(
     geoms=None, geom_ids=None, sources=None, date_from=None, date_to=None, area_type=None
 ):
-    """Measures, one row per (measure, cell), annotated with ``id_area`` and ``id_source``.
+    """Measures, one row per (measure, cell), annotated for the scores.
+
+    Annotations (the same fields as ``CellDayCount``, see ``scored_rows``):
+    ``id_area``, ``id_source``, ``weighted`` (count x km of the object inside
+    the cell, 1 km for a point: as in the R analysis, BTA_PrepareStrava, a
+    segment weighs by the part of it that is in the cell, not as a whole in
+    every cell it touches), ``n_segment`` / ``n_presence`` (count of "segment" /
+    "counter" objects), ``first_start`` and ``last_start``.
 
     geoms: keep the cells intersecting this geometry (any SRID, default 2154).
     geom_ids: keep these cells. With both, the union is kept; with neither,
@@ -189,19 +228,24 @@ def measures_queryset(
     queryset = CountingMeasure.objects.annotate(
         id_area=F("counting_object__areas__area_id"),
         id_source=F("counting_object__source_id"),
-        # Same join as id_area: counting_object_areas holds every grid of AREA_TYPES.
-        area_type_code=F("counting_object__areas__area__type__type_code"),
-    ).filter(id_area__isnull=False, area_type_code=area_type)
-    if geoms is not None or geom_ids is not None:
-        cells = Q(id_area__in=list(geom_ids or []))
-        if geoms is not None:
-            cells |= Q(
-                id_area__in=LArea.objects.filter(
-                    type__type_code=area_type,
-                    geom__intersects=_to_lambert93(geoms),
-                ).values("id_area")
-            )
-        queryset = queryset.filter(cells)
+        # Same join as id_area: counting_object_areas holds every grid of
+        # AREA_TYPES, with the type of each cell (no join on ref_geo).
+        id_area_type=F("counting_object__areas__area_type_id"),
+        # Metres of the object inside the cell; NULL for points.
+        area_length_m=F("counting_object__areas__length_m"),
+    ).filter(id_area__isnull=False, id_area_type=_area_type_id(area_type))
+    queryset = queryset.annotate(
+        weighted=Cast("count", FloatField()) * _length_in_km(),
+        n_segment=Case(
+            When(counting_object__type__code="segment", then=F("count")), default=0
+        ),
+        n_presence=Case(
+            When(counting_object__type__code="counter", then=F("count")), default=0
+        ),
+        first_start=F("start_datetime"),
+        last_start=F("start_datetime"),
+    )
+    queryset = _filter_cells(queryset, geoms, geom_ids, area_type)
     if sources:
         queryset = queryset.filter(id_source__in=sources)
     # Bounds on start_datetime itself (not start_datetime__date), so the
@@ -213,37 +257,96 @@ def measures_queryset(
     return queryset
 
 
+def cell_counts_queryset(
+    geoms=None, geom_ids=None, sources=None, date_from=None, date_to=None, area_type=None
+):
+    """Same filters and fields as ``measures_queryset``, on the precomputed ``CellDayCount``.
+
+    One row per (cell, source, day) instead of one per (measure, cell). The
+    period is on ``day``: the date of ``start_datetime`` in the session time zone.
+    """
+    area_type = area_type or settings.DEFAULT_GRID_AREA_TYPE
+    queryset = CellDayCount.objects.filter(area_type_id=_area_type_id(area_type))
+    queryset = _filter_cells(queryset, geoms, geom_ids, area_type)
+    if sources:
+        queryset = queryset.filter(id_source__in=sources)
+    if date_from is not None:
+        queryset = queryset.filter(day__gte=date_from)
+    if date_to is not None:
+        queryset = queryset.filter(day__lte=date_to)
+    return queryset
+
+
+def counts_version():
+    """When ``CellDayCount`` was refreshed (ISO string), or None if it is stale.
+
+    A cache key for anything computed from the data: it changes at each refresh,
+    and there is none while the counts are stale (a write since the refresh).
+    """
+    refreshed_at = (
+        CellCountsState.objects.filter(stale=False).values_list("refreshed_at", flat=True).first()
+    )
+    return refreshed_at.isoformat() if refreshed_at else None
+
+
+def counts_are_fresh():
+    """Whether ``CellDayCount`` is up to date (no write to the measures or links since its refresh)."""
+    return counts_version() is not None
+
+
+def scored_rows(**filters):
+    """The rows the scores read: the precomputed counts when they are fresh, else the measures.
+
+    Both give the same results (``cell_counts_queryset`` is much smaller); the
+    precomputed one is rebuilt by ``manage.py refresh_cell_counts`` and after each
+    traffic import. ``**filters`` are those of ``measures_queryset``.
+    """
+    if counts_are_fresh():
+        return cell_counts_queryset(**filters)
+    return measures_queryset(**filters)
+
+
 def counts_by_area(measures):
     """``{id_area: {"counts", "count_segment", "count_presence", "sources"}}`` for ``measures``.
 
     count_segment: measures of "segment" objects; count_presence: measures of
     "counter" objects (presence counters); sources: ``[{"id", "code", "label",
     "absolute", "count", "first_data", "latest_data"}]``, the counts per data
-    source and the start of their first and last measures.
+    source and the start of their first and last measures. One grouped query.
     """
-    rows = measures.values("id_area").annotate(
-        counts=Sum("count"),
-        count_segment=Sum("count", filter=Q(counting_object__type__code="segment"), default=0),
-        count_presence=Sum("count", filter=Q(counting_object__type__code="counter"), default=0),
+    rows = measures.values("id_area", "id_source").annotate(
+        total=Sum("count"),
+        segment=Sum("n_segment"),
+        presence=Sum("n_presence"),
+        first_data=Min("first_start"),
+        latest_data=Max("last_start"),
     )
-    counts = {row.pop("id_area"): {**row, "sources": []} for row in rows}
-    by_source = (
-        measures.values(
-            "id_area",
-            "id_source",
-            code=F("counting_object__source__code"),
-            label=F("counting_object__source__label"),
-            absolute=F("counting_object__source__absolute_counts"),
+    sources = {
+        source.pk: source
+        for source in DataSource.objects.only("code", "label", "absolute_counts")
+    }
+    counts = {}
+    for row in rows:
+        area = counts.setdefault(
+            row["id_area"], {"counts": 0, "count_segment": 0, "count_presence": 0, "sources": []}
         )
-        .annotate(
-            total=Sum("count"), first_data=Min("start_datetime"), latest_data=Max("start_datetime")
+        area["counts"] += row["total"]
+        area["count_segment"] += row["segment"]
+        area["count_presence"] += row["presence"]
+        source = sources[row["id_source"]]
+        area["sources"].append(
+            {
+                "id": row["id_source"],
+                "code": source.code,
+                "label": source.label,
+                "absolute": source.absolute_counts,
+                "count": row["total"],
+                "first_data": row["first_data"],
+                "latest_data": row["latest_data"],
+            }
         )
-        .order_by("id_area", "label")
-    )
-    for row in by_source:
-        row["count"] = row.pop("total")
-        row["id"] = row.pop("id_source")
-        counts[row.pop("id_area")]["sources"].append(row)
+    for area in counts.values():
+        area["sources"].sort(key=lambda source: source["label"])
     return counts
 
 
@@ -257,7 +360,7 @@ class Score:
         cls, geoms=None, geom_ids=None, sources=None, date_from=None, date_to=None,
         area_type=None, **params
     ):
-        queryset = measures_queryset(
+        queryset = scored_rows(
             geoms=geoms, geom_ids=geom_ids, sources=sources,
             date_from=date_from, date_to=date_to, area_type=area_type,
         )
@@ -265,7 +368,7 @@ class Score:
 
     @classmethod
     def compute_from(cls, queryset, **params):
-        """Return ``{id_area: score}`` for the rows of ``queryset`` (see measures_queryset)."""
+        """Return ``{id_area: score}`` for the rows of ``queryset`` (see scored_rows)."""
         raise NotImplementedError
 
 
@@ -286,7 +389,8 @@ class CazalisFrequentationScore(Score):
     Port of ``BTA_FreqRaster`` (data/BTA-analyse-frequentation): each source's
     counts per cell are standardised (z-scores over the cells of the queryset,
     0 where a source has no data), summed with ``source_weights``, capped at the
-    98th percentile and rescaled to 0-100.
+    98th percentile and rescaled to 0-100. The counts are weighted by the length of
+    the segment inside each cell (the ``weighted`` field of the rows).
     """
 
     name = "cazalis"
@@ -303,11 +407,15 @@ class CazalisFrequentationScore(Score):
         The calculation takes seconds on real data (the Outdoorvision tracks
         around the counters), too long to run on every API request.
         """
-        measures = CountingMeasure.objects.aggregate(last=Max("id"), total=Count("id"))
         sources = DataSource.objects.aggregate(last=Max("id"), total=Count("id"))
-        key = "cazalis-weights:{}:{}:{}:{}".format(
-            measures["last"], measures["total"], sources["last"], sources["total"]
-        )
+        version = counts_version()
+        if version:  # no need to count the measures
+            key = f"cazalis-weights:{version}:{sources['last']}:{sources['total']}"
+        else:
+            measures = CountingMeasure.objects.aggregate(last=Max("id"), total=Count("id"))
+            key = "cazalis-weights:{}:{}:{}:{}".format(
+                measures["last"], measures["total"], sources["last"], sources["total"]
+            )
         estimate = cache.get(key)
         if estimate is None:
             estimate = cls.estimate_source_weights()
@@ -415,7 +523,7 @@ class CazalisFrequentationScore(Score):
             source_weights = cls.cached_source_weights()
 
         counts = defaultdict(dict)
-        for row in queryset.values("id_area", "id_source").annotate(total=Sum("count")):
+        for row in queryset.values("id_area", "id_source").annotate(total=Sum("weighted")):
             if row["id_source"] not in source_weights:
                 raise ValueError(f"Missing weight for source ID {row['id_source']}")
             counts[row["id_source"]][row["id_area"]] = row["total"]
