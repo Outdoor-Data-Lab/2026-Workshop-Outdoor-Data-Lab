@@ -26,7 +26,7 @@ export default {
     cellName: 'Maille',
     counterName: 'Compteur {id}',
     outdoorOffers: 'Offres outdoor',
-    biodivAreas: 'Taxons protégés ou menacés par maille',
+    biodivAreas: 'Taxons menacés par maille',
     loadError: 'Impossible de charger {label}',
   },
   season: {
