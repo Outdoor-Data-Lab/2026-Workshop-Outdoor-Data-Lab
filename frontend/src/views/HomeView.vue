@@ -7,7 +7,13 @@ import SeasonFilter from '@/components/SeasonFilter.vue'
 import LayerSwitcher from '@/components/LayerSwitcher.vue'
 import MapLegend from '@/components/MapLegend.vue'
 import MapView from '@/components/MapView.vue'
-import { biodiversityLayers, externalLayers, outdoorLayers, trafficLayers } from '@/catalog'
+import {
+  biodiversityLayers,
+  externalLayers,
+  outdoorLayers,
+  synthesisLayers,
+  trafficLayers,
+} from '@/catalog'
 import { useLayersStore } from '@/stores/layers'
 
 const layers = useLayersStore()
@@ -16,6 +22,7 @@ const layers = useLayersStore()
 trafficLayers().then(layers.addDefinitions)
 outdoorLayers().then(layers.addDefinitions)
 biodiversityLayers().then(layers.addDefinitions)
+synthesisLayers().then(layers.addDefinitions)
 externalLayers().then(layers.addDefinitions)
 
 /** Entrées des couches visibles, dans l'ordre des couches. */

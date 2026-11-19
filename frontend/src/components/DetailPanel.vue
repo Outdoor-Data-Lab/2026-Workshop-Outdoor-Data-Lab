@@ -3,7 +3,7 @@
 import { computed } from 'vue'
 
 import { BIODIV_AREA_LAYER } from '@/api/biodiv'
-import { TRAFFIC_AREA_LAYER } from '@/api/traffic'
+import { SYNTHESIS_AREA_LAYER, TRAFFIC_AREA_LAYER } from '@/api/traffic'
 import CellDetail from '@/components/CellDetail.vue'
 import { useLayersStore } from '@/stores/layers'
 
@@ -18,7 +18,7 @@ const kind = computed(() => {
 /** Une maille : la même synthèse depuis la fréquentation ou la biodiversité, son domaine en premier. */
 const cellFocus = computed(() => {
   const layer = layers.selected?.layer
-  return layer === TRAFFIC_AREA_LAYER
+  return layer === TRAFFIC_AREA_LAYER || layer === SYNTHESIS_AREA_LAYER
     ? 'traffic'
     : layer === BIODIV_AREA_LAYER
       ? 'biodiversity'

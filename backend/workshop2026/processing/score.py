@@ -28,6 +28,7 @@ from django.db.models import Case, Count, F, FloatField, Max, Min, Q, Subquery, 
 from django.db.models.functions import Cast, ExtractMonth, ExtractYear, TruncDate
 from django.utils import timezone
 
+from biodiversity.querysets import REDLIST_STATUS, cells_with_status_taxa
 from commons.models import DataSource
 from ref_geo.models import BibAreasType, LArea
 from traffic.models import (
@@ -412,7 +413,7 @@ class Score:
             geoms=geoms, geom_ids=geom_ids, sources=sources,
             date_from=date_from, date_to=date_to, area_type=area_type, months=months,
         )
-        return cls.compute_from(queryset, **params)
+        return cls.compute_from(queryset, area_type=area_type, **params)
 
     @classmethod
     def compute_from(cls, queryset, **params):
@@ -589,4 +590,37 @@ class CazalisFrequentationScore(Score):
         return _winsorize_and_rescale(raw_scores)
 
 
-SCORES = {score.name: score for score in (BasicFrequentationScore, CazalisFrequentationScore)}
+class SynthesisScore(Score):
+    """Crossing of frequentation and biodiversity: 1 where the cell is highly
+    frequented (its "cazalis" score above ``synthesis_threshold``, 40 by default,
+    on its 0-100 scale) and holds an observation of at least one threatened taxon
+    (national red list, see REDLIST_FILTER), else 0.
+
+    ``cazalis``: the "cazalis" scores already computed for the same rows, reused
+    instead of computed again. Like them, the result depends on the filters
+    (sources, period), as the "cazalis" score is standardised over their cells.
+    """
+
+    name = "synthesis"
+    DEFAULT_THRESHOLD = 40
+
+    @classmethod
+    def compute_from(
+        cls, queryset, cazalis=None, area_type=None, synthesis_threshold=None, **params
+    ):
+        if cazalis is None:
+            cazalis = CazalisFrequentationScore.compute_from(queryset, **params)
+        if synthesis_threshold is None:
+            synthesis_threshold = cls.DEFAULT_THRESHOLD
+        # Cells of the same grid as the scores: their ids are compared.
+        threatened = set(cells_with_status_taxa(REDLIST_STATUS, area_type=area_type))
+        return {
+            id_area: int(score > synthesis_threshold and id_area in threatened)
+            for id_area, score in cazalis.items()
+        }
+
+
+SCORES = {
+    score.name: score
+    for score in (BasicFrequentationScore, CazalisFrequentationScore, SynthesisScore)
+}

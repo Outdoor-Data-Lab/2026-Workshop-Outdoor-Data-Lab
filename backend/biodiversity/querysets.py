@@ -52,8 +52,11 @@ PROTECTION_OR_REDLIST_STATUS = VBdcStatus.objects.filter(
 ).values("cd_ref", "code_statut", "cd_type_statut")
 
 
-def cells_with_status_taxa(statuses: QuerySet = PROTECTION_OR_REDLIST_STATUS):
-    """Ids of the default grid cells holding an observation of a taxon with one of
+def cells_with_status_taxa(
+    statuses: QuerySet = PROTECTION_OR_REDLIST_STATUS, area_type: str | None = None
+):
+    """Ids of the cells of the grid ``area_type`` (ref_geo type_code, default
+    ``DEFAULT_GRID_AREA_TYPE``) holding an observation of a taxon with one of
     ``statuses``, for ``id_area__in``.
 
     From the observations with a status to their cells, through the spatial index
@@ -71,7 +74,7 @@ def cells_with_status_taxa(statuses: QuerySet = PROTECTION_OR_REDLIST_STATUS):
          AND ST_Intersects(cell.geom_4326, record.geom)
         WHERE record.cd_ref IN ({status_sql})
     """
-    params = (settings.DEFAULT_GRID_AREA_TYPE, *status_params)
+    params = (area_type or settings.DEFAULT_GRID_AREA_TYPE, *status_params)
     key = hashlib.sha1(repr((sql, params)).encode()).hexdigest()
     key = f"status-taxa-cells:{data_version()}:{key}"
     ids = cache.get(key)

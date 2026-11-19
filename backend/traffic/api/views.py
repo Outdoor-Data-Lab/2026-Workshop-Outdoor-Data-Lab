@@ -14,10 +14,16 @@ from rest_framework.views import APIView
 from rest_framework_gis.filters import InBBoxFilter
 
 from commons.api.geo import GeoJsonLimitOffsetPagination, GeoViewSet, ReadOnlyViewSet
-from commons.models import DataSource
+from commons.models import DataSource, data_version
 from ref_geo.models import LArea
-from workshop2026.processing.score import SCORES, counts_by_area, counts_version, scored_rows, \
-    CazalisFrequentationScore, BasicFrequentationScore
+from workshop2026.processing.score import (
+    SCORES,
+    counts_by_area,
+    counts_version,
+    scored_rows,
+    CazalisFrequentationScore,
+    BasicFrequentationScore,
+)
 
 from ..models import (
     CountingMeasure,
@@ -135,7 +141,8 @@ class AreasViewSet(viewsets.ReadOnlyModelViewSet):
             return LArea.objects.none()
         return (
             LArea.objects.filter(
-                type__type_code=self.area_type, id_area__in=self.measures.values("id_area")
+                type__type_code=self.area_type,
+                id_area__in=self.measures.values("id_area"),
             )
             .only("id_area", "geom_4326")
             .order_by("id_area")
@@ -144,8 +151,11 @@ class AreasViewSet(viewsets.ReadOnlyModelViewSet):
     @cached_property
     def estimate(self):
         """BTA estimate of the "cazalis" weights (``weights``, ``correlations``,
-        ``counters``), or None when the weights are given or the score is not requested."""
-        if self.params.get("source_weights") is None and "cazalis" in self.params.get("scores", ()):
+        ``counters``), or None when the weights are given or the score is not requested.
+        """
+        if self.params.get("source_weights") is None and "cazalis" in self.params.get(
+            "scores", ()
+        ):
             return SCORES["cazalis"].cached_estimate()
         return None
 
@@ -170,7 +180,9 @@ class AreasViewSet(viewsets.ReadOnlyModelViewSet):
         if "cazalis" in self.params.get("scores", ()):
             details["cazalis"] = {"source_weights": self.source_weights}
             if self.estimate is not None:
-                details["cazalis"]["source_correlations"] = self.estimate["correlations"]
+                details["cazalis"]["source_correlations"] = self.estimate[
+                    "correlations"
+                ]
                 details["cazalis"]["reference_counters"] = self.estimate["counters"]
         return details
 
@@ -184,27 +196,44 @@ class AreasViewSet(viewsets.ReadOnlyModelViewSet):
         version = counts_version()
         if version is None:
             return None
+        scores = self.params.get("scores", ())
+        if "synthesis" in scores:
+            # Also depends on the observations: changes with each import.
+            version = f"{version}:{data_version()}"
         filters = (
-            sorted(self.params.get("scores", ())),
+            sorted(scores),
             sorted(self.params.get("source") or ()),
             str(self.params.get("date_from")),
             str(self.params.get("date_to")),
             sorted(self.params.get("months") or ()),
             self.area_type,
             sorted((self.source_weights or {}).items()),
+            self.params.get("synthesis_threshold"),
         )
-        return f"area-scores:{version}:{hashlib.sha1(repr(filters).encode()).hexdigest()}"
+        return (
+            f"area-scores:{version}:{hashlib.sha1(repr(filters).encode()).hexdigest()}"
+        )
 
     def compute_scores(self, measures):
         """``{score name: {id_area: value}}`` for the requested scores."""
         key = self.scores_cache_key()
         scores = cache.get(key) if key else None
         if scores is None:
+            scores = {}
+            # "synthesis" last: it reuses the "cazalis" scores when they are requested too.
+            names = sorted(
+                self.params.get("scores", ()),
+                key=lambda name: (name == "synthesis", name),
+            )
             try:
-                scores = {
-                    name: SCORES[name].compute_from(measures, source_weights=self.source_weights)
-                    for name in sorted(self.params.get("scores", ()))
-                }
+                for name in names:
+                    scores[name] = SCORES[name].compute_from(
+                        measures,
+                        source_weights=self.source_weights,
+                        area_type=self.area_type,
+                        synthesis_threshold=self.params.get("synthesis_threshold"),
+                        cazalis=scores.get("cazalis"),
+                    )
             except ValueError as error:
                 raise serializers.ValidationError({"source_weights": [str(error)]})
             if key:
@@ -225,7 +254,9 @@ class AreasViewSet(viewsets.ReadOnlyModelViewSet):
             "scores": self.compute_scores(self.measures),
             "score_details": self.score_details,
         }
-        return self.get_serializer(areas if many else areas[0], many=many, context=context)
+        return self.get_serializer(
+            areas if many else areas[0], many=many, context=context
+        )
 
     def response_cache_key(self):
         """Key of this list response (its full URL), or None while the precomputed counts are stale.
@@ -263,6 +294,7 @@ class AreasViewSet(viewsets.ReadOnlyModelViewSet):
             Response(self.serialize([self.get_object()], many=False).data)
         )
 
+
 class ScoreSourcesView(APIView):
     def get(self, request):
         sources = DataSource.objects.order_by("label").values("id", "code", "label")
@@ -290,7 +322,9 @@ class ScoreMapView(APIView):
                 )
         except ValueError:
             return Response(
-                {"detail": "bbox must be west,south,east,north within a 2.5-degree extent."},
+                {
+                    "detail": "bbox must be west,south,east,north within a 2.5-degree extent."
+                },
                 status=status.HTTP_400_BAD_REQUEST,
             )
         viewport = Polygon.from_bbox((west, south, east, north))
@@ -317,11 +351,16 @@ class ScoreMapView(APIView):
                     int(source_id): float(weight)
                     for source_id, weight in raw_weights.items()
                 }
-                if any(not math.isfinite(weight) or weight < 0 for weight in weights.values()):
+                if any(
+                    not math.isfinite(weight) or weight < 0
+                    for weight in weights.values()
+                ):
                     raise ValueError
             except (TypeError, ValueError, json.JSONDecodeError):
                 return Response(
-                    {"detail": "weights must be a JSON object of non-negative numbers."},
+                    {
+                        "detail": "weights must be a JSON object of non-negative numbers."
+                    },
                     status=status.HTTP_400_BAD_REQUEST,
                 )
             try:
@@ -330,7 +369,9 @@ class ScoreMapView(APIView):
                     source_weights=weights,
                 )
             except ValueError as error:
-                return Response({"detail": str(error)}, status=status.HTTP_400_BAD_REQUEST)
+                return Response(
+                    {"detail": str(error)}, status=status.HTTP_400_BAD_REQUEST
+                )
 
         features = [
             {

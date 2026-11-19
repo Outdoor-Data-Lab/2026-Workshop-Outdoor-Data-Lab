@@ -2,6 +2,11 @@
 # Enabled with COMPOSE_FILE=docker-compose.yaml:docker-compose-dev.yaml in .env
 
 services:
+  db:
+    ports:
+      # Database reachable from the host (psql, DBeaver, QGIS), local only.
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5433}:5432"
+
   taxhub:
     environment:
       FLASK_DEBUG: "1"

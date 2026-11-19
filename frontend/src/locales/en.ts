@@ -29,6 +29,9 @@ export default {
     outdoorOffers: 'Outdoor offers',
     biodivAreas: 'Threatened taxa',
     none: 'None',
+    synthesisAreas: 'Areas at stake',
+    synthesisDescription:
+      'Grid cells with a traffic score above 40 and at least one threatened species (national red list).',
     loadError: 'Could not load {label}',
   },
   season: {
@@ -54,6 +57,7 @@ export default {
     title: 'Legend',
     trafficAreas: 'Traffic per grid cell (score)',
     otherValues: 'Other',
+    synthesisAreas: 'Areas at stake: high traffic and threatened species',
   },
   offer: {
     practice: 'Practice',

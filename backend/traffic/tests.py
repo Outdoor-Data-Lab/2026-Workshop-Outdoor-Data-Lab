@@ -29,6 +29,7 @@ from ref_geo.models import BibAreasType, LArea
 from workshop2026.processing.score import (
     BasicFrequentationScore,
     CazalisFrequentationScore,
+    SynthesisScore,
     _counts_near,
     _standardize,
     _winsorize_and_rescale,
@@ -38,6 +39,7 @@ from workshop2026.processing.score import (
     scored_rows,
 )
 from .api.views import ScoreSourcesView, ScoreMapView
+from biodiversity.querysets import REDLIST_STATUS
 
 from .areas import refresh_cell_day_counts
 from .models import (
@@ -167,7 +169,9 @@ class CountingMeasureTests(TrafficTestCase):
         # Dropping an index outside the public schema fails silently with Django's
         # RemoveIndex: check that the old one is really gone.
         with connection.cursor() as cursor:
-            cursor.execute("select indexname from pg_indexes where schemaname = 'traffic' and tablename = 'counting_measures'")
+            cursor.execute(
+                "select indexname from pg_indexes where schemaname = 'traffic' and tablename = 'counting_measures'"
+            )
             names = {row[0] for row in cursor.fetchall()}
         self.assertIn("counting_measure_unique_key", names)
         self.assertNotIn("counting_measure_object_start", names)
@@ -280,9 +284,30 @@ class ReferenceDataTests(TestCase):
 
 class OutdoorVisionParserTests(TrafficTestCase):
     ROWS = [  # track 1 is split in two pieces, as in real exports.
-        (1, "t1", "walking", "2025-07-01T08:00", "2025-07-01T09:00", [(6.40, 44.90), (6.41, 44.90)]),
-        (2, "t1", "walking", "2025-07-01T09:30", "2025-07-01T11:00", [(6.42, 44.90), (6.43, 44.91)]),
-        (3, "t2", "cycling", "2025-07-02T10:00", "2025-07-02T12:00", [(6.50, 44.80), (6.52, 44.81)]),
+        (
+            1,
+            "t1",
+            "walking",
+            "2025-07-01T08:00",
+            "2025-07-01T09:00",
+            [(6.40, 44.90), (6.41, 44.90)],
+        ),
+        (
+            2,
+            "t1",
+            "walking",
+            "2025-07-01T09:30",
+            "2025-07-01T11:00",
+            [(6.42, 44.90), (6.43, 44.91)],
+        ),
+        (
+            3,
+            "t2",
+            "cycling",
+            "2025-07-02T10:00",
+            "2025-07-02T12:00",
+            [(6.50, 44.80), (6.52, 44.81)],
+        ),
     ]
 
     def setUp(self):
@@ -292,7 +317,13 @@ class OutdoorVisionParserTests(TrafficTestCase):
     def run_import(self, rows=ROWS, drop=(), providers=None):
         frame = gpd.GeoDataFrame(
             [
-                dict(id=i, track_id=t, activity=a, date_start=f"{s}+02:00", date_end=f"{e}+02:00")
+                dict(
+                    id=i,
+                    track_id=t,
+                    activity=a,
+                    date_start=f"{s}+02:00",
+                    date_end=f"{e}+02:00",
+                )
                 for i, t, a, s, e, _ in rows
             ],
             geometry=[shapely.LineString(c) for *_, c in rows],
@@ -310,37 +341,65 @@ class OutdoorVisionParserTests(TrafficTestCase):
         data_import, count = self.run_import()
         self.assertEqual((count, data_import.line_numbers), (2, 3))
         measure = CountingMeasure.objects.get(counting_object__external_id="t1")
-        self.assertEqual((measure.count, measure.unit.code, measure.practice.code), (1, "person", "walking"))
-        self.assertEqual(measure.start_datetime, datetime(2025, 7, 1, 6, tzinfo=timezone.utc))
-        self.assertEqual(measure.end_datetime, datetime(2025, 7, 1, 9, tzinfo=timezone.utc))
+        self.assertEqual(
+            (measure.count, measure.unit.code, measure.practice.code),
+            (1, "person", "walking"),
+        )
+        self.assertEqual(
+            measure.start_datetime, datetime(2025, 7, 1, 6, tzinfo=timezone.utc)
+        )
+        self.assertEqual(
+            measure.end_datetime, datetime(2025, 7, 1, 9, tzinfo=timezone.utc)
+        )
         self.assertEqual(measure.counting_object.geom.num_geom, 2)  # both pieces kept
-        self.assertEqual(CountingMeasure.objects.get(counting_object__external_id="t2").practice.code, "cycling")
+        self.assertEqual(
+            CountingMeasure.objects.get(
+                counting_object__external_id="t2"
+            ).practice.code,
+            "cycling",
+        )
 
     @patch("traffic.parsers.outdoorvision.BATCH_LINES", 1)
     def test_a_batch_holds_whole_tracks(self):
         data_import, count = self.run_import()
         self.assertEqual((count, data_import.line_numbers), (2, 3))
-        self.assertEqual(CountingObject.objects.get(external_id="t1").geom.num_geom, 2)  # both pieces kept
+        self.assertEqual(
+            CountingObject.objects.get(external_id="t1").geom.num_geom, 2
+        )  # both pieces kept
 
     def test_reimport_does_not_duplicate(self):
         self.run_import()
         self.run_import()
-        self.assertEqual((CountingObject.objects.count(), CountingMeasure.objects.count()), (2, 2))
+        self.assertEqual(
+            (CountingObject.objects.count(), CountingMeasure.objects.count()), (2, 2)
+        )
 
     def test_provider_becomes_the_origin(self):
         self.run_import(providers=["Garmin", "Garmin", " Openrunner "])
-        origins = dict(CountingObject.objects.values_list("external_id", "origin__code"))
-        self.assertEqual(origins, {"t1": "garmin", "t2": "openrunner"})  # Garmin: existing source
+        origins = dict(
+            CountingObject.objects.values_list("external_id", "origin__code")
+        )
+        self.assertEqual(
+            origins, {"t1": "garmin", "t2": "openrunner"}
+        )  # Garmin: existing source
         openrunner = DataSource.objects.get(code="openrunner")
-        self.assertEqual((openrunner.label, openrunner.domains), ("Openrunner", []))  # an origin only
+        self.assertEqual(
+            (openrunner.label, openrunner.domains), ("Openrunner", [])
+        )  # an origin only
 
     def test_without_provider_there_is_no_origin(self):
-        for providers in (None, [None, None, None], ["", " ", ""]):  # no column, or no value
+        for providers in (
+            None,
+            [None, None, None],
+            ["", " ", ""],
+        ):  # no column, or no value
             with self.subTest(providers):
                 CountingObject.objects.all().delete()  # an existing object keeps its origin
                 self.run_import(providers=providers)
                 self.assertEqual(CountingObject.objects.count(), 2)
-                self.assertFalse(CountingObject.objects.filter(origin__isnull=False).exists())
+                self.assertFalse(
+                    CountingObject.objects.filter(origin__isnull=False).exists()
+                )
 
     def test_unknown_activity_imports_nothing(self):
         with self.assertRaisesMessage(ValueError, "activities: swimming"):
@@ -360,13 +419,24 @@ class OutdoorVisionParserTests(TrafficTestCase):
 
 class StravaParserTests(TrafficTestCase):
     # Network of 3 edges; edge 30 is never used, like most of the Strava network.
-    EDGES = {10: [(6.40, 44.90), (6.41, 44.90)], 20: [(6.41, 44.90), (6.42, 44.91)], 30: [(6.5, 44.8), (6.6, 44.8)]}
+    EDGES = {
+        10: [(6.40, 44.90), (6.41, 44.90)],
+        20: [(6.41, 44.90), (6.42, 44.91)],
+        30: [(6.5, 44.8), (6.6, 44.8)],
+    }
 
     def setUp(self):
         self.tmp = Path(self.enterContext(tempfile.TemporaryDirectory()))
         self.enterContext(override_settings(MEDIA_ROOT=self.tmp / "media"))
 
-    def run_import(self, year=2024, counts=((10, 80), (20, 15)), activity="Run,Walk,Hike", day=None, extra=()):
+    def run_import(
+        self,
+        year=2024,
+        counts=((10, 80), (20, 15)),
+        activity="Run,Walk,Hike",
+        day=None,
+        extra=(),
+    ):
         """Import a zip of one export, plus the `extra` (name, content) files."""
         folder = Path(tempfile.mkdtemp(dir=self.tmp))
         gpd.GeoDataFrame(
@@ -375,7 +445,10 @@ class StravaParserTests(TrafficTestCase):
             crs=4326,
         ).to_file(folder / "edges.shp")
         period = {"date": day} if day else {"year": year}  # daily or yearly export
-        rows = [dict(edge_uid=e, activity_type=activity, total_trip_count=n, **period) for e, n in counts]
+        rows = [
+            dict(edge_uid=e, activity_type=activity, total_trip_count=n, **period)
+            for e, n in counts
+        ]
         pd.DataFrame(rows).to_csv(folder / "edges.csv", index=False)
         archive = folder.with_suffix(".zip")
         with zipfile.ZipFile(archive, "w") as zip_file:
@@ -390,30 +463,55 @@ class StravaParserTests(TrafficTestCase):
     def test_one_object_per_used_edge_and_one_yearly_measure(self):
         data_import, count = self.run_import()
         self.assertEqual((count, data_import.line_numbers), (2, 2))
-        self.assertEqual(set(CountingObject.objects.values_list("external_id", flat=True)), {"10", "20"})
+        self.assertEqual(
+            set(CountingObject.objects.values_list("external_id", flat=True)),
+            {"10", "20"},
+        )
         measure = CountingMeasure.objects.get(counting_object__external_id="10")
-        self.assertEqual((measure.count, measure.unit.code, measure.practice.code), (80, "person", "walking"))
+        self.assertEqual(
+            (measure.count, measure.unit.code, measure.practice.code),
+            (80, "person", "walking"),
+        )
         # Years are local: 1 January 00:00 in Paris = 31 December 23:00 UTC.
-        self.assertEqual(measure.start_datetime, datetime(2023, 12, 31, 23, tzinfo=timezone.utc))
-        self.assertEqual(measure.end_datetime, datetime(2024, 12, 31, 23, tzinfo=timezone.utc))
+        self.assertEqual(
+            measure.start_datetime, datetime(2023, 12, 31, 23, tzinfo=timezone.utc)
+        )
+        self.assertEqual(
+            measure.end_datetime, datetime(2024, 12, 31, 23, tzinfo=timezone.utc)
+        )
         self.assertEqual(measure.counting_object.type.code, "segment")
 
     def test_deleting_an_import_deletes_its_measures_and_the_objects_left_empty(self):
         first, _ = self.run_import(2024)
-        second, _ = self.run_import(2025, counts=((10, 100), (30, 5)))  # edge 10 again, edge 30 new
+        second, _ = self.run_import(
+            2025, counts=((10, 100), (30, 5))
+        )  # edge 10 again, edge 30 new
         second.delete()
-        self.assertEqual(set(CountingObject.objects.values_list("external_id", flat=True)), {"10", "20"})
-        self.assertEqual(sorted(CountingMeasure.objects.values_list("count", flat=True)), [15, 80])
-        TrafficImport.objects.get(pk=first.pk).delete()  # as from the traffic import page
+        self.assertEqual(
+            set(CountingObject.objects.values_list("external_id", flat=True)),
+            {"10", "20"},
+        )
+        self.assertEqual(
+            sorted(CountingMeasure.objects.values_list("count", flat=True)), [15, 80]
+        )
+        TrafficImport.objects.get(
+            pk=first.pk
+        ).delete()  # as from the traffic import page
         self.assertFalse(CountingObject.objects.exists())
 
     def test_an_object_still_measured_by_another_import_is_kept(self):
         first, _ = self.run_import(2024)
-        self.run_import(2024, counts=((10, 90),))  # replaces the 2024 measure of edge 10
+        self.run_import(
+            2024, counts=((10, 90),)
+        )  # replaces the 2024 measure of edge 10
         first.delete()
-        self.assertIsNone(CountingObject.objects.get(external_id="10").data_import)  # kept, unlinked
+        self.assertIsNone(
+            CountingObject.objects.get(external_id="10").data_import
+        )  # kept, unlinked
         self.assertFalse(CountingObject.objects.filter(external_id="20").exists())
-        self.assertEqual(list(CountingMeasure.objects.values_list("count", flat=True)), [90])
+        self.assertEqual(
+            list(CountingMeasure.objects.values_list("count", flat=True)), [90]
+        )
 
     def test_measures_are_deleted_without_being_loaded(self):
         # With a pre_delete receiver on CountingMeasure, Django would load every
@@ -424,7 +522,9 @@ class StravaParserTests(TrafficTestCase):
         self.run_import()
         self.run_import(counts=((10, 90), (20, 20)))
         self.assertEqual(CountingObject.objects.count(), 2)
-        self.assertEqual(sorted(CountingMeasure.objects.values_list("count", flat=True)), [20, 90])
+        self.assertEqual(
+            sorted(CountingMeasure.objects.values_list("count", flat=True)), [20, 90]
+        )
 
     def test_new_year_reuses_edges(self):
         self.run_import(2024)
@@ -438,31 +538,49 @@ class StravaParserTests(TrafficTestCase):
         self.run_import(counts=((10, 5),), day="2024-07-15")
         daily = CountingMeasure.objects.get(counting_object__external_id="20", count=10)
         # 14 July 00:00 in Paris (summer time) = 13 July 22:00 UTC, for one day.
-        self.assertEqual(daily.start_datetime, datetime(2024, 7, 13, 22, tzinfo=timezone.utc))
-        self.assertEqual(daily.end_datetime, datetime(2024, 7, 14, 22, tzinfo=timezone.utc))
+        self.assertEqual(
+            daily.start_datetime, datetime(2024, 7, 13, 22, tzinfo=timezone.utc)
+        )
+        self.assertEqual(
+            daily.end_datetime, datetime(2024, 7, 14, 22, tzinfo=timezone.utc)
+        )
         # Daily imports keep the yearly measures of the same edges: 2 yearly + 3 daily.
-        self.assertEqual((CountingObject.objects.count(), CountingMeasure.objects.count()), (2, 5))
+        self.assertEqual(
+            (CountingObject.objects.count(), CountingMeasure.objects.count()), (2, 5)
+        )
 
     def test_yearly_import_keeps_daily_measures(self):
         self.run_import(counts=((10, 5), (20, 10)), day="2024-07-14")
         self.run_import(2024)
         self.assertEqual(CountingMeasure.objects.count(), 4)  # 2 daily + 2 yearly
 
-    @patch.object(StravaParser, "PRACTICE_CODES", {"Run,Walk,Hike": "walking", "Ride": "cycling"})
+    @patch.object(
+        StravaParser, "PRACTICE_CODES", {"Run,Walk,Hike": "walking", "Ride": "cycling"}
+    )
     def test_other_activity_keeps_the_first_one(self):
         self.run_import(2024)
         self.run_import(2024, activity="Ride")
         practices = CountingMeasure.objects.values_list("practice__code", flat=True)
-        self.assertEqual(sorted(practices), ["cycling", "cycling", "walking", "walking"])
+        self.assertEqual(
+            sorted(practices), ["cycling", "cycling", "walking", "walking"]
+        )
 
     def test_duplicate_measures_are_refused(self):
-        with self.assertRaisesMessage(ValueError, "Duplicate Strava measures (same object, period and practice): 1"):
+        with self.assertRaisesMessage(
+            ValueError,
+            "Duplicate Strava measures (same object, period and practice): 1",
+        ):
             self.run_import(counts=((10, 80), (10, 5)))
         self.assertFalse(CountingObject.objects.exists())
 
     def test_archive_with_several_exports_is_refused(self):
-        with self.assertRaisesMessage(ValueError, "a single export, i.e. one .shp and one .csv (found: 1 .shp and 2 .csv)"):
-            self.run_import(extra=[("other.csv", "edge_uid,activity_type,year,total_trip_count\n")])
+        with self.assertRaisesMessage(
+            ValueError,
+            "a single export, i.e. one .shp and one .csv (found: 1 .shp and 2 .csv)",
+        ):
+            self.run_import(
+                extra=[("other.csv", "edge_uid,activity_type,year,total_trip_count\n")]
+            )
         with self.assertRaisesMessage(ValueError, "holds other zips"):
             self.run_import(extra=[("all_edges_yearly_2023_is.zip", b"")])
         self.assertFalse(CountingObject.objects.exists())
@@ -481,33 +599,55 @@ class CompteurParserTests(TrafficTestCase):
     def run_import(self, counts=(("A", 5), ("A", 0), ("B", 3), ("B", 2))):
         # Two hours per counter, plus a counter at 0 all year and one without position.
         hours = ["2024-07-01 10:00:00", "2024-07-01 11:00:00"]
-        rows = [(hours[i % 2], name, n, "POINT (6.4 44.9)") for i, (name, n) in enumerate(counts)]
+        rows = [
+            (hours[i % 2], name, n, "POINT (6.4 44.9)")
+            for i, (name, n) in enumerate(counts)
+        ]
         rows += [(h, "EMPTY", 0, "POINT (6.5 44.8)") for h in hours]
         rows += [(h, "NOWHERE", 7, None) for h in hours]
-        csv = pd.DataFrame(rows, columns=["date_debut", "object_name", "count", "geom"]).assign(activity="hiking")
+        csv = pd.DataFrame(
+            rows, columns=["date_debut", "object_name", "count", "geom"]
+        ).assign(activity="hiking")
         data_import = DataImport(source=DataSource.objects.get(code="ecocompteur"))
         data_import.file.save("eco.csv", ContentFile(csv.to_csv(index=False).encode()))
         return data_import, CompteurParser(data_import).import_data()
 
     def test_one_counter_object_and_one_measure_per_hour(self):
         data_import, count = self.run_import()
-        self.assertEqual((count, data_import.line_numbers, data_import.error_numbers), (4, 8, 4))
-        self.assertEqual(set(CountingObject.objects.values_list("external_id", "type__code")),
-                         {("A", "counter"), ("B", "counter")})
+        self.assertEqual(
+            (count, data_import.line_numbers, data_import.error_numbers), (4, 8, 4)
+        )
+        self.assertEqual(
+            set(CountingObject.objects.values_list("external_id", "type__code")),
+            {("A", "counter"), ("B", "counter")},
+        )
         measure = CountingMeasure.objects.get(counting_object__external_id="A", count=5)
         # 10:00 in Paris (summer time) = 08:00 UTC, measures last one hour.
-        self.assertEqual(measure.start_datetime, datetime(2024, 7, 1, 8, tzinfo=timezone.utc))
-        self.assertEqual(measure.end_datetime, datetime(2024, 7, 1, 9, tzinfo=timezone.utc))
+        self.assertEqual(
+            measure.start_datetime, datetime(2024, 7, 1, 8, tzinfo=timezone.utc)
+        )
+        self.assertEqual(
+            measure.end_datetime, datetime(2024, 7, 1, 9, tzinfo=timezone.utc)
+        )
         self.assertEqual(measure.practice.code, "hiking")
-        self.assertTrue(CountingMeasure.objects.filter(counting_object__external_id="A", count=0).exists())
+        self.assertTrue(
+            CountingMeasure.objects.filter(
+                counting_object__external_id="A", count=0
+            ).exists()
+        )
 
     def test_reimport_replaces_measures(self):
         self.run_import()
         self.run_import(counts=(("A", 9), ("A", 1), ("B", 3), ("B", 2)))
         self.assertEqual(CountingMeasure.objects.count(), 4)
         self.assertEqual(
-            sorted(CountingMeasure.objects.filter(counting_object__external_id="A").values_list("count", flat=True)),
-            [1, 9])
+            sorted(
+                CountingMeasure.objects.filter(
+                    counting_object__external_id="A"
+                ).values_list("count", flat=True)
+            ),
+            [1, 9],
+        )
 
 
 def zip_bytes(files: dict[str, str]) -> bytes:
@@ -523,11 +663,51 @@ class INaturalistParserTests(TrafficTestCase):
     OBSERVATIONS = [
         # The lines of an outing are not consecutive, as in real exports.
         (1, "Jeanne Martin", "jmartin", "2025-07-14", 44.90, 6.40, False),
-        (2, "", "pdupont", "2025-07-14", 44.80, 6.50, False),  # no name: known by their login
-        (3, "Jeanne Martin", "jmartin", "2025-07-14", 44.91, 6.41, False),  # same outing, second point
-        (4, "Jeanne Martin", "jmartin", "2025-07-14", 44.91, 6.41, False),  # same point again
-        (5, "Jeanne Martin", "jmartin", "2025-07-15", 44.92, 6.42, False),  # next day: another outing
-        (6, "Ana Silva", "asilva", "2025-07-14", 44.85, 6.45, True),  # obscured: skipped
+        (
+            2,
+            "",
+            "pdupont",
+            "2025-07-14",
+            44.80,
+            6.50,
+            False,
+        ),  # no name: known by their login
+        (
+            3,
+            "Jeanne Martin",
+            "jmartin",
+            "2025-07-14",
+            44.91,
+            6.41,
+            False,
+        ),  # same outing, second point
+        (
+            4,
+            "Jeanne Martin",
+            "jmartin",
+            "2025-07-14",
+            44.91,
+            6.41,
+            False,
+        ),  # same point again
+        (
+            5,
+            "Jeanne Martin",
+            "jmartin",
+            "2025-07-15",
+            44.92,
+            6.42,
+            False,
+        ),  # next day: another outing
+        (
+            6,
+            "Ana Silva",
+            "asilva",
+            "2025-07-14",
+            44.85,
+            6.45,
+            True,
+        ),  # obscured: skipped
     ]
 
     def setUp(self):
@@ -541,35 +721,73 @@ class INaturalistParserTests(TrafficTestCase):
 
     def inaturalist_export(self, observations=OBSERVATIONS):
         rows = [
-            dict(id=i, observed_on=d, user_id=100 + i, user_login=login, user_name=name, latitude=lat, longitude=lon,
-                 coordinates_obscured=str(obscured).lower(), scientific_name="Rupicapra rupicapra",
-                 description="Vu\nau lac")
+            dict(
+                id=i,
+                observed_on=d,
+                user_id=100 + i,
+                user_login=login,
+                user_name=name,
+                latitude=lat,
+                longitude=lon,
+                coordinates_obscured=str(obscured).lower(),
+                scientific_name="Rupicapra rupicapra",
+                description="Vu\nau lac",
+            )
             for i, name, login, d, lat, lon, obscured in observations
         ]
         return zip_bytes(
-            {"README.txt": "Export iNaturalist", "observations-1.csv": pd.DataFrame(rows).to_csv(index=False)})
+            {
+                "README.txt": "Export iNaturalist",
+                "observations-1.csv": pd.DataFrame(rows).to_csv(index=False),
+            }
+        )
 
     def gbif_download(self, observations):
         rows = [
-            dict(gbifID=i, occurrenceID=f"https://www.inaturalist.org/observations/{i}", recordedBy=name or login,
-                 eventDate=f"{d}T10:30", decimalLatitude=lat, decimalLongitude=lon,
-                 coordinateUncertaintyInMeters=27285 if obscured else 10, species="Rupicapra rupicapra")
+            dict(
+                gbifID=i,
+                occurrenceID=f"https://www.inaturalist.org/observations/{i}",
+                recordedBy=name or login,
+                eventDate=f"{d}T10:30",
+                decimalLatitude=lat,
+                decimalLongitude=lon,
+                coordinateUncertaintyInMeters=27285 if obscured else 10,
+                species="Rupicapra rupicapra",
+            )
             for i, name, login, d, lat, lon, obscured in observations
         ]
-        return zip_bytes({"0012597.csv": pd.DataFrame(rows).to_csv(index=False, sep="\t")})
+        return zip_bytes(
+            {"0012597.csv": pd.DataFrame(rows).to_csv(index=False, sep="\t")}
+        )
 
     def test_one_passage_per_observer_and_day(self):
         data_import, count = self.run_export()
-        self.assertEqual((count, data_import.line_numbers, data_import.error_numbers), (3, 6, 1))
-        outing = CountingObject.objects.get(external_id=observer_day_id("Jeanne Martin", pd.Timestamp("2025-07-14")))
-        self.assertEqual(outing.geom.num_geom, 2)  # her two places that day, the repeated point once
+        self.assertEqual(
+            (count, data_import.line_numbers, data_import.error_numbers), (3, 6, 1)
+        )
+        outing = CountingObject.objects.get(
+            external_id=observer_day_id("Jeanne Martin", pd.Timestamp("2025-07-14"))
+        )
+        self.assertEqual(
+            outing.geom.num_geom, 2
+        )  # her two places that day, the repeated point once
         measure = outing.measures.get()
-        self.assertEqual((measure.count, measure.unit.code, measure.practice.code), (1, "person", "walking"))
+        self.assertEqual(
+            (measure.count, measure.unit.code, measure.practice.code),
+            (1, "person", "walking"),
+        )
         # 14 July in Paris (summer time) = 13 July 22:00 UTC, for one day.
-        self.assertEqual(measure.start_datetime, datetime(2025, 7, 13, 22, tzinfo=timezone.utc))
-        self.assertEqual(measure.end_datetime, datetime(2025, 7, 14, 22, tzinfo=timezone.utc))
+        self.assertEqual(
+            measure.start_datetime, datetime(2025, 7, 13, 22, tzinfo=timezone.utc)
+        )
+        self.assertEqual(
+            measure.end_datetime, datetime(2025, 7, 14, 22, tzinfo=timezone.utc)
+        )
         self.assertTrue(
-            CountingObject.objects.filter(external_id=observer_day_id("pdupont", pd.Timestamp("2025-07-14"))))
+            CountingObject.objects.filter(
+                external_id=observer_day_id("pdupont", pd.Timestamp("2025-07-14"))
+            )
+        )
 
     def test_observers_are_not_stored(self):
         self.run_export()
@@ -579,22 +797,37 @@ class INaturalistParserTests(TrafficTestCase):
     def test_gbif_after_the_export_counts_each_outing_once(self):
         self.run_export()
         new = (7, "Paul Roux", "proux", "2025-07-16", 44.95, 6.30, False)
-        data_import, count = self.import_file("gbif.zip", self.gbif_download(
-            [self.OBSERVATIONS[0], self.OBSERVATIONS[2], self.OBSERVATIONS[5], new]))
-        self.assertEqual((count, data_import.error_numbers), (2, 1))  # Jeanne's 14 July again, and Paul
-        self.assertEqual((CountingObject.objects.count(), CountingMeasure.objects.count()), (4, 4))
+        data_import, count = self.import_file(
+            "gbif.zip",
+            self.gbif_download(
+                [self.OBSERVATIONS[0], self.OBSERVATIONS[2], self.OBSERVATIONS[5], new]
+            ),
+        )
+        self.assertEqual(
+            (count, data_import.error_numbers), (2, 1)
+        )  # Jeanne's 14 July again, and Paul
+        self.assertEqual(
+            (CountingObject.objects.count(), CountingMeasure.objects.count()), (4, 4)
+        )
 
     def test_unknown_columns_are_refused(self):
         with self.assertRaisesMessage(ValueError, "Unrecognised iNaturalist columns"):
             self.import_file("other.zip", zip_bytes({"data.csv": "a,b\n1,2\n"}))
 
     def run_export(self):
-        return self.import_file("iNaturalist-observations-1.csv", self.inaturalist_export())
+        return self.import_file(
+            "iNaturalist-observations-1.csv", self.inaturalist_export()
+        )
 
 
 class ParserDescriptionTests(SimpleTestCase):
     def test_every_parser_says_what_its_file_holds(self):
-        for parser in (OutdoorVisionParser, StravaParser, CompteurParser, INaturalistParser):
+        for parser in (
+            OutdoorVisionParser,
+            StravaParser,
+            CompteurParser,
+            INaturalistParser,
+        ):
             with self.subTest(parser.__name__):
                 self.assertTrue(parser.CONTENT.startswith("Holds "))
 
@@ -627,8 +860,12 @@ class AreasTestCase(TestCase):
                 editor.create_model(model)
 
         m1 = BibAreasType.objects.create(type_name="Mailles 1km", type_code="M1")
-        LArea.objects.create(id_area=12, type=m1, area_code="A", **cell(6.0, 44.0, 6.5, 44.5))
-        LArea.objects.create(id_area=13, type=m1, area_code="B", **cell(7.0, 44.0, 7.5, 44.5))
+        LArea.objects.create(
+            id_area=12, type=m1, area_code="A", **cell(6.0, 44.0, 6.5, 44.5)
+        )
+        LArea.objects.create(
+            id_area=13, type=m1, area_code="B", **cell(7.0, 44.0, 7.5, 44.5)
+        )
 
         cls.s1 = DataSource.objects.get(code="outdoorvision").pk
         cls.s2 = DataSource.objects.get(code="ecocompteur").pk
@@ -650,8 +887,11 @@ class AreasTestCase(TestCase):
             for year, month, count in measures:
                 start = datetime(year, month, 10, tzinfo=timezone.utc)
                 CountingMeasure.objects.create(
-                    counting_object=obj, start_datetime=start,
-                    end_datetime=start + timedelta(days=1), count=count, unit=person,
+                    counting_object=obj,
+                    start_datetime=start,
+                    end_datetime=start + timedelta(days=1),
+                    count=count,
+                    unit=person,
                 )
             return obj
 
@@ -676,14 +916,17 @@ class BasicFrequentationScoreTests(AreasTestCase):
         self.assertEqual(basic(date_to=date(2023, 1, 9)), {})
         self.assertEqual(basic(date(2023, 1, 11), date(2023, 12, 31)), {12: 7})
         self.assertEqual(basic(date_from=date(2024, 1, 1)), {13: 3})
-        self.assertEqual(BasicFrequentationScore.compute(sources=[self.s2]), {12: 5, 13: 3})
+        self.assertEqual(
+            BasicFrequentationScore.compute(sources=[self.s2]), {12: 5, 13: 3}
+        )
 
     def test_filters_on_cells(self):
         self.assertEqual(BasicFrequentationScore.compute(geom_ids=[12]), {12: 22})
         inside_13 = Point(7.2, 44.2, srid=4326)
         self.assertEqual(BasicFrequentationScore.compute(geoms=inside_13), {13: 7})
         self.assertEqual(
-            BasicFrequentationScore.compute(geoms=inside_13, geom_ids=[12]), {12: 22, 13: 7}
+            BasicFrequentationScore.compute(geoms=inside_13, geom_ids=[12]),
+            {12: 22, 13: 7},
         )
         self.assertEqual(BasicFrequentationScore.compute(geom_ids=[]), {})
 
@@ -691,7 +934,8 @@ class BasicFrequentationScoreTests(AreasTestCase):
 class CazalisFrequentationScoreTests(AreasTestCase):
     def test_standardises_weights_and_rescales_per_area(self):
         score_grid = CazalisFrequentationScore.compute(
-            date_from=date(2023, 1, 1), date_to=date(2023, 12, 31),
+            date_from=date(2023, 1, 1),
+            date_to=date(2023, 12, 31),
             source_weights={self.s1: 2, self.s2: 3},
         )
         # s1 {12: 17, 13: 4} and s2 {12: 5, 13: 0 (no data)}: both z-scores are
@@ -701,19 +945,127 @@ class CazalisFrequentationScoreTests(AreasTestCase):
     def test_ignores_sources_with_zero_weight(self):
         # A single cell: nothing to standardise against.
         score_grid = CazalisFrequentationScore.compute(
-            date_from=date(2024, 1, 1), source_weights={self.s1: 0, self.s2: 1},
+            date_from=date(2024, 1, 1),
+            source_weights={self.s1: 0, self.s2: 1},
         )
         self.assertEqual(score_grid, {13: 0.0})
-        score_grid = CazalisFrequentationScore.compute(source_weights={self.s1: 1, self.s2: 0})
+        score_grid = CazalisFrequentationScore.compute(
+            source_weights={self.s1: 1, self.s2: 0}
+        )
         self.assertEqual(score_grid, {12: 100.0, 13: 0.0})
 
     def test_rejects_missing_source_weight(self):
-        with self.assertRaisesRegex(ValueError, f"Missing weight for source ID {self.s2}"):
+        with self.assertRaisesRegex(
+            ValueError, f"Missing weight for source ID {self.s2}"
+        ):
             CazalisFrequentationScore.compute(source_weights={self.s1: 1})
 
     def test_calculates_source_weights_when_not_provided(self):
         # No eco-counter half-month with enough days: every estimated weight is 0.
         self.assertEqual(CazalisFrequentationScore.compute(), {12: 0, 13: 0})
+
+
+THREATENED_CELLS = "workshop2026.processing.score.cells_with_status_taxa"
+
+
+class SynthesisScoreTests(AreasTestCase):
+    """The cells with a threatened taxon are mocked: the test database has no TaxHub statuses.
+
+    With these weights over 2023, the "cazalis" scores are {12: 100, 13: 0}.
+    """
+
+    def synthesis(self, **params):
+        return SynthesisScore.compute(
+            date_from=date(2023, 1, 1),
+            date_to=date(2023, 12, 31),
+            source_weights={self.s1: 2, self.s2: 3},
+            **params,
+        )
+
+    def test_one_where_frequented_and_threatened(self):
+        with patch(THREATENED_CELLS, return_value=[12, 13]):
+            self.assertEqual(self.synthesis(), {12: 1, 13: 0})
+
+    def test_zero_without_threatened_taxon(self):
+        with patch(THREATENED_CELLS, return_value=[13]):
+            self.assertEqual(self.synthesis(), {12: 0, 13: 0})
+
+    def test_threshold_is_strict(self):
+        with patch(THREATENED_CELLS, return_value=[12, 13]):
+            self.assertEqual(self.synthesis(synthesis_threshold=100), {12: 0, 13: 0})
+            self.assertEqual(self.synthesis(synthesis_threshold=99.9), {12: 1, 13: 0})
+
+    def test_threatened_cells_of_the_scored_grid(self):
+        with patch(THREATENED_CELLS, return_value=[]) as threatened:
+            self.synthesis(area_type="M1")
+        threatened.assert_called_once_with(REDLIST_STATUS, area_type="M1")
+
+    def test_reuses_the_given_cazalis_scores(self):
+        with (
+            patch(THREATENED_CELLS, return_value=[12, 99]),
+            patch.object(CazalisFrequentationScore, "compute_from") as cazalis,
+        ):
+            result = SynthesisScore.compute_from(None, cazalis={12: 50.0, 99: 10.0})
+        cazalis.assert_not_called()
+        self.assertEqual(result, {12: 1, 99: 0})
+
+
+class SynthesisApiTests(AreasTestCase):
+    url = "/api/traffic/areas"
+
+    def setUp(self):
+        cache.clear()
+
+    def get(self, **params):
+        return self.client.get(
+            self.url,
+            {
+                "date_from": "2023-01-01",
+                "date_to": "2023-12-31",
+                "source_weights": self.weights,
+                **params,
+            },
+        )
+
+    def test_returns_synthesis_and_computes_cazalis_once(self):
+        with (
+            patch(THREATENED_CELLS, return_value=[12, 13]),
+            patch.object(
+                CazalisFrequentationScore,
+                "compute_from",
+                wraps=CazalisFrequentationScore.compute_from,
+            ) as cazalis,
+        ):
+            response = self.get(scores=["cazalis", "synthesis"])
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(cazalis.call_count, 1)
+        scores = {
+            f["id"]: f["properties"]["score"] for f in response.json()["features"]
+        }
+        self.assertEqual(scores[12]["synthesis"], 1)
+        self.assertEqual(scores[12]["cazalis"]["score"], 100.0)
+        self.assertEqual(scores[13]["synthesis"], 0)
+
+    def test_synthesis_alone_does_not_return_cazalis(self):
+        with patch(THREATENED_CELLS, return_value=[12]):
+            response = self.get(scores="synthesis", synthesis_threshold=99)
+        scores = {
+            f["id"]: f["properties"]["score"] for f in response.json()["features"]
+        }
+        self.assertEqual(scores, {12: {"synthesis": 1}, 13: {"synthesis": 0}})
+
+    def test_threshold_change_is_not_served_from_the_cache(self):
+        refresh_cell_day_counts()
+        with patch(THREATENED_CELLS, return_value=[12]):
+            first = self.get(scores="synthesis").json()
+            second = self.get(scores="synthesis", synthesis_threshold=100).json()
+        self.assertEqual(first["features"][0]["properties"]["score"], {"synthesis": 1})
+        self.assertEqual(second["features"][0]["properties"]["score"], {"synthesis": 0})
+
+    def test_rejects_threshold_out_of_range(self):
+        response = self.get(scores="synthesis", synthesis_threshold=150)
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("synthesis_threshold", response.json())
 
 
 class CazalisScoreHelperTests(SimpleTestCase):
@@ -773,27 +1125,38 @@ class CazalisWeightCalculationTests(AreasTestCase):
 
         def counter(point, days, daily_count, external_id=""):
             obj = CountingObject.objects.create(
-                type=types["counter"], source_id=sources["ecocompteur"],
-                geom=Point(*point, srid=4326), external_id=external_id,
+                type=types["counter"],
+                source_id=sources["ecocompteur"],
+                geom=Point(*point, srid=4326),
+                external_id=external_id,
             )
             for day in range(1, days + 1):
                 start = datetime(2021, 7, day, 12, tzinfo=timezone.utc)
                 CountingMeasure.objects.create(
-                    counting_object=obj, start_datetime=start,
-                    end_datetime=start + timedelta(hours=1), count=daily_count, unit=person,
+                    counting_object=obj,
+                    start_datetime=start,
+                    end_datetime=start + timedelta(hours=1),
+                    count=daily_count,
+                    unit=person,
                 )
 
         def segment(code, point, north, count):
             """East-west segment ``north`` degrees north of ``point``."""
             x, y = point
             obj = CountingObject.objects.create(
-                type=types["segment"], source_id=sources[code],
-                geom=LineString((x - 0.001, y + north), (x + 0.001, y + north), srid=4326),
+                type=types["segment"],
+                source_id=sources[code],
+                geom=LineString(
+                    (x - 0.001, y + north), (x + 0.001, y + north), srid=4326
+                ),
             )
             start = datetime(2025, 1, 1, tzinfo=timezone.utc)
             CountingMeasure.objects.create(
-                counting_object=obj, start_datetime=start,
-                end_datetime=start + timedelta(days=365), count=count, unit=person,
+                counting_object=obj,
+                start_datetime=start,
+                end_datetime=start + timedelta(days=365),
+                count=count,
+                unit=person,
             )
 
         counter(a, 11, 10)
@@ -816,7 +1179,9 @@ class CazalisWeightCalculationTests(AreasTestCase):
         )
         outdoorvision = DataSource.objects.get(code="outdoorvision").pk
         raw = _counts_near([station.pk], outdoorvision, 100, False)
-        weighted = _counts_near([station.pk], outdoorvision, 100, False, length_weighted=True)
+        weighted = _counts_near(
+            [station.pk], outdoorvision, 100, False, length_weighted=True
+        )
         self.assertEqual(raw, {station.pk: 1})  # the 222 m track is out of range
         # 0.002 degree of longitude at 44.3 N: 159 m
         self.assertAlmostEqual(weighted[station.pk], 0.1594, places=3)
@@ -843,33 +1208,49 @@ class AreasApiScoreCacheTests(AreasTestCase):
 
     def test_pages_of_a_request_share_the_scores(self):
         refresh_cell_day_counts()
-        params = {"scores": ["basic", "cazalis"], "source_weights": f"{self.s1}:2,{self.s2}:3", "limit": 1}
+        params = {
+            "scores": ["basic", "cazalis"],
+            "source_weights": f"{self.s1}:2,{self.s2}:3",
+            "limit": 1,
+        }
         with patch.object(
-            BasicFrequentationScore, "compute_from", wraps=BasicFrequentationScore.compute_from
+            BasicFrequentationScore,
+            "compute_from",
+            wraps=BasicFrequentationScore.compute_from,
         ) as basic:
             first = self.client.get(self.url, params).json()
             second = self.client.get(self.url, {**params, "offset": 1}).json()
             self.assertEqual(basic.call_count, 1)
         self.assertEqual(len(first["features"]) + len(second["features"]), 2)
         # Other weights: other scores.
-        other = self.client.get(self.url, {**params, "source_weights": f"{self.s1}:1,{self.s2}:0"})
+        other = self.client.get(
+            self.url, {**params, "source_weights": f"{self.s1}:1,{self.s2}:0"}
+        )
         self.assertEqual(other.status_code, 200)
 
     def test_same_request_is_served_from_the_cache(self):
         refresh_cell_day_counts()
-        params = {"scores": ["basic", "cazalis"], "source_weights": f"{self.s1}:2,{self.s2}:3", "limit": 1}
+        params = {
+            "scores": ["basic", "cazalis"],
+            "source_weights": f"{self.s1}:2,{self.s2}:3",
+            "limit": 1,
+        }
         first = self.client.get(self.url, params).json()
         with self.assertNumQueries(1):  # the data version
             second = self.client.get(self.url, params).json()
         self.assertEqual(second, first)
         # A new measure: stale counts, computed again.
         CountingMeasure.objects.create(
-            counting_object=self.moving, start_datetime=datetime(2025, 1, 1, tzinfo=timezone.utc),
-            end_datetime=datetime(2025, 1, 2, tzinfo=timezone.utc), count=1,
+            counting_object=self.moving,
+            start_datetime=datetime(2025, 1, 1, tzinfo=timezone.utc),
+            end_datetime=datetime(2025, 1, 2, tzinfo=timezone.utc),
+            count=1,
             unit=Unit.objects.get(code="person"),
         )
         with patch.object(
-            BasicFrequentationScore, "compute_from", wraps=BasicFrequentationScore.compute_from
+            BasicFrequentationScore,
+            "compute_from",
+            wraps=BasicFrequentationScore.compute_from,
         ) as basic:
             self.client.get(self.url, params)
             self.assertEqual(basic.call_count, 1)
@@ -877,7 +1258,9 @@ class AreasApiScoreCacheTests(AreasTestCase):
     def test_stale_counts_are_not_cached(self):
         params = {"scores": "basic", "limit": 1}
         with patch.object(
-            BasicFrequentationScore, "compute_from", wraps=BasicFrequentationScore.compute_from
+            BasicFrequentationScore,
+            "compute_from",
+            wraps=BasicFrequentationScore.compute_from,
         ) as basic:
             self.client.get(self.url, params)
             self.client.get(self.url, params)
@@ -893,48 +1276,93 @@ class AreasApiTests(AreasTestCase):
         for source in properties["sources"]:
             self.assertIn("length_km", source)
             self.assertIn("person_km", source)
-            sources.append({k: v for k, v in source.items() if k not in ("length_km", "person_km")})
+            sources.append(
+                {k: v for k, v in source.items() if k not in ("length_km", "person_km")}
+            )
         return {**properties, "sources": sources}
 
     def test_returns_geojson_with_counts_and_scores(self):
-        response = self.client.get(self.url, {
-            "date_from": "2023-01-01", "date_to": "2023-01-31",
-            "scores": ["basic", "cazalis"], "source_weights": self.weights,
-        })
+        response = self.client.get(
+            self.url,
+            {
+                "date_from": "2023-01-01",
+                "date_to": "2023-01-31",
+                "scores": ["basic", "cazalis"],
+                "source_weights": self.weights,
+            },
+        )
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertEqual(data["type"], "FeatureCollection")
         self.assertEqual(data["count"], 2)
         features = {f["id"]: f for f in data["features"]}
         self.assertEqual(features[12]["geometry"]["type"], "MultiPolygon")
-        self.assertEqual(self.without_km(features[12]["properties"]), {
-            "counts": 15, "count_segment": 9, "count_presence": 6,
-            "sources": [
-                {"id": self.s2, "code": "ecocompteur", "label": "Eco-Compteur", "absolute": True,
-                 "count": 5,
-                 "first_data": JAN, "latest_data": JAN},
-                {"id": self.s1, "code": "outdoorvision", "label": "OutdoorVision", "absolute": False,
-                 "count": 10,
-                 "first_data": JAN, "latest_data": JAN},
-            ],
-            "score": {"basic": 15, "cazalis": {
-                "score": 100.0, "source_weights": {str(self.s1): 2, str(self.s2): 3},
-            }},
-        })
-        self.assertEqual(self.without_km(features[13]["properties"]), {
-            "counts": 4, "count_segment": 0, "count_presence": 4,
-            "sources": [
-                {"id": self.s1, "code": "outdoorvision", "label": "OutdoorVision", "absolute": False,
-                 "count": 4,
-                 "first_data": JAN, "latest_data": JAN},
-            ],
-            "score": {"basic": 4, "cazalis": {
-                "score": 0.0, "source_weights": {str(self.s1): 2, str(self.s2): 3},
-            }},
-        })
+        self.assertEqual(
+            self.without_km(features[12]["properties"]),
+            {
+                "counts": 15,
+                "count_segment": 9,
+                "count_presence": 6,
+                "sources": [
+                    {
+                        "id": self.s2,
+                        "code": "ecocompteur",
+                        "label": "Eco-Compteur",
+                        "absolute": True,
+                        "count": 5,
+                        "first_data": JAN,
+                        "latest_data": JAN,
+                    },
+                    {
+                        "id": self.s1,
+                        "code": "outdoorvision",
+                        "label": "OutdoorVision",
+                        "absolute": False,
+                        "count": 10,
+                        "first_data": JAN,
+                        "latest_data": JAN,
+                    },
+                ],
+                "score": {
+                    "basic": 15,
+                    "cazalis": {
+                        "score": 100.0,
+                        "source_weights": {str(self.s1): 2, str(self.s2): 3},
+                    },
+                },
+            },
+        )
+        self.assertEqual(
+            self.without_km(features[13]["properties"]),
+            {
+                "counts": 4,
+                "count_segment": 0,
+                "count_presence": 4,
+                "sources": [
+                    {
+                        "id": self.s1,
+                        "code": "outdoorvision",
+                        "label": "OutdoorVision",
+                        "absolute": False,
+                        "count": 4,
+                        "first_data": JAN,
+                        "latest_data": JAN,
+                    },
+                ],
+                "score": {
+                    "basic": 4,
+                    "cazalis": {
+                        "score": 0.0,
+                        "source_weights": {str(self.s1): 2, str(self.s2): 3},
+                    },
+                },
+            },
+        )
 
     def test_filters_on_source_and_bbox(self):
-        response = self.client.get(self.url, {"source": [self.s2], "bbox": "6.9,43.9,7.6,44.6"})
+        response = self.client.get(
+            self.url, {"source": [self.s2], "bbox": "6.9,43.9,7.6,44.6"}
+        )
         features = response.json()["features"]
         self.assertEqual([f["id"] for f in features], [13])
         self.assertEqual(features[0]["properties"]["counts"], 3)
@@ -948,33 +1376,52 @@ class AreasApiTests(AreasTestCase):
         # Estimated: every cell carries the weights, correlations and counters.
         for feature in response.json()["features"]:
             cazalis = feature["properties"]["score"]["cazalis"]
-            self.assertEqual(set(cazalis), {
-                "score", "source_weights", "source_correlations", "reference_counters",
-            })
-            self.assertEqual(cazalis["source_weights"], response.json()["source_weights"])
+            self.assertEqual(
+                set(cazalis),
+                {
+                    "score",
+                    "source_weights",
+                    "source_correlations",
+                    "reference_counters",
+                },
+            )
+            self.assertEqual(
+                cazalis["source_weights"], response.json()["source_weights"]
+            )
 
-        response = self.client.get(self.url, {"scores": "cazalis", "source_weights": f"{self.s1}:2"})
+        response = self.client.get(
+            self.url, {"scores": "cazalis", "source_weights": f"{self.s1}:2"}
+        )
         self.assertEqual(response.status_code, 400)
 
     def test_rejects_non_finite_source_weights(self):
         for weight in ("nan", "inf", "-inf"):
             weights = f"{self.s1}:{weight},{self.s2}:1"
-            response = self.client.get(self.url, {"scores": "cazalis", "source_weights": weights})
+            response = self.client.get(
+                self.url, {"scores": "cazalis", "source_weights": weights}
+            )
             self.assertEqual(response.status_code, 400, weights)
             self.assertIn("source_weights", response.json())
 
     def test_spatial_filters_of_ref_geo(self):
         def ids(**params):
-            return [f["id"] for f in self.client.get(self.url, params).json()["features"]]
+            return [
+                f["id"] for f in self.client.get(self.url, params).json()["features"]
+            ]
 
         self.assertEqual(ids(in_bbox="6.9,43.9,7.6,44.6"), [13])
         self.assertEqual(ids(point="6.2,44.2"), [12])
-        self.assertEqual(ids(intersects="POLYGON((6.1 44.1,7.2 44.1,7.2 44.2,6.1 44.2,6.1 44.1))"), [12, 13])
+        self.assertEqual(
+            ids(intersects="POLYGON((6.1 44.1,7.2 44.1,7.2 44.2,6.1 44.2,6.1 44.1))"),
+            [12, 13],
+        )
         self.assertEqual(ids(area_code="B"), [13])
 
     def test_filters_on_intersecting_area(self):
         commune = BibAreasType.objects.create(type_name="Communes", type_code="COM")
-        LArea.objects.create(id_area=50, type=commune, area_code="X", **cell(7.4, 44.4, 8.0, 45.0))
+        LArea.objects.create(
+            id_area=50, type=commune, area_code="X", **cell(7.4, 44.4, 8.0, 45.0)
+        )
 
         response = self.client.get(self.url, {"area_id": 50})
         self.assertEqual([f["id"] for f in response.json()["features"]], [13])
@@ -983,10 +1430,14 @@ class AreasApiTests(AreasTestCase):
         self.assertIn("area_id", response.json())
 
     def test_rejects_invalid_parameters(self):
-        response = self.client.get(self.url, {"date_from": "2023-13-01", "scores": "foo"})
+        response = self.client.get(
+            self.url, {"date_from": "2023-13-01", "scores": "foo"}
+        )
         self.assertEqual(response.status_code, 400)
         self.assertEqual(set(response.json()), {"date_from", "scores"})
-        response = self.client.get(self.url, {"date_from": "2023-02-01", "date_to": "2023-01-31"})
+        response = self.client.get(
+            self.url, {"date_from": "2023-02-01", "date_to": "2023-01-31"}
+        )
         self.assertEqual(response.status_code, 400)
         self.assertIn("date_to", response.json())
         self.assertEqual(self.client.get(self.url, {"bbox": "x"}).status_code, 400)
@@ -998,15 +1449,24 @@ class AreasApiTests(AreasTestCase):
 
     def test_filters_on_months_of_every_year(self):
         def ids(months):
-            return [f["id"] for f in self.client.get(self.url, {"months": months}).json()["features"]]
+            return [
+                f["id"]
+                for f in self.client.get(self.url, {"months": months}).json()[
+                    "features"
+                ]
+            ]
 
         self.assertEqual(ids([2]), [12])  # February 2023: cell 12 only
-        self.assertEqual(ids([12, 1, 2]), [12, 13])  # the winters: January 2023 and 2024
+        self.assertEqual(
+            ids([12, 1, 2]), [12, 13]
+        )  # the winters: January 2023 and 2024
         self.assertEqual(ids([6, 7, 8]), [])
         self.assertEqual(self.client.get(self.url, {"months": [13]}).status_code, 400)
 
     def test_paginates_and_scores_the_page(self):
-        response = self.client.get(self.url, {"limit": 1, "offset": 1, "scores": "basic"})
+        response = self.client.get(
+            self.url, {"limit": 1, "offset": 1, "scores": "basic"}
+        )
         data = response.json()
         self.assertEqual(data["type"], "FeatureCollection")
         self.assertEqual(data["count"], 2)
@@ -1016,23 +1476,39 @@ class AreasApiTests(AreasTestCase):
         self.assertEqual(data["features"][0]["properties"]["score"], {"basic": 7})
 
     def test_retrieve_one_cell(self):
-        response = self.client.get(f"{self.url}/12", {"source": self.s1, "scores": "basic"})
+        response = self.client.get(
+            f"{self.url}/12", {"source": self.s1, "scores": "basic"}
+        )
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertEqual(data["type"], "Feature")
         self.assertEqual(data["id"], 12)
-        self.assertEqual(self.without_km(data["properties"]), {
-            "counts": 17, "count_segment": 4, "count_presence": 13,
-            "sources": [
-                {"id": self.s1, "code": "outdoorvision", "label": "OutdoorVision", "absolute": False,
-                 "count": 17,
-                 "first_data": JAN, "latest_data": "2023-02-10T00:00:00Z"},
-            ],
-            "score": {"basic": 17},
-        })
+        self.assertEqual(
+            self.without_km(data["properties"]),
+            {
+                "counts": 17,
+                "count_segment": 4,
+                "count_presence": 13,
+                "sources": [
+                    {
+                        "id": self.s1,
+                        "code": "outdoorvision",
+                        "label": "OutdoorVision",
+                        "absolute": False,
+                        "count": 17,
+                        "first_data": JAN,
+                        "latest_data": "2023-02-10T00:00:00Z",
+                    },
+                ],
+                "score": {"basic": 17},
+            },
+        )
 
     def test_retrieve_cell_without_matching_measures(self):
-        self.assertEqual(self.client.get(f"{self.url}/12", {"date_from": "2024-01-01"}).status_code, 404)
+        self.assertEqual(
+            self.client.get(f"{self.url}/12", {"date_from": "2024-01-01"}).status_code,
+            404,
+        )
 
 
 class PrecomputedCountsTests(AreasTestCase):
@@ -1041,8 +1517,11 @@ class PrecomputedCountsTests(AreasTestCase):
     def scores(self):
         kwargs = {"source_weights": {self.s1: 2, self.s2: 3}}
         periods = [
-            {}, {"date_from": date(2023, 1, 10), "date_to": date(2023, 1, 10)},
-            {"date_from": date(2023, 2, 1)}, {"months": [2]}, {"months": [12, 1]},
+            {},
+            {"date_from": date(2023, 1, 10), "date_to": date(2023, 1, 10)},
+            {"date_from": date(2023, 2, 1)},
+            {"months": [2]},
+            {"months": [12, 1]},
         ]
         return [
             (
@@ -1058,7 +1537,9 @@ class PrecomputedCountsTests(AreasTestCase):
         self.assertEqual(scored_rows().model, CountingMeasure)
 
     def test_same_results_as_the_measures(self):
-        self.moving.geom = LineString((6.4, 44.2), (7.2, 44.2), srid=4326)  # crosses 12 and 13
+        self.moving.geom = LineString(
+            (6.4, 44.2), (7.2, 44.2), srid=4326
+        )  # crosses 12 and 13
         self.moving.save()
         live = self.scores()
         self.assertGreater(refresh_cell_day_counts(), 0)
@@ -1069,15 +1550,19 @@ class PrecomputedCountsTests(AreasTestCase):
     def test_new_measures_make_the_counts_stale(self):
         refresh_cell_day_counts()
         CountingMeasure.objects.create(
-            counting_object=self.moving, start_datetime=datetime(2025, 1, 1, tzinfo=timezone.utc),
-            end_datetime=datetime(2025, 1, 2, tzinfo=timezone.utc), count=1,
+            counting_object=self.moving,
+            start_datetime=datetime(2025, 1, 1, tzinfo=timezone.utc),
+            end_datetime=datetime(2025, 1, 2, tzinfo=timezone.utc),
+            count=1,
             unit=Unit.objects.get(code="person"),
         )
         self.assertFalse(counts_are_fresh())
 
     def test_any_write_to_measures_or_links_makes_the_counts_stale(self):
         for change in (
-            lambda: CountingMeasure.objects.filter(pk=CountingMeasure.objects.first().pk).delete(),
+            lambda: CountingMeasure.objects.filter(
+                pk=CountingMeasure.objects.first().pk
+            ).delete(),
             lambda: CountingMeasure.objects.update(count=1),
             lambda: CountingObjectArea.objects.all().delete(),
         ):
@@ -1098,7 +1583,9 @@ class CountingObjectAreasTests(AreasTestCase):
 
     def test_trigger_fills_and_follows_the_geometry(self):
         self.assertEqual(self.areas(self.moving), {13})
-        self.moving.geom = LineString((6.4, 44.2), (7.2, 44.2), srid=4326)  # crosses 12 and 13
+        self.moving.geom = LineString(
+            (6.4, 44.2), (7.2, 44.2), srid=4326
+        )  # crosses 12 and 13
         self.moving.save()
         self.assertEqual(self.areas(self.moving), {12, 13})
         self.moving.geom = Point(8.0, 44.2, srid=4326)  # outside the grid
@@ -1109,31 +1596,51 @@ class CountingObjectAreasTests(AreasTestCase):
         self.moving.geom = LineString((6.4, 44.2), (7.2, 44.2), srid=4326)
         self.moving.save()
         self.assertEqual(
-            BasicFrequentationScore.compute(date_from=date(2024, 1, 1), sources=[self.s2]), {12: 3, 13: 3}
+            BasicFrequentationScore.compute(
+                date_from=date(2024, 1, 1), sources=[self.s2]
+            ),
+            {12: 3, 13: 3},
         )
 
     def test_stores_the_length_of_the_segment_inside_each_cell(self):
-        self.moving.geom = LineString((6.4, 44.2), (7.2, 44.2), srid=4326)  # 0.1 deg in 12, 0.2 in 13
+        self.moving.geom = LineString(
+            (6.4, 44.2), (7.2, 44.2), srid=4326
+        )  # 0.1 deg in 12, 0.2 in 13
         self.moving.save()
         lengths = dict(self.moving.areas.values_list("area_id", "length_m"))
         self.assertAlmostEqual(lengths[13] / lengths[12], 2, places=2)
-        self.assertAlmostEqual(lengths[12], 8_000, delta=100)  # 0.1 deg of longitude at 44.2 N
-        self.assertEqual(set(self.moving.areas.values_list("area_type__type_code", flat=True)), {"M1"})
+        self.assertAlmostEqual(
+            lengths[12], 8_000, delta=100
+        )  # 0.1 deg of longitude at 44.2 N
+        self.assertEqual(
+            set(self.moving.areas.values_list("area_type__type_code", flat=True)),
+            {"M1"},
+        )
         # A point has no length: it weighs 1 in the scores.
-        counter = CountingObject.objects.filter(type__code="counter", areas__area_id=13).get()
+        counter = CountingObject.objects.filter(
+            type__code="counter", areas__area_id=13
+        ).get()
         self.assertIsNone(counter.areas.get().length_m)
 
     def test_lengths_command_fills_only_the_missing_lengths_of_lines(self):
         self.moving.geom = LineString((6.4, 44.2), (7.2, 44.2), srid=4326)
         self.moving.save()
         expected = {
-            (link.counting_object_id, link.area_id): link.length_m for link in CountingObjectArea.objects.all()
+            (link.counting_object_id, link.area_id): link.length_m
+            for link in CountingObjectArea.objects.all()
         }
         CountingObjectArea.objects.update(length_m=None)
         out = StringIO()
-        call_command("sync_counting_object_areas", "--lengths", "--shard", "0/2", stdout=out)
-        call_command("sync_counting_object_areas", "--lengths", "--shard", "1/2", stdout=out)
-        got = {(l.counting_object_id, l.area_id): l.length_m for l in CountingObjectArea.objects.all()}
+        call_command(
+            "sync_counting_object_areas", "--lengths", "--shard", "0/2", stdout=out
+        )
+        call_command(
+            "sync_counting_object_areas", "--lengths", "--shard", "1/2", stdout=out
+        )
+        got = {
+            (l.counting_object_id, l.area_id): l.length_m
+            for l in CountingObjectArea.objects.all()
+        }
         self.assertEqual(got.keys(), expected.keys())
         for key, length in expected.items():
             if length is None:  # points stay without length
@@ -1142,17 +1649,25 @@ class CountingObjectAreasTests(AreasTestCase):
                 self.assertAlmostEqual(got[key], length, places=3)
 
     def test_counts_give_the_km_of_line_objects_in_each_cell(self):
-        self.moving.geom = LineString((6.4, 44.2), (7.2, 44.2), srid=4326)  # 0.1 deg in 12, 0.2 in 13
+        self.moving.geom = LineString(
+            (6.4, 44.2), (7.2, 44.2), srid=4326
+        )  # 0.1 deg in 12, 0.2 in 13
         self.moving.save()
         counts = counts_by_area(scored_rows(date_from=date(2024, 1, 1)))
         (source,) = counts[13]["sources"]
         self.assertAlmostEqual(source["length_km"], 16.0, delta=0.3)
-        self.assertAlmostEqual(source["person_km"], 3 * source["length_km"], places=6)  # count 3
+        self.assertAlmostEqual(
+            source["person_km"], 3 * source["length_km"], places=6
+        )  # count 3
         # Cell 12 has two s1 objects (a line and a point counter) and one s2 line.
         by_code = {s["code"]: s for s in counts_by_area(scored_rows())[12]["sources"]}
         self.assertGreater(by_code["ecocompteur"]["length_km"], 0)
         # A source with points only: nothing to measure.
-        self.assertIsNone(counts_by_area(scored_rows(sources=[self.s1]))[13]["sources"][0]["length_km"])
+        self.assertIsNone(
+            counts_by_area(scored_rows(sources=[self.s1]))[13]["sources"][0][
+                "length_km"
+            ]
+        )
 
     def test_cazalis_weights_segments_by_the_length_inside_each_cell(self):
         self.moving.geom = LineString((6.4, 44.2), (7.2, 44.2), srid=4326)
@@ -1169,15 +1684,24 @@ class CountingObjectAreasTests(AreasTestCase):
         self.assertEqual(CountingObjectArea.objects.count(), 5)
 
     def test_an_object_moved_leaves_the_cells_of_the_others(self):
-        others = set(CountingObjectArea.objects.exclude(counting_object=self.moving).values_list("counting_object", "area"))
+        others = set(
+            CountingObjectArea.objects.exclude(counting_object=self.moving).values_list(
+                "counting_object", "area"
+            )
+        )
         self.moving.geom = Point(8.0, 44.2, srid=4326)
         self.moving.save()
-        self.assertEqual(set(CountingObjectArea.objects.values_list("counting_object", "area")), others)
+        self.assertEqual(
+            set(CountingObjectArea.objects.values_list("counting_object", "area")),
+            others,
+        )
 
     def test_deleting_an_object_deletes_its_cells(self):
         pk = self.moving.pk  # delete() sets self.moving.pk to None
         self.moving.delete()
-        self.assertFalse(CountingObjectArea.objects.filter(counting_object_id=pk).exists())
+        self.assertFalse(
+            CountingObjectArea.objects.filter(counting_object_id=pk).exists()
+        )
 
 
 class SyncCommandWithoutRefGeoTests(TestCase):
@@ -1248,7 +1772,11 @@ def tile_of(lon, lat, z):
     """Web mercator tile ``(z, x, y)`` holding the point."""
     n = 2**z
     lat = math.radians(lat)
-    return z, int((lon + 180) / 360 * n), int((1 - math.asinh(math.tan(lat)) / math.pi) / 2 * n)
+    return (
+        z,
+        int((lon + 180) / 360 * n),
+        int((1 - math.asinh(math.tan(lat)) / math.pi) / 2 * n),
+    )
 
 
 class CountingObjectTileTests(AreasTestCase):
@@ -1283,5 +1811,7 @@ class CountingObjectTileTests(AreasTestCase):
         CountingObject.objects.all().delete()
         self.assertEqual(self.get(*tile).content, content)
 
-        DataImport.objects.create(source_id=self.s1, format="outdoorvision", status=DataImport.Status.DONE)
+        DataImport.objects.create(
+            source_id=self.s1, format="outdoorvision", status=DataImport.Status.DONE
+        )
         self.assertEqual(len(self.get(*tile).content), 0)

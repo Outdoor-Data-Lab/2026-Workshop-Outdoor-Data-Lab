@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-import { getTrafficAreasForMap } from '@/api/traffic'
+import { getSynthesisAreasForMap, getTrafficAreasForMap } from '@/api/traffic'
 
 function cell(id: number, cazalis: number | { score: number; source_weights: object }) {
   return {
@@ -50,5 +50,37 @@ describe('getTrafficAreasForMap', () => {
     await getTrafficAreasForMap({ months: [12, 1, 2] })
 
     expect(fetch.mock.calls[0]![0]).toContain('months=12&months=1&months=2')
+  })
+})
+
+describe('getSynthesisAreasForMap', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('asks for the synthesis score and keeps only the cells at 1', async () => {
+    const fetch = vi.fn(
+      async (_url: string) =>
+        new Response(
+          JSON.stringify({
+            type: 'FeatureCollection',
+            features: [1, 0, 1].map((synthesis, i) => ({
+              type: 'Feature',
+              id: i + 1,
+              geometry: { type: 'MultiPolygon', coordinates: [] },
+              properties: { counts: 1, count_segment: 0, count_presence: 1, score: { synthesis } },
+            })),
+            next: null,
+          }),
+        ),
+    )
+    vi.stubGlobal('fetch', fetch)
+    const objects = await getSynthesisAreasForMap({ areaId: 650252 })
+
+    expect(fetch.mock.calls[0]![0]).toBe(
+      '/api/traffic/areas?scores=synthesis&area_id=650252&limit=1000',
+    )
+    expect(objects.map((o) => [o.id, o.layer, o.value])).toEqual([
+      [1, 'traffic/synthesis', undefined],
+      [3, 'traffic/synthesis', undefined],
+    ])
   })
 })
