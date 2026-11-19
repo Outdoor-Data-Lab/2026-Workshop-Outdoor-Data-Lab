@@ -8,6 +8,7 @@ export default {
     biodiversity: 'Biodiversity',
   },
   layerGroups: {
+    grid: 'Summary per grid cell',
     traffic: 'Traffic',
     biodiversity: 'Biodiversity',
     outdoor: 'Outdoor',
@@ -21,12 +22,13 @@ export default {
   layers: {
     title: 'Layers',
     failed: '(failed)',
-    trafficAreas: 'Traffic per grid cell',
+    trafficAreas: 'Traffic',
     fromZoom: 'Visible from zoom {zoom}: zoom in on the map.',
     cellName: 'Cell',
     counterName: 'Counter {id}',
     outdoorOffers: 'Outdoor offers',
-    biodivAreas: 'Threatened taxa per grid cell',
+    biodivAreas: 'Threatened taxa',
+    none: 'None',
     loadError: 'Could not load {label}',
   },
   season: {

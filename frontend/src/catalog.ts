@@ -61,7 +61,9 @@ export async function trafficLayers(): Promise<LayerDefinition[]> {
     {
       id: TRAFFIC_AREA_LAYER,
       label: i18n.global.t('layers.trafficAreas'),
-      group: 'traffic',
+      group: 'grid',
+      exclusive: true,
+      visibleByDefault: true,
       itemLabel: cell,
       load: ({ areaId, months }) => getTrafficAreasForMap({ areaId, months }),
     },
@@ -74,7 +76,8 @@ export async function biodiversityLayers(): Promise<LayerDefinition[]> {
     {
       id: BIODIV_AREA_LAYER,
       label: i18n.global.t('layers.biodivAreas'),
-      group: 'biodiversity',
+      group: 'grid',
+      exclusive: true,
       itemLabel: await cellItemLabel(),
       load: () => getBiodivAreasForMap(),
     },
