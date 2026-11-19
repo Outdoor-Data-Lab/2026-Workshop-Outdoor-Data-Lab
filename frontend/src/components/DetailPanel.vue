@@ -1,10 +1,16 @@
 <script setup lang="ts">
-/** Détail de l'objet sélectionné sur la carte. */
+/** Détail de l'objet sélectionné sur la carte : titré par son nom, sous le nom de sa couche. */
+import { computed } from 'vue'
+
 import { TRAFFIC_AREA_LAYER } from '@/api/traffic'
 import CellDetail from '@/components/CellDetail.vue'
 import { useLayersStore } from '@/stores/layers'
 
 const layers = useLayersStore()
+
+const layerLabel = computed(
+  () => layers.definitions.find((d) => d.id === layers.selected?.layer)?.label,
+)
 
 /** Valeur en texte : sans balises HTML, listes séparées par des virgules. */
 function text(value: unknown): string {
@@ -17,15 +23,16 @@ function text(value: unknown): string {
 
 <template>
   <section class="detail">
-    <header>
-      <h2>{{ $t('detail.title') }}</h2>
-      <button type="button" :aria-label="$t('detail.close')" @click="layers.select(null)">×</button>
-    </header>
     <template v-if="layers.selected">
-      <p v-if="layers.selected.layer === TRAFFIC_AREA_LAYER">
-        <strong>{{ $t('layers.cellName') }}</strong> {{ layers.selected.id }}
-      </p>
-      <p v-else>{{ layers.selected.label }}</p>
+      <header>
+        <div>
+          <p class="layer">{{ layerLabel }}</p>
+          <h2>{{ layers.selected.label }}</h2>
+        </div>
+        <button type="button" :aria-label="$t('detail.close')" @click="layers.select(null)">
+          ×
+        </button>
+      </header>
       <CellDetail
         v-if="layers.selected.layer === TRAFFIC_AREA_LAYER"
         :key="layers.selected.key"
@@ -44,9 +51,15 @@ function text(value: unknown): string {
 <style scoped>
 header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
+  gap: var(--space);
   margin: 0 0 var(--space);
+}
+
+.layer {
+  color: var(--color-muted);
+  font-size: 0.85rem;
 }
 
 h2 {

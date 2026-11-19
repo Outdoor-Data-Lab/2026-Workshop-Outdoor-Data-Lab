@@ -8,7 +8,8 @@ const layer: ExternalLayer = {
   label: 'Habitats',
   url: 'https://example.org/habitats?page=1',
   description: 'Données : Parc national des Écrins',
-  properties: ['LIB_CB'],
+  properties: ['LIB_CB', 'CODE_CB'],
+  label_property: 'LIB_CB',
   color: '#3388ff',
   color_property: 'STATUT',
   colors: { PR: '#c0392b' },
@@ -18,7 +19,7 @@ function habitat(statut: string) {
   return {
     type: 'Feature',
     geometry: { type: 'Point', coordinates: [6, 45] },
-    properties: { STATUT: statut, LIB_CB: 'Eboulis' },
+    properties: { STATUT: statut, LIB_CB: 'Eboulis', CODE_CB: '61.2' },
   }
 }
 
@@ -45,6 +46,8 @@ describe('externalLayers', () => {
 
     expect(definition!.description).toBe('Données : Parc national des Écrins')
     expect(objects.map((o) => o.color)).toEqual(['#c0392b', '#3388ff'])
-    expect(objects[0]!.attributes).toEqual({ LIB_CB: 'Eboulis' })
+    // L'attribut du nom est en titre, pas dans les attributs.
+    expect(objects[0]!.attributes).toEqual({ CODE_CB: '61.2' })
+    expect(objects[0]!.label).toBe('Eboulis')
   })
 })

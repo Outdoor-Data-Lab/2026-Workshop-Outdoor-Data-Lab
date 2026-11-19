@@ -24,6 +24,7 @@ export default {
     trafficAreas: 'Fréquentation par maille',
     fromZoom: 'Visible à partir du zoom {zoom} : zoomez sur la carte.',
     cellName: 'Maille',
+    counterName: 'Compteur {id}',
     outdoorOffers: 'Offres outdoor',
     biodivAreas: 'Taxons protégés ou menacés par maille',
     biodivArea: 'Maille {name} : {count} taxons protégés ou menacés',
@@ -56,7 +57,6 @@ export default {
     practice: 'Pratique',
   },
   detail: {
-    title: 'Détail',
     close: 'Fermer',
   },
   cell: {

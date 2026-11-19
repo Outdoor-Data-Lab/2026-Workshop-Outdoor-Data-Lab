@@ -147,6 +147,7 @@ class ExternalLayerApiTests(TestCase):
             url="https://example.org/zones.geojson",
             description="Données : Biodiv'Sports",
             properties=["name"],
+            label_property="name",
             color_property="species_id",
             colors={"7": "#c0392b"},
         )
@@ -154,8 +155,8 @@ class ExternalLayerApiTests(TestCase):
         self.assertEqual(response.status_code, 200)
         layer = response.json()["results"][0]
         self.assertEqual(
-            (layer["description"], layer["properties"], layer["colors"]),
-            ("Données : Biodiv'Sports", ["name"], {"7": "#c0392b"}),
+            (layer["description"], layer["properties"], layer["label_property"], layer["colors"]),
+            ("Données : Biodiv'Sports", ["name"], "name", {"7": "#c0392b"}),
         )
 
 

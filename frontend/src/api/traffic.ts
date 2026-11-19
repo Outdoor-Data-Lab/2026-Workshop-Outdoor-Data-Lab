@@ -181,7 +181,8 @@ export function countingObjectToMapObject(feature: CountingObjectFeature): MapOb
     id: feature.id,
     domain: 'traffic',
     layer: COUNTING_OBJECT_LAYER,
-    label: feature.properties.external_id || `Compteur ${feature.id}`,
+    label:
+      feature.properties.external_id || i18n.global.t('layers.counterName', { id: feature.id }),
     geometry: feature.geometry,
   }
 }

@@ -36,7 +36,7 @@ class ExternalLayerSerializer(DynamicFieldsMixin, serializers.ModelSerializer):
         model = ExternalLayer
         fields = [
             "id", "label", "url", "description",
-            "properties", "color", "color_property", "colors",
+            "properties", "label_property", "color", "color_property", "colors",
         ]
         read_only_fields = fields  # all always present in the schema
 

@@ -104,15 +104,20 @@ export async function externalLayers(): Promise<LayerDefinition[]> {
             id: feature.id ?? i,
             domain: 'external',
             layer: id,
-            label: layer.label,
+            // Le nom de l'objet si l'admin a choisi l'attribut qui le porte, sinon celui de la couche.
+            label:
+              (layer.label_property && String(properties[layer.label_property] ?? '')) ||
+              layer.label,
             geometry: feature.geometry,
             color:
               (layer.color_property && layer.colors[String(properties[layer.color_property])]) ||
               layer.color,
-            // Sans attribut choisi : tous.
-            attributes: layer.properties.length
-              ? Object.fromEntries(layer.properties.map((name) => [name, properties[name]]))
-              : properties,
+            // Sans attribut choisi : tous ; sauf celui du nom, déjà en titre.
+            attributes: Object.fromEntries(
+              (layer.properties.length ? layer.properties : Object.keys(properties))
+                .filter((name) => name !== layer.label_property)
+                .map((name) => [name, properties[name]]),
+            ),
           }
         }),
     }

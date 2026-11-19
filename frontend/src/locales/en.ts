@@ -24,6 +24,7 @@ export default {
     trafficAreas: 'Traffic per grid cell',
     fromZoom: 'Visible from zoom {zoom}: zoom in on the map.',
     cellName: 'Cell',
+    counterName: 'Counter {id}',
     outdoorOffers: 'Outdoor offers',
     biodivAreas: 'Protected or threatened taxa per grid cell',
     biodivArea: 'Cell {name}: {count} protected or threatened taxa',
@@ -57,7 +58,6 @@ export default {
     practice: 'Practice',
   },
   detail: {
-    title: 'Detail',
     close: 'Close',
   },
   cell: {

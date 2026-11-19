@@ -175,6 +175,11 @@ class ExternalLayer(models.Model):
         blank=True,
         help_text="Attributs affichés au clic, séparés par des virgules ; vide : tous.",
     )
+    label_property = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Attribute holding the name of each feature, shown as the title of its detail (optional).",
+    )
     color = models.CharField(max_length=7, default="#3388ff")
     color_property = models.CharField(
         max_length=100, blank=True, help_text="Attribut dont la valeur choisit la couleur (facultatif)."
