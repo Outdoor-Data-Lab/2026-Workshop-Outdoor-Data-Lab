@@ -3,11 +3,18 @@
 The Outdoorvision tracks are too many for GeoJSON (40 million points): the map
 asks only the visible tiles, from zoom ``MIN_ZOOM``. Each tile simplifies
 ``geom_tiles`` (already simplified to 10 m) to a few pixels of its zoom.
+
+Tiles are cached (cache "tiles") until the data changes: the key holds
+``data_version()``, which changes when an import ends or is deleted.
 """
 
+from django.conf import settings
+from django.core.cache.backends.filebased import FileBasedCache
 from django.db import connection
+from django.db.models import Count, Max
 from django.http import HttpResponse, HttpResponseBadRequest
 
+from commons.models import DataImport
 from ref_geo.models import LArea
 
 from ..models import CountingObject, CountingObjectType
@@ -34,17 +41,45 @@ SELECT ST_AsMVT(t, %(layer)s, %(extent)s, 'geom', 'id') FROM (
 """
 
 
+# On disk: shared by the gunicorn workers, and kept out of Redis, which also queues
+# the imports (a tile of a dense area weighs up to 2 MB). Not in settings.CACHES,
+# which other features may redefine.
+cache = FileBasedCache(
+    settings.TILES_CACHE_DIR, {"TIMEOUT": 24 * 3600, "OPTIONS": {"MAX_ENTRIES": 3000}}
+)
+
+
+def data_version():
+    """Changes when an import ends (done) or is deleted. Not when an object is
+    edited in the admin: its tiles are then refreshed within a day (TIMEOUT)."""
+    done = DataImport.objects.filter(status=DataImport.Status.DONE)
+    version = done.aggregate(count=Count("id"), last=Max("id"))
+    return f"{version['count']}-{version['last']}"
+
+
 def counting_object_tile(request, z, x, y):
     """Optional filters, as on counting-objects: ``type_code``, ``area_id``
     (objects intersecting this ref_geo area)."""
     if z < MIN_ZOOM:
         return HttpResponse(status=204)
+    type_code = request.GET.get("type_code")
     area_id = request.GET.get("area_id")
     if area_id is not None and not area_id.isdigit():
         return HttpResponseBadRequest("area_id must be an integer.")
+    key = f"{data_version()}:{z}/{x}/{y}:{type_code}:{area_id}"
+    tile = cache.get(key)
+    if tile is None:
+        tile = render_tile(z, x, y, type_code, int(area_id) if area_id is not None else None)
+        cache.set(key, tile)
+    response = HttpResponse(tile, content_type="application/vnd.mapbox-vector-tile")
+    response["Cache-Control"] = "max-age=300"
+    return response
+
+
+def render_tile(z, x, y, type_code, area_id):
     quote = connection.ops.quote_name
     filters = ""
-    if "type_code" in request.GET:
+    if type_code is not None:
         filters += " AND ty.code = %(type_code)s"
     if area_id is not None:
         # Only when asked: ref_geo may not be loaded yet. On geom_tiles, not geom:
@@ -62,10 +97,7 @@ def counting_object_tile(request, z, x, y):
         cursor.execute(sql, {
             "layer": LAYER, "extent": EXTENT, "z": z, "x": x, "y": y,
             "tolerance": tolerance_pixels(z) * WORLD_WIDTH / 2**z / EXTENT,
-            "type_code": request.GET.get("type_code"),
-            "area_id": int(area_id) if area_id is not None else None,
+            "type_code": type_code,
+            "area_id": area_id,
         })
-        tile = bytes(cursor.fetchone()[0])
-    response = HttpResponse(tile, content_type="application/vnd.mapbox-vector-tile")
-    response["Cache-Control"] = "max-age=300"
-    return response
+        return bytes(cursor.fetchone()[0])

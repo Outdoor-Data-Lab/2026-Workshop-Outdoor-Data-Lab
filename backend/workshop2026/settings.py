@@ -45,6 +45,9 @@ DATABASES = {
     }
 }
 
+# Cache of the vector tiles (traffic/api/tiles.py), on disk.
+TILES_CACHE_DIR = os.environ.get("TILES_CACHE_DIR", "/tmp/tiles-cache")
+
 # Comma-separated lists, set in production (see docker-compose-prod.yaml).
 ALLOWED_HOSTS = [h for h in os.environ.get("DJANGO_ALLOWED_HOSTS", "").split(",") if h]
 CSRF_TRUSTED_ORIGINS = [
