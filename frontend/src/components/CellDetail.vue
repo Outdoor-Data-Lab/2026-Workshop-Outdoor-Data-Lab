@@ -83,7 +83,9 @@ function taxonText(taxon: AreaTaxon) {
   <div v-else-if="data" class="cell">
     <dl>
       <dt>{{ $t('cell.traffic') }}</dt>
-      <dd>{{ score }} <span class="hint">{{ $t('cell.scoreRange') }}</span></dd>
+      <dd>
+        {{ score }} <span class="hint">{{ $t('cell.scoreRange') }}</span>
+      </dd>
       <dt>{{ $t('cell.biodiversity') }}</dt>
       <dd>{{ $t('cell.taxa', data.taxa.length) }}</dd>
       <dt>{{ $t('cell.outdoor') }}</dt>

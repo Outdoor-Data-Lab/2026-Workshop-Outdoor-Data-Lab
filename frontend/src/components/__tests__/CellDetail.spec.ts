@@ -20,8 +20,11 @@ const traffic = {
   id: 7,
   properties: {
     counts: 1500,
+    // Le score cazalis est un objet : sa valeur et ses détails (poids par id de source).
+    score: { cazalis: { score: 42.4, source_weights: { 3: 100 }, reference_counters: 12 } },
     sources: [
       {
+        id: 2,
         code: 'ecocompteur',
         label: 'Eco-Compteur',
         absolute: true,
@@ -30,6 +33,7 @@ const traffic = {
         latest_data: '2024-07-31T10:00:00Z',
       },
       {
+        id: 3,
         code: 'strava',
         label: 'Strava',
         absolute: false,
@@ -89,13 +93,16 @@ describe('CellDetail', () => {
     await flushPromises()
 
     const text = wrapper.text()
-    expect(text).toContain('Traffic42/100')
+    expect(text).toContain('Traffic42 (between 0 and 100)')
     expect(text).toContain('Outdoor2 offers')
     expect(text).toContain('Regulatory zoningcoming soon')
     expect(text).toContain('Eco-Compteur : 1,000 passages counted absolute · 2024')
     expect(text).toContain(
       'Strava : 500 trips summed over the segments of the cell relative · 2021–2024',
     )
+    expect(text).toContain('Reference source: it is used to weight the others')
+    expect(text).toContain('Weight in the score: 100%')
+    expect(text).toContain('Weights estimated on 12 eco-counters.')
     expect(text).toContain('Biodiversity1 protected or threatened taxon')
     expect(text).toContain(
       'Salamandre tachetée Salamandra salamandraprotected · threatened (VU) · 4 observations · 2017–2024',
