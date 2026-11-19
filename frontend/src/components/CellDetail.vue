@@ -49,6 +49,9 @@ const { data, error, loading } = useAsync(async () => {
   return { traffic: traffic?.properties ?? null, offers, taxa: taxa.properties.taxa }
 })
 
+/** Dépôt de l'analyse R de Victor Cazalis (Conservara) dont le score est issu. */
+const BTA_REPOSITORY = 'https://github.com/PnEcrins/BTA-analyse-frequentation'
+
 /** Les trois formules de l'explication du score, dans l'ordre. */
 const scoreSteps = ['counts', 'weights', 'final'] as const
 
@@ -87,6 +90,11 @@ const cazalis = computed<Cazalis>(() => {
 /** Poids de la source dans le score, en points sur 100 ; `undefined` si inconnu. */
 function weight(source: SourceCount) {
   return cazalis.value.source_weights?.[source.id]
+}
+
+/** Vrai si la source a des tracés dans la maille (longueur et personnes·km connues). */
+function hasKm(source: SourceCount) {
+  return source.length_km != null && source.person_km != null
 }
 
 /** Années couvertes, ex. « 2021–2024 ». */
@@ -142,30 +150,41 @@ function taxonText(taxon: AreaTaxon) {
             <li v-for="source in data.traffic.sources" :key="source.code">
               <strong>{{ source.label }}</strong> : {{ countText(source) }}
               <div class="hint">
-                {{ source.absolute ? $t('cell.absolute') : $t('cell.relative') }} ·
-                {{ years(source.first_data, source.latest_data) }}
+                <template v-if="source.absolute">{{ $t('cell.absolute') }} · </template
+                >{{ years(source.first_data, source.latest_data) }}
               </div>
               <div
-                v-if="source.length_km != null && source.person_km != null"
-                class="hint has-tip"
-                :title="$t('cell.kmHelp')"
+                v-if="hasKm(source) || (source.code !== 'ecocompteur' && weight(source) !== undefined)"
+                class="hint chain"
               >
-                {{
-                  $t('cell.km', {
-                    km: oneDecimal(source.length_km),
-                    personKm: oneDecimal(source.person_km),
-                  })
-                }}
+                <template v-if="hasKm(source)">
+                  <span class="item">
+                    {{ $t('cell.lengthLabel') }}
+                    <span class="value">{{
+                      $t('cell.lengthValue', { km: oneDecimal(source.length_km!) })
+                    }}</span>
+                  </span>
+                  <span class="item">
+                    <span class="has-tip" :title="$t('cell.kmHelp')">{{
+                      $t('cell.personKmLabel')
+                    }}</span>
+                    {{ ' ' }}
+                    <span class="value">{{ oneDecimal(source.person_km!) }}</span>
+                  </span>
+                </template>
+                <span v-if="source.code !== 'ecocompteur' && weight(source) !== undefined" class="item">
+                  {{ $t('cell.score.weightLabel') }}
+                  <span class="value">{{
+                    $t('cell.score.weightValue', { weight: weight(source) })
+                  }}</span>
+                </span>
               </div>
-              <div v-if="source.code === 'ecocompteur'" class="hint">
-                {{ $t('cell.score.reference') }}
-              </div>
-              <div v-else-if="weight(source) !== undefined" class="weight">
-                {{ $t('cell.score.weight', { weight: weight(source) }) }}
+              <div v-if="source.code === 'ecocompteur'" class="hint label">
+                {{ $t('cell.score.referenceLabel') }}
+                <span class="value">{{ $t('cell.score.reference') }}</span>
               </div>
             </li>
           </ul>
-          <p class="hint note">{{ $t('cell.countsNote') }}</p>
 
           <details class="formula">
             <summary>{{ $t('cell.score.title') }}</summary>
@@ -181,6 +200,13 @@ function taxonText(taxon: AreaTaxon) {
               {{ $t('cell.score.counters', { n: cazalis.reference_counters }) }}
             </p>
           </details>
+          <i18n-t keypath="cell.score.credit" tag="p" class="hint note">
+            <template #link>
+              <a :href="BTA_REPOSITORY" target="_blank" rel="noopener noreferrer">{{
+                $t('cell.score.creditLink')
+              }}</a>
+            </template>
+          </i18n-t>
         </template>
         <p v-else class="hint">{{ $t('cell.noTraffic') }}</p>
       </section>
@@ -257,8 +283,25 @@ p {
   margin-top: calc(var(--space) / 2);
 }
 
-.weight {
+/* Libellés explicatifs d'une source : en gras, à la taille du texte courant, donc plus petits
+   que le titre de section (h3). Seules les valeurs restent en normal. Les éléments d'une
+   « chaîne » sont séparés par un point médian placé en fin d'élément : une ligne ne commence
+   jamais par un point. */
+.sources .label,
+.sources .chain .item {
+  font-size: 1rem;
   font-weight: 600;
+}
+
+.sources .label .value,
+.sources .chain .value {
+  font-weight: normal;
+}
+
+.sources .chain .item:not(:last-child)::after {
+  content: ' ·';
+  margin-right: 0.3em;
+  font-weight: normal;
 }
 
 .has-tip {

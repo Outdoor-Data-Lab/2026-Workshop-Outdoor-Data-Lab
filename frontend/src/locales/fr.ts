@@ -81,10 +81,11 @@ export default {
       'Protégé : protection nationale. Menacé : liste rouge nationale (RE, CR, EN, VU, EX). Observations GBIF et SINP.',
     offers: 'aucune offre | {n} offre | {n} offres',
     absolute: 'absolu',
-    relative: 'relatif',
-    km: '{km} km de tracés dans la maille · {personKm} personnes·km',
+    lengthLabel: 'Tracés dans la maille :',
+    lengthValue: '{km} km',
+    personKmLabel: 'Personnes·km :',
     kmHelp:
-      'Personnes·km = passages × km de tracé dans la maille. Exemple : 100 passages sur un tracé de 2 km = 200 personnes·km ; sur un tracé qui ne fait que frôler la maille (0,1 km) = 10. Cela permet de comparer les mailles sans que les petits bouts de tracé pèsent autant que les longs.',
+      'Personnes·km = passages × km de tracé dans la maille. Exemple : 100 passages sur un tracé de 2 km = 200 personnes·km ; sur un tracé qui ne fait que frôler la maille (0,1 km) = 10 personnes·km. Cela permet de comparer les mailles sans que les petits bouts de tracé pèsent autant que les longs.',
     /** Ce que compte chaque source, par code. */
     units: {
       ecocompteur: '{n} passage compté | {n} passages comptés',
@@ -95,31 +96,33 @@ export default {
       inaturalist: '{n} observateur-jour | {n} observateurs-jours',
       other: '{n} mesure | {n} mesures',
     },
-    countsNote:
-      "Absolu : tous les passages sont comptés. Relatif : seuls les usagers d'une application, pour comparer les mailles entre elles. Personnes·km : passages × km de tracé dans la maille.",
     score: {
       title: 'Comment le score est calculé',
-      reference:
-        "Source de référence : elle sert à pondérer les autres, elle n'entre pas dans le score.",
-      weight: 'Poids dans le score : {weight} %',
+      referenceLabel: 'Source de référence :',
+      reference: "elle sert à pondérer les autres, elle n'entre pas dans le score.",
+      weightLabel: 'Poids dans le score :',
+      weightValue: '{weight} %',
       intro:
-        'Le score (0 à 100) compare les mailles entre elles en combinant les sources, chacune pesée selon sa fiabilité (méthode BiodivTourAlps).',
+        'Le score (0 à 100) compare les mailles entre elles en combinant les sources, chacune pondérée selon sa fiabilité (méthode BiodivTourAlps).',
       counts: {
         title: "Fréquentation d'une source",
-        eq: 'passages × km de tracé dans la maille',
-        text: 'Un tracé qui ne fait que frôler la maille compte peu.',
+        eq: 'km cumulés des tracés dans la maille',
+        text: '',
       },
       weights: {
         title: "Poids d'une source",
         eq: 'poids = 1 / (1 − r)',
-        text: 'r (de 0 à 1) mesure à quel point la source suit les éco-compteurs. Sous 0,25, elle est ignorée. Les poids sont ramenés à un total de 100.',
+        text: "Le poids indique à quel point les données de la source sont en accord avec celles des éco-compteurs : r (de 0 à 1) mesure cet accord. Sous 0,25, la source est ignorée. La somme des poids fait 100.",
       },
       final: {
         title: 'Score de la maille',
         eq: 'score = Σ poids × (fréquentation − moyenne) ÷ écart-type',
-        text: 'Chaque source est comparée à la moyenne des mailles, puis le total est ramené entre 0 et 100 (les valeurs extrêmes sont plafonnées).',
+        text: "Les valeurs de chaque source est centrée et réduite (i.e. ce qui permet de mettre sur la même échelle les scores pour chaque source). Le total est ensuite ramené entre 0 et 100 (les valeurs extrêmes sont plafonnées).",
       },
       counters: 'Poids estimés sur {n} éco-compteurs.',
+      credit:
+        "Méthode de l'analyse de fréquentation BiodivTourAlps, développée par Victor Cazalis (Conservara) : {link}.",
+      creditLink: 'scripts et rapports sur GitHub',
     },
   },
   notifications: {

@@ -106,12 +106,16 @@ describe('CellDetail', () => {
     expect(text).toContain('Regulatory zoningcoming soon')
     expect(text).toContain('Eco-Compteur : 1,000 passages counted absolute · 2024')
     expect(text).toContain(
-      'Strava : 500 trips summed over the segments of the cell relative · 2021–2024',
+      'Strava : 500 trips summed over the segments of the cell 2021–2024',
     )
     expect(text).toContain('Reference source: it is used to weight the others')
     expect(text).toContain('Weight in the score: 100%')
     expect(text).toContain('Weights estimated on 12 eco-counters.')
-    expect(text).toContain('12.4 km of tracks in the cell · 1,340.5 person·km')
+    expect(text).toContain('developed by Victor Cazalis (Conservara): scripts and reports on GitHub.')
+    expect(wrapper.find('a[href="https://github.com/PnEcrins/BTA-analyse-frequentation"]').exists()).toBe(true)
+    expect(text).toContain('Tracks in the cell: 12.4 km')
+    expect(text).toMatch(/Person·km:\s+1,340\.5/)
+    expect(text).toContain('Weight in the score: 100%')
     expect(text).not.toContain('null km')
     expect(wrapper.find('[title*="Person·km = passages"]').exists()).toBe(true)
     expect(text).toContain('score = Σ weight × (frequentation − mean) ÷ standard deviation')

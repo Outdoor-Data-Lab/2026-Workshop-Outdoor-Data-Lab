@@ -82,8 +82,9 @@ export default {
       'Protected: national protection. Threatened: national red list (RE, CR, EN, VU, EX). GBIF and SINP observations.',
     offers: 'no offer | {n} offer | {n} offers',
     absolute: 'absolute',
-    relative: 'relative',
-    km: '{km} km of tracks in the cell · {personKm} person·km',
+    lengthLabel: 'Tracks in the cell:',
+    lengthValue: '{km} km',
+    personKmLabel: 'Person·km:',
     kmHelp:
       'Person·km = passages × km of track in the cell. Example: 100 passages on a 2 km track = 200 person·km; on a track that only grazes the cell (0.1 km) = 10. This lets cells be compared without short bits of track weighing as much as long ones.',
     /** What each source counts, by code. */
@@ -95,29 +96,32 @@ export default {
       inaturalist: '{n} observer-day | {n} observer-days',
       other: '{n} measure | {n} measures',
     },
-    countsNote:
-      'Absolute: every passage is counted. Relative: only app users, to compare cells with each other. Person·km: passages × km of track in the cell.',
     score: {
       title: 'How the score is computed',
-      reference: 'Reference source: it is used to weight the others and is not part of the score.',
-      weight: 'Weight in the score: {weight}%',
+      referenceLabel: 'Reference source:',
+      reference: 'it is used to weight the others and is not part of the score.',
+      weightLabel: 'Weight in the score:',
+      weightValue: '{weight}%',
       intro:
         'The score (0 to 100) compares cells with each other by combining the sources, each weighted by how reliable it is (BiodivTourAlps method).',
       counts: {
         title: "A source's frequentation",
-        eq: 'passages × km of track in the cell',
+        eq: 'cumulative km of tracks in the cell',
         text: 'A track that only grazes the cell counts for little.',
       },
       weights: {
         title: "A source's weight",
         eq: 'weight = 1 / (1 − r)',
-        text: 'r (0 to 1) is how closely the source follows the eco-counters. Below 0.25 it is ignored. Weights are scaled to a total of 100.',
+        text: "The weight shows how closely the source's data agree with those of the eco-counters: r (0 to 1) measures that agreement. Below 0.25 the source is ignored. The weights add up to 100.",
       },
       final: {
         title: "The cell's score",
         eq: 'score = Σ weight × (frequentation − mean) ÷ standard deviation',
-        text: 'Each source is compared to the mean of the cells, then the total is rescaled to 0–100 (extreme values are capped).',
+        text: 'The values of each source are normalised with a standardised variable (the mean of the cells is subtracted, then the result is divided by the standard deviation). The total is then rescaled to 0–100 (extreme values are capped).',
       },
+      credit:
+        'Method of the BiodivTourAlps frequentation analysis, developed by Victor Cazalis (Conservara): {link}.',
+      creditLink: 'scripts and reports on GitHub',
       counters: 'Weights estimated on {n} eco-counters.',
     },
   },
