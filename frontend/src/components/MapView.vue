@@ -232,6 +232,16 @@ onMounted(() => {
     m.getCanvas().style.cursor = featureAt(m, e.point) ? 'pointer' : ''
   })
 
+  // Couches en tuiles : roue tant que des tuiles demandées ne sont pas arrivées.
+  const tilesStatus = () => {
+    for (const source of tiled.keys()) {
+      const loading = !m.isSourceLoaded(source)
+      if (store.status[source]?.loading !== loading) store.status[source] = { loading }
+    }
+  }
+  m.on('render', tilesStatus)
+  m.on('idle', tilesStatus)
+
   m.on('load', () => {
     map.value = m
   })
@@ -291,6 +301,7 @@ function syncTiles(m: MlMap, urls: typeof tileUrls.value) {
     m.removeLayer(`${source}/tiles`)
     m.removeSource(source)
     tiled.delete(source)
+    delete store.status[source]
   }
 }
 
