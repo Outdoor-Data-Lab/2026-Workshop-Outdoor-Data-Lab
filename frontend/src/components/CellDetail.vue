@@ -15,6 +15,9 @@ const props = defineProps<{ cell: MapObject }>()
 
 const { t, te, n } = useI18n()
 
+/** Longueur ou personnes·km avec une décimale. */
+const oneDecimal = (value: number) => n(value, { maximumFractionDigits: 1 })
+
 const { data, error, loading } = useAsync(async () => {
   const id = Number(props.cell.id)
   const [traffic, offers, taxa] = await Promise.all([
@@ -24,6 +27,9 @@ const { data, error, loading } = useAsync(async () => {
   ])
   return { traffic: traffic.properties, offers, taxa: taxa.properties.taxa }
 })
+
+/** Les trois formules de l'explication du score, dans l'ordre. */
+const scoreSteps = ['counts', 'weights', 'final'] as const
 
 /** Score de la carte (0 à 100). */
 const score = computed(() => (props.cell.value === undefined ? '–' : Math.round(props.cell.value)))
@@ -102,6 +108,18 @@ function taxonText(taxon: AreaTaxon) {
           {{ source.absolute ? $t('cell.absolute') : $t('cell.relative') }} ·
           {{ years(source.first_data, source.latest_data) }}
         </div>
+        <div
+          v-if="source.length_km != null && source.person_km != null"
+          class="hint has-tip"
+          :title="$t('cell.kmHelp')"
+        >
+          {{
+            $t('cell.km', {
+              km: oneDecimal(source.length_km),
+              personKm: oneDecimal(source.person_km),
+            })
+          }}
+        </div>
         <div v-if="source.code === 'ecocompteur'" class="hint">
           {{ $t('cell.score.reference') }}
         </div>
@@ -116,12 +134,12 @@ function taxonText(taxon: AreaTaxon) {
       <summary>{{ $t('cell.score.title') }}</summary>
       <p>{{ $t('cell.score.intro') }}</p>
       <ol>
-        <li>{{ $t('cell.score.step1') }}</li>
-        <li>{{ $t('cell.score.step2') }}</li>
-        <li>{{ $t('cell.score.step3') }}</li>
-        <li>{{ $t('cell.score.step4') }}</li>
+        <li v-for="step in scoreSteps" :key="step">
+          <strong>{{ $t(`cell.score.${step}.title`) }}</strong>
+          <code class="formula-eq">{{ $t(`cell.score.${step}.eq`) }}</code>
+          <span class="hint">{{ $t(`cell.score.${step}.text`) }}</span>
+        </li>
       </ol>
-      <p class="formula-eq">{{ $t('cell.score.equation') }}</p>
       <p v-if="cazalis.reference_counters" class="hint">
         {{ $t('cell.score.counters', { n: cazalis.reference_counters }) }}
       </p>
@@ -197,6 +215,12 @@ p {
   font-weight: 600;
 }
 
+.has-tip {
+  cursor: help;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
+}
+
 .formula {
   margin-top: calc(var(--space) / 2);
   font-size: 0.85rem;
@@ -204,9 +228,20 @@ p {
 
 .formula ol {
   margin: calc(var(--space) / 3) 0;
+  padding-left: 1.2rem;
+}
+
+.formula li + li {
+  margin-top: calc(var(--space) / 2);
 }
 
 .formula-eq {
+  display: block;
+  margin: 0.2rem 0;
+  padding: 0.25rem 0.5rem;
+  border-left: 3px solid var(--color-accent);
+  border-radius: var(--radius);
+  background: var(--color-panel);
   font-family: monospace;
 }
 

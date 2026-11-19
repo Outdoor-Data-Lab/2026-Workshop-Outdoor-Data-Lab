@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/6.1/ref/settings/
 
 from pathlib import Path
 import os
+import sys
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -204,6 +205,18 @@ MIGRATION_MODULES = {"ref_geo": None, "taxhub": None}
 # tasks at once, in the test process (see TEST_RUNNER).
 CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL", "redis://localhost:6379/0")
 TEST_RUNNER = "workshop2026.test_runner.TestRunner"
+
+# Cache of the score weights and results (workshop2026.processing.score): shared
+# by the workers and kept across restarts in Redis when REDIS_CACHE_URL is set,
+# else in the memory of each process. Tests always use the memory cache.
+REDIS_CACHE_URL = os.environ.get("REDIS_CACHE_URL")
+if REDIS_CACHE_URL and "test" not in sys.argv:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.redis.RedisCache",
+            "LOCATION": REDIS_CACHE_URL,
+        }
+    }
 
 DEFAULT_GRID_AREA_TYPE = os.environ.get("DEFAULT_GRID_AREA_TYPE", "M0.5")
 # ref_geo grids the counting objects are linked to (traffic.counting_object_areas)

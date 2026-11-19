@@ -1,6 +1,8 @@
+import hashlib
 from functools import cached_property
 
 from django.conf import settings
+from django.core.cache import cache
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import extend_schema, extend_schema_view
 from rest_framework import serializers, viewsets
@@ -9,7 +11,7 @@ from rest_framework_gis.filters import InBBoxFilter
 
 from commons.api.geo import GeoJsonLimitOffsetPagination, GeoViewSet, ReadOnlyViewSet
 from ref_geo.models import LArea
-from workshop2026.processing.score import SCORES, counts_by_area, measures_queryset
+from workshop2026.processing.score import SCORES, counts_by_area, counts_version, scored_rows
 
 from ..models import (
     CountingMeasure,
@@ -112,8 +114,9 @@ class AreasViewSet(viewsets.ReadOnlyModelViewSet):
 
     @cached_property
     def measures(self):
-        """Measures matching source and period, one row per (measure, cell)."""
-        return measures_queryset(
+        """Rows matching source and period (see ``scored_rows``): the precomputed
+        counts per (cell, source, day) when fresh, else one row per (measure, cell)."""
+        return scored_rows(
             sources=self.params.get("source"),
             date_from=self.params.get("date_from"),
             date_to=self.params.get("date_to"),
@@ -164,15 +167,41 @@ class AreasViewSet(viewsets.ReadOnlyModelViewSet):
                 details["cazalis"]["reference_counters"] = self.estimate["counters"]
         return details
 
+    def scores_cache_key(self):
+        """Key of the scores of this request, or None while the precomputed counts are stale.
+
+        The scores are standardised over every matching cell, so each page of
+        the same request has the same ones: they are computed once. The key
+        holds what they depend on: the filters, the weights and the data version.
+        """
+        version = counts_version()
+        if version is None:
+            return None
+        filters = (
+            sorted(self.params.get("scores", ())),
+            sorted(self.params.get("source") or ()),
+            str(self.params.get("date_from")),
+            str(self.params.get("date_to")),
+            self.area_type,
+            sorted((self.source_weights or {}).items()),
+        )
+        return f"area-scores:{version}:{hashlib.sha1(repr(filters).encode()).hexdigest()}"
+
     def compute_scores(self, measures):
         """``{score name: {id_area: value}}`` for the requested scores."""
-        try:
-            return {
-                name: SCORES[name].compute_from(measures, source_weights=self.source_weights)
-                for name in sorted(self.params.get("scores", ()))
-            }
-        except ValueError as error:
-            raise serializers.ValidationError({"source_weights": [str(error)]})
+        key = self.scores_cache_key()
+        scores = cache.get(key) if key else None
+        if scores is None:
+            try:
+                scores = {
+                    name: SCORES[name].compute_from(measures, source_weights=self.source_weights)
+                    for name in sorted(self.params.get("scores", ()))
+                }
+            except ValueError as error:
+                raise serializers.ValidationError({"source_weights": [str(error)]})
+            if key:
+                cache.set(key, scores, timeout=None)
+        return scores
 
     def serialize(self, areas, many):
         """Serializer of ``areas`` with the counts of these cells.

@@ -17,6 +17,7 @@ from django.contrib.auth import get_user_model
 from django.contrib.gis.geos import LineString, MultiPolygon, Point, Polygon
 from django.core.files.base import ContentFile
 from django.core.management import CommandError, call_command
+from django.core.cache import cache
 from django.db import IntegrityError, connection, transaction
 from django.db.models import ProtectedError
 from django.db.models.signals import pre_delete
@@ -28,12 +29,18 @@ from ref_geo.models import BibAreasType, LArea
 from workshop2026.processing.score import (
     BasicFrequentationScore,
     CazalisFrequentationScore,
+    _counts_near,
     _standardize,
     _winsorize_and_rescale,
     cazalis_weights_from_correlations,
+    counts_are_fresh,
+    counts_by_area,
+    scored_rows,
 )
 
+from .areas import refresh_cell_day_counts
 from .models import (
+    CellDayCount,
     CountingMeasure,
     CountingObject,
     CountingObjectArea,
@@ -80,6 +87,8 @@ class SchemaTests(TrafficTestCase):
         self.assertEqual(
             tables,
             {
+                "cell_day_counts",
+                "cell_day_counts_state",
                 "counting_object_areas",
                 "counting_object_types",
                 "counting_objects",
@@ -798,6 +807,17 @@ class CazalisWeightCalculationTests(AreasTestCase):
         segment("outdoorvision", b, 0.0005, 3)
         segment("outdoorvision", d, 0.0005, 2)
 
+    def test_outdoorvision_counts_are_weighted_by_the_km_of_their_object(self):
+        station = CountingObject.objects.get(
+            source__code="ecocompteur", geom=Point(6.3, 44.3, srid=4326), external_id=""
+        )
+        outdoorvision = DataSource.objects.get(code="outdoorvision").pk
+        raw = _counts_near([station.pk], outdoorvision, 100, False)
+        weighted = _counts_near([station.pk], outdoorvision, 100, False, length_weighted=True)
+        self.assertEqual(raw, {station.pk: 1})  # the 222 m track is out of range
+        # 0.002 degree of longitude at 44.3 N: 159 m
+        self.assertAlmostEqual(weighted[station.pk], 0.1594, places=3)
+
     def test_calculates_weights_from_summer_ecocompteur_correlations(self):
         weights = CazalisFrequentationScore.calculate_source_weights()
         codes = dict(DataSource.objects.values_list("code", "id"))
@@ -812,8 +832,47 @@ class CazalisWeightCalculationTests(AreasTestCase):
 JAN = "2023-01-10T00:00:00Z"
 
 
+class AreasApiScoreCacheTests(AreasTestCase):
+    url = "/api/traffic/areas"
+
+    def setUp(self):
+        cache.clear()
+
+    def test_pages_of_a_request_share_the_scores(self):
+        refresh_cell_day_counts()
+        params = {"scores": ["basic", "cazalis"], "source_weights": f"{self.s1}:2,{self.s2}:3", "limit": 1}
+        with patch.object(
+            BasicFrequentationScore, "compute_from", wraps=BasicFrequentationScore.compute_from
+        ) as basic:
+            first = self.client.get(self.url, params).json()
+            second = self.client.get(self.url, {**params, "offset": 1}).json()
+            self.assertEqual(basic.call_count, 1)
+        self.assertEqual(len(first["features"]) + len(second["features"]), 2)
+        # Other weights: other scores.
+        other = self.client.get(self.url, {**params, "source_weights": f"{self.s1}:1,{self.s2}:0"})
+        self.assertEqual(other.status_code, 200)
+
+    def test_stale_counts_are_not_cached(self):
+        params = {"scores": "basic", "limit": 1}
+        with patch.object(
+            BasicFrequentationScore, "compute_from", wraps=BasicFrequentationScore.compute_from
+        ) as basic:
+            self.client.get(self.url, params)
+            self.client.get(self.url, params)
+            self.assertEqual(basic.call_count, 2)
+
+
 class AreasApiTests(AreasTestCase):
     url = "/api/traffic/areas"
+
+    def without_km(self, properties):
+        """``properties`` without the km of the sources (checked in the counts tests), which must be there."""
+        sources = []
+        for source in properties["sources"]:
+            self.assertIn("length_km", source)
+            self.assertIn("person_km", source)
+            sources.append({k: v for k, v in source.items() if k not in ("length_km", "person_km")})
+        return {**properties, "sources": sources}
 
     def test_returns_geojson_with_counts_and_scores(self):
         response = self.client.get(self.url, {
@@ -826,7 +885,7 @@ class AreasApiTests(AreasTestCase):
         self.assertEqual(data["count"], 2)
         features = {f["id"]: f for f in data["features"]}
         self.assertEqual(features[12]["geometry"]["type"], "MultiPolygon")
-        self.assertEqual(features[12]["properties"], {
+        self.assertEqual(self.without_km(features[12]["properties"]), {
             "counts": 15, "count_segment": 9, "count_presence": 6,
             "sources": [
                 {"id": self.s2, "code": "ecocompteur", "label": "Eco-Compteur", "absolute": True,
@@ -840,7 +899,7 @@ class AreasApiTests(AreasTestCase):
                 "score": 100.0, "source_weights": {str(self.s1): 2, str(self.s2): 3},
             }},
         })
-        self.assertEqual(features[13]["properties"], {
+        self.assertEqual(self.without_km(features[13]["properties"]), {
             "counts": 4, "count_segment": 0, "count_presence": 4,
             "sources": [
                 {"id": self.s1, "code": "outdoorvision", "label": "OutdoorVision", "absolute": False,
@@ -931,7 +990,7 @@ class AreasApiTests(AreasTestCase):
         data = response.json()
         self.assertEqual(data["type"], "Feature")
         self.assertEqual(data["id"], 12)
-        self.assertEqual(data["properties"], {
+        self.assertEqual(self.without_km(data["properties"]), {
             "counts": 17, "count_segment": 4, "count_presence": 13,
             "sources": [
                 {"id": self.s1, "code": "outdoorvision", "label": "OutdoorVision", "absolute": False,
@@ -943,6 +1002,60 @@ class AreasApiTests(AreasTestCase):
 
     def test_retrieve_cell_without_matching_measures(self):
         self.assertEqual(self.client.get(f"{self.url}/12", {"date_from": "2024-01-01"}).status_code, 404)
+
+
+class PrecomputedCountsTests(AreasTestCase):
+    """The scores give the same results from the precomputed counts and from the measures."""
+
+    def scores(self):
+        kwargs = {"source_weights": {self.s1: 2, self.s2: 3}}
+        periods = [{}, {"date_from": date(2023, 1, 10), "date_to": date(2023, 1, 10)}, {"date_from": date(2023, 2, 1)}]
+        return [
+            (
+                BasicFrequentationScore.compute(**period),
+                CazalisFrequentationScore.compute(**period, **kwargs),
+                counts_by_area(scored_rows(**period)),
+            )
+            for period in periods
+        ]
+
+    def test_stale_counts_are_ignored(self):
+        self.assertFalse(counts_are_fresh())
+        self.assertEqual(scored_rows().model, CountingMeasure)
+
+    def test_same_results_as_the_measures(self):
+        self.moving.geom = LineString((6.4, 44.2), (7.2, 44.2), srid=4326)  # crosses 12 and 13
+        self.moving.save()
+        live = self.scores()
+        self.assertGreater(refresh_cell_day_counts(), 0)
+        self.assertTrue(counts_are_fresh())
+        self.assertEqual(scored_rows().model, CellDayCount)
+        self.assertEqual(self.scores(), live)
+
+    def test_new_measures_make_the_counts_stale(self):
+        refresh_cell_day_counts()
+        CountingMeasure.objects.create(
+            counting_object=self.moving, start_datetime=datetime(2025, 1, 1, tzinfo=timezone.utc),
+            end_datetime=datetime(2025, 1, 2, tzinfo=timezone.utc), count=1,
+            unit=Unit.objects.get(code="person"),
+        )
+        self.assertFalse(counts_are_fresh())
+
+    def test_any_write_to_measures_or_links_makes_the_counts_stale(self):
+        for change in (
+            lambda: CountingMeasure.objects.filter(pk=CountingMeasure.objects.first().pk).delete(),
+            lambda: CountingMeasure.objects.update(count=1),
+            lambda: CountingObjectArea.objects.all().delete(),
+        ):
+            with self.subTest(change=change):
+                refresh_cell_day_counts()
+                self.assertTrue(counts_are_fresh())
+                change()
+                self.assertFalse(counts_are_fresh())
+
+    def test_refresh_command(self):
+        call_command("refresh_cell_counts", stdout=StringIO())
+        self.assertTrue(counts_are_fresh())
 
 
 class CountingObjectAreasTests(AreasTestCase):
@@ -964,6 +1077,57 @@ class CountingObjectAreasTests(AreasTestCase):
         self.assertEqual(
             BasicFrequentationScore.compute(date_from=date(2024, 1, 1), sources=[self.s2]), {12: 3, 13: 3}
         )
+
+    def test_stores_the_length_of_the_segment_inside_each_cell(self):
+        self.moving.geom = LineString((6.4, 44.2), (7.2, 44.2), srid=4326)  # 0.1 deg in 12, 0.2 in 13
+        self.moving.save()
+        lengths = dict(self.moving.areas.values_list("area_id", "length_m"))
+        self.assertAlmostEqual(lengths[13] / lengths[12], 2, places=2)
+        self.assertAlmostEqual(lengths[12], 8_000, delta=100)  # 0.1 deg of longitude at 44.2 N
+        self.assertEqual(set(self.moving.areas.values_list("area_type__type_code", flat=True)), {"M1"})
+        # A point has no length: it weighs 1 in the scores.
+        counter = CountingObject.objects.filter(type__code="counter", areas__area_id=13).get()
+        self.assertIsNone(counter.areas.get().length_m)
+
+    def test_lengths_command_fills_only_the_missing_lengths_of_lines(self):
+        self.moving.geom = LineString((6.4, 44.2), (7.2, 44.2), srid=4326)
+        self.moving.save()
+        expected = {
+            (link.counting_object_id, link.area_id): link.length_m for link in CountingObjectArea.objects.all()
+        }
+        CountingObjectArea.objects.update(length_m=None)
+        out = StringIO()
+        call_command("sync_counting_object_areas", "--lengths", "--shard", "0/2", stdout=out)
+        call_command("sync_counting_object_areas", "--lengths", "--shard", "1/2", stdout=out)
+        got = {(l.counting_object_id, l.area_id): l.length_m for l in CountingObjectArea.objects.all()}
+        self.assertEqual(got.keys(), expected.keys())
+        for key, length in expected.items():
+            if length is None:  # points stay without length
+                self.assertIsNone(got[key])
+            else:
+                self.assertAlmostEqual(got[key], length, places=3)
+
+    def test_counts_give_the_km_of_line_objects_in_each_cell(self):
+        self.moving.geom = LineString((6.4, 44.2), (7.2, 44.2), srid=4326)  # 0.1 deg in 12, 0.2 in 13
+        self.moving.save()
+        counts = counts_by_area(scored_rows(date_from=date(2024, 1, 1)))
+        (source,) = counts[13]["sources"]
+        self.assertAlmostEqual(source["length_km"], 16.0, delta=0.3)
+        self.assertAlmostEqual(source["person_km"], 3 * source["length_km"], places=6)  # count 3
+        # Cell 12 has two s1 objects (a line and a point counter) and one s2 line.
+        by_code = {s["code"]: s for s in counts_by_area(scored_rows())[12]["sources"]}
+        self.assertGreater(by_code["ecocompteur"]["length_km"], 0)
+        # A source with points only: nothing to measure.
+        self.assertIsNone(counts_by_area(scored_rows(sources=[self.s1]))[13]["sources"][0]["length_km"])
+
+    def test_cazalis_weights_segments_by_the_length_inside_each_cell(self):
+        self.moving.geom = LineString((6.4, 44.2), (7.2, 44.2), srid=4326)
+        self.moving.save()
+        # Same measure in both cells, but twice as much segment in cell 13.
+        score_grid = CazalisFrequentationScore.compute(
+            date_from=date(2024, 1, 1), source_weights={self.s1: 0, self.s2: 1}
+        )
+        self.assertEqual(score_grid, {12: 0.0, 13: 100.0})
 
     def test_sync_command_rebuilds_the_table(self):
         CountingObjectArea.objects.all().delete()

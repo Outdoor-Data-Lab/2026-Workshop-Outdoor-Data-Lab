@@ -21,21 +21,32 @@ The database forbids two measures with the same key (constraint
 counting_measure_unique_key).
 """
 
+import logging
 from itertools import batched
 
 import pandas as pd
 from django.contrib.gis.geos import GEOSGeometry
-from django.db import connection
+from django.db import connection, transaction
 from django.db.models import Q
 from django.utils.text import slugify
 
 from commons.models import DataImport, DataSource, Practice
 from commons.parsers import ImportParser
 
+from ..areas import refresh_cell_day_counts
 from ..models import CountingMeasure, CountingObject, CountingObjectType, Unit
+
+logger = logging.getLogger(__name__)
 
 MEASURE_COLUMNS = ["external_id", "geometry", "start_datetime", "end_datetime", "count", "activity"]
 BATCH_SIZE = 5000
+
+
+def _refresh_cell_counts():
+    try:
+        refresh_cell_day_counts()
+    except Exception:  # the import is saved: the scores fall back to the measures
+        logger.exception("Could not refresh the precomputed cell counts")
 
 
 class TrafficParser(ImportParser):
@@ -49,6 +60,13 @@ class TrafficParser(ImportParser):
 
     def error_count(self, line_count: int, rows: pd.DataFrame) -> int:
         return self.skipped_lines
+
+    def import_data(self) -> int:
+        saved = super().import_data()
+        # The scores read precomputed counts (CellDayCount): rebuild them once the
+        # import is committed. Until then they notice they are stale and read the measures.
+        transaction.on_commit(_refresh_cell_counts)
+        return saved
 
     def save(self, rows: pd.DataFrame) -> None:
         """Create the missing counting objects, then replace the measures the file gives again."""

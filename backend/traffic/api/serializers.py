@@ -145,6 +145,15 @@ class SourceCountSerializer(serializers.Serializer):
     count = serializers.IntegerField()
     first_data = serializers.DateTimeField(help_text="Start of the first measure.")
     latest_data = serializers.DateTimeField(help_text="Start of the last measure.")
+    length_km = serializers.FloatField(
+        allow_null=True,
+        help_text="Km of the source's line objects inside the cell (whatever the period); null for points.",
+    )
+    person_km = serializers.FloatField(
+        allow_null=True,
+        help_text="Sum of count x km of the object inside the cell over the period and filters "
+        "(what the cazalis score uses); null for points.",
+    )
 
 
 class AreaCountsSerializer(DynamicFieldsMixin, GeoFeatureModelSerializer):

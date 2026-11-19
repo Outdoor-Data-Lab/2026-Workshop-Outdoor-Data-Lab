@@ -22,21 +22,28 @@ from django.conf import settings
 from django.contrib.gis.geos import GEOSGeometry
 from django.core.cache import cache
 from django.db import connection
-from django.db.models import Case, Count, F, Max, Min, Q, Sum, Value, When
-from django.db.models.functions import ExtractMonth, ExtractYear, TruncDate
+from django.db.models import Case, Count, F, FloatField, Max, Min, Q, Subquery, Sum, Value, When
+from django.db.models.functions import Cast, ExtractMonth, ExtractYear, TruncDate
 from django.utils import timezone
 
 from commons.models import DataSource
-from ref_geo.models import LArea
-from traffic.models import CountingMeasure, CountingObject
+from ref_geo.models import BibAreasType, LArea
+from traffic.models import (
+    CellCountsState,
+    CellDayCount,
+    CountingMeasure,
+    CountingObject,
+    CountingObjectArea,
+)
 
 BTA_REFERENCE_SOURCE = "ecocompteur"
 # How each weighted source is matched to an eco-counter (BTA_PrepareCorrelation):
-# (radius in metres, whether only the nearest object within it counts).
+# (radius in metres, whether only the nearest object within it counts, whether
+# each count is multiplied by the km of its object: R's DistPers).
 BTA_SOURCE_MATCHING = {
-    "strava": (500, True),  # passages of the nearest edge
-    "outdoorvision": (100, False),  # outings passing within 100 m
-    "inaturalist": (500, False),  # observer-days within 500 m
+    "strava": (500, True, False),  # passages of the nearest edge
+    "outdoorvision": (100, False, True),  # DistPers of the segments within 100 m
+    "inaturalist": (500, False, False),  # observer-days within 500 m
 }
 # Eco-counters (external_id) left out of the weight estimation. CARRELET was
 # already excluded by the R code; PREMCARL (Pré de Madame Carle, reached by car)
@@ -86,8 +93,13 @@ def _pearson_correlation(reference_values, source_values):
         return None
 
 
-def _counts_near(station_ids, source_id, radius, nearest_only):
+def _counts_near(station_ids, source_id, radius, nearest_only, length_weighted=False):
     """``{station id: total count}`` of the ``source_id`` objects within ``radius`` metres.
+
+    With ``length_weighted``, each count is multiplied by the length in km of its
+    object (R's ``DistPers = count x Length_km``, not only the part within
+    ``radius``): its part in the grid ``DEFAULT_GRID_AREA_TYPE``, from the stored
+    link lengths, else its whole length.
 
     With ``nearest_only``, only the closest object counts and stations with no
     object within ``radius`` are left out (in the R code, a counter without a
@@ -101,9 +113,24 @@ def _counts_near(station_ids, source_id, radius, nearest_only):
         if nearest_only
         else ""
     )
+    links = f'"{CountingObjectArea._meta.db_table}"'
+    # The km of the object inside the grid, summed from the stored lengths of its
+    # cells (no geometry work); ST_Length of the whole object while they are missing.
+    km = (
+        f"""COALESCE(
+                (SELECT SUM(coa.length_m) FROM {links} coa
+                 WHERE coa.counting_object_id = obj.id
+                   AND coa.id_type = (SELECT id_type FROM ref_geo.bib_areas_types
+                                      WHERE type_code = %(grid)s)) / 1000.0,
+                ST_Length(obj.geom::geography) / 1000.0
+            )::float8"""
+        if length_weighted
+        else "1.0::float8"
+    )
     sql = f"""
         WITH near AS (
-            SELECT {distinct} station.id AS station_id, obj.id AS object_id
+            SELECT {distinct} station.id AS station_id, obj.id AS object_id,
+                   {km} AS km
             FROM {objects} station
             JOIN {objects} obj
               ON obj.source_id = %(source)s
@@ -120,7 +147,7 @@ def _counts_near(station_ids, source_id, radius, nearest_only):
             WHERE station.id = ANY(%(stations)s)
             {order}
         )
-        SELECT near.station_id, COALESCE(SUM(measure.count), 0)
+        SELECT near.station_id, COALESCE(SUM(measure.count * near.km), 0)
         FROM near
         LEFT JOIN {measures} measure ON measure.counting_object_id = near.object_id
         GROUP BY near.station_id
@@ -129,6 +156,7 @@ def _counts_near(station_ids, source_id, radius, nearest_only):
         "source": source_id,
         "stations": list(station_ids),
         "radius": radius,
+        "grid": settings.DEFAULT_GRID_AREA_TYPE,
     }
     with connection.cursor() as cursor:
         cursor.execute(sql, params)
@@ -174,10 +202,44 @@ def _start_of_day(date):
     return datetime.combine(date, time.min, tzinfo=timezone.get_current_timezone())
 
 
+def _filter_cells(queryset, geoms, geom_ids, area_type):
+    if geoms is not None or geom_ids is not None:
+        cells = Q(id_area__in=list(geom_ids or []))
+        if geoms is not None:
+            cells |= Q(
+                id_area__in=LArea.objects.filter(
+                    type__type_code=area_type,
+                    geom__intersects=_to_lambert93(geoms),
+                ).values("id_area")
+            )
+        queryset = queryset.filter(cells)
+    return queryset
+
+
+def _area_type_id(area_type):
+    return Subquery(BibAreasType.objects.filter(type_code=area_type).values("pk")[:1])
+
+
+def _length_in_km():
+    """Km of the object inside the cell, 1 for a point (no length)."""
+    return Case(
+        When(area_length_m__isnull=True, then=Value(1.0)),
+        default=F("area_length_m") / 1000.0,
+        output_field=FloatField(),
+    )
+
+
 def measures_queryset(
     geoms=None, geom_ids=None, sources=None, date_from=None, date_to=None, area_type=None
 ):
-    """Measures, one row per (measure, cell), annotated with ``id_area`` and ``id_source``.
+    """Measures, one row per (measure, cell), annotated for the scores.
+
+    Annotations (the same fields as ``CellDayCount``, see ``scored_rows``):
+    ``id_area``, ``id_source``, ``weighted`` (count x km of the object inside
+    the cell, 1 km for a point: as in the R analysis, BTA_PrepareStrava, a
+    segment weighs by the part of it that is in the cell, not as a whole in
+    every cell it touches), ``n_segment`` / ``n_presence`` (count of "segment" /
+    "counter" objects), ``first_start`` and ``last_start``.
 
     geoms: keep the cells intersecting this geometry (any SRID, default 2154).
     geom_ids: keep these cells. With both, the union is kept; with neither,
@@ -189,19 +251,24 @@ def measures_queryset(
     queryset = CountingMeasure.objects.annotate(
         id_area=F("counting_object__areas__area_id"),
         id_source=F("counting_object__source_id"),
-        # Same join as id_area: counting_object_areas holds every grid of AREA_TYPES.
-        area_type_code=F("counting_object__areas__area__type__type_code"),
-    ).filter(id_area__isnull=False, area_type_code=area_type)
-    if geoms is not None or geom_ids is not None:
-        cells = Q(id_area__in=list(geom_ids or []))
-        if geoms is not None:
-            cells |= Q(
-                id_area__in=LArea.objects.filter(
-                    type__type_code=area_type,
-                    geom__intersects=_to_lambert93(geoms),
-                ).values("id_area")
-            )
-        queryset = queryset.filter(cells)
+        # Same join as id_area: counting_object_areas holds every grid of
+        # AREA_TYPES, with the type of each cell (no join on ref_geo).
+        id_area_type=F("counting_object__areas__area_type_id"),
+        # Metres of the object inside the cell; NULL for points.
+        area_length_m=F("counting_object__areas__length_m"),
+    ).filter(id_area__isnull=False, id_area_type=_area_type_id(area_type))
+    queryset = queryset.annotate(
+        weighted=Cast("count", FloatField()) * _length_in_km(),
+        n_segment=Case(
+            When(counting_object__type__code="segment", then=F("count")), default=0
+        ),
+        n_presence=Case(
+            When(counting_object__type__code="counter", then=F("count")), default=0
+        ),
+        first_start=F("start_datetime"),
+        last_start=F("start_datetime"),
+    )
+    queryset = _filter_cells(queryset, geoms, geom_ids, area_type)
     if sources:
         queryset = queryset.filter(id_source__in=sources)
     # Bounds on start_datetime itself (not start_datetime__date), so the
@@ -213,37 +280,112 @@ def measures_queryset(
     return queryset
 
 
+def cell_counts_queryset(
+    geoms=None, geom_ids=None, sources=None, date_from=None, date_to=None, area_type=None
+):
+    """Same filters and fields as ``measures_queryset``, on the precomputed ``CellDayCount``.
+
+    One row per (cell, source, day) instead of one per (measure, cell). The
+    period is on ``day``: the date of ``start_datetime`` in the session time zone.
+    """
+    area_type = area_type or settings.DEFAULT_GRID_AREA_TYPE
+    queryset = CellDayCount.objects.filter(area_type_id=_area_type_id(area_type))
+    queryset = _filter_cells(queryset, geoms, geom_ids, area_type)
+    if sources:
+        queryset = queryset.filter(id_source__in=sources)
+    if date_from is not None:
+        queryset = queryset.filter(day__gte=date_from)
+    if date_to is not None:
+        queryset = queryset.filter(day__lte=date_to)
+    return queryset
+
+
+def counts_version():
+    """When ``CellDayCount`` was refreshed (ISO string), or None if it is stale.
+
+    A cache key for anything computed from the data: it changes at each refresh,
+    and there is none while the counts are stale (a write since the refresh).
+    """
+    refreshed_at = (
+        CellCountsState.objects.filter(stale=False).values_list("refreshed_at", flat=True).first()
+    )
+    return refreshed_at.isoformat() if refreshed_at else None
+
+
+def counts_are_fresh():
+    """Whether ``CellDayCount`` is up to date (no write to the measures or links since its refresh)."""
+    return counts_version() is not None
+
+
+def scored_rows(**filters):
+    """The rows the scores read: the precomputed counts when they are fresh, else the measures.
+
+    Both give the same results (``cell_counts_queryset`` is much smaller); the
+    precomputed one is rebuilt by ``manage.py refresh_cell_counts`` and after each
+    traffic import. ``**filters`` are those of ``measures_queryset``.
+    """
+    if counts_are_fresh():
+        return cell_counts_queryset(**filters)
+    return measures_queryset(**filters)
+
+
 def counts_by_area(measures):
     """``{id_area: {"counts", "count_segment", "count_presence", "sources"}}`` for ``measures``.
 
     count_segment: measures of "segment" objects; count_presence: measures of
     "counter" objects (presence counters); sources: ``[{"id", "code", "label",
-    "absolute", "count", "first_data", "latest_data"}]``, the counts per data
-    source and the start of their first and last measures.
+    "absolute", "count", "first_data", "latest_data", "length_km", "person_km"}]``,
+    the counts per data source and the start of their first and last measures;
+    length_km: km of the source's line objects inside the cell (any period, from
+    the stored link lengths), person_km: sum of count x km over ``measures``; both
+    None for sources without line objects in the cell. Two grouped queries.
     """
-    rows = measures.values("id_area").annotate(
-        counts=Sum("count"),
-        count_segment=Sum("count", filter=Q(counting_object__type__code="segment"), default=0),
-        count_presence=Sum("count", filter=Q(counting_object__type__code="counter"), default=0),
+    rows = measures.values("id_area", "id_source").annotate(
+        total=Sum("count"),
+        person_km=Sum("weighted"),
+        segment=Sum("n_segment"),
+        presence=Sum("n_presence"),
+        first_data=Min("first_start"),
+        latest_data=Max("last_start"),
     )
-    counts = {row.pop("id_area"): {**row, "sources": []} for row in rows}
-    by_source = (
-        measures.values(
-            "id_area",
-            "id_source",
-            code=F("counting_object__source__code"),
-            label=F("counting_object__source__label"),
-            absolute=F("counting_object__source__absolute_counts"),
+    sources = {
+        source.pk: source
+        for source in DataSource.objects.only("code", "label", "absolute_counts")
+    }
+    rows = list(rows)
+    lengths = {
+        (row["area_id"], row["counting_object__source_id"]): row["total"] / 1000
+        for row in CountingObjectArea.objects.filter(
+            area_id__in={row["id_area"] for row in rows}, length_m__isnull=False
         )
-        .annotate(
-            total=Sum("count"), first_data=Min("start_datetime"), latest_data=Max("start_datetime")
+        .values("area_id", "counting_object__source_id")
+        .annotate(total=Sum("length_m"))
+    }
+    counts = {}
+    for row in rows:
+        length_km = lengths.get((row["id_area"], row["id_source"]))
+        area = counts.setdefault(
+            row["id_area"], {"counts": 0, "count_segment": 0, "count_presence": 0, "sources": []}
         )
-        .order_by("id_area", "label")
-    )
-    for row in by_source:
-        row["count"] = row.pop("total")
-        row["id"] = row.pop("id_source")
-        counts[row.pop("id_area")]["sources"].append(row)
+        area["counts"] += row["total"]
+        area["count_segment"] += row["segment"]
+        area["count_presence"] += row["presence"]
+        source = sources[row["id_source"]]
+        area["sources"].append(
+            {
+                "id": row["id_source"],
+                "code": source.code,
+                "label": source.label,
+                "absolute": source.absolute_counts,
+                "count": row["total"],
+                "first_data": row["first_data"],
+                "latest_data": row["latest_data"],
+                "length_km": length_km,
+                "person_km": row["person_km"] if length_km is not None else None,
+            }
+        )
+    for area in counts.values():
+        area["sources"].sort(key=lambda source: source["label"])
     return counts
 
 
@@ -257,7 +399,7 @@ class Score:
         cls, geoms=None, geom_ids=None, sources=None, date_from=None, date_to=None,
         area_type=None, **params
     ):
-        queryset = measures_queryset(
+        queryset = scored_rows(
             geoms=geoms, geom_ids=geom_ids, sources=sources,
             date_from=date_from, date_to=date_to, area_type=area_type,
         )
@@ -265,7 +407,7 @@ class Score:
 
     @classmethod
     def compute_from(cls, queryset, **params):
-        """Return ``{id_area: score}`` for the rows of ``queryset`` (see measures_queryset)."""
+        """Return ``{id_area: score}`` for the rows of ``queryset`` (see scored_rows)."""
         raise NotImplementedError
 
 
@@ -286,7 +428,8 @@ class CazalisFrequentationScore(Score):
     Port of ``BTA_FreqRaster`` (data/BTA-analyse-frequentation): each source's
     counts per cell are standardised (z-scores over the cells of the queryset,
     0 where a source has no data), summed with ``source_weights``, capped at the
-    98th percentile and rescaled to 0-100.
+    98th percentile and rescaled to 0-100. The counts are weighted by the length of
+    the segment inside each cell (the ``weighted`` field of the rows).
     """
 
     name = "cazalis"
@@ -303,11 +446,15 @@ class CazalisFrequentationScore(Score):
         The calculation takes seconds on real data (the Outdoorvision tracks
         around the counters), too long to run on every API request.
         """
-        measures = CountingMeasure.objects.aggregate(last=Max("id"), total=Count("id"))
         sources = DataSource.objects.aggregate(last=Max("id"), total=Count("id"))
-        key = "cazalis-weights:{}:{}:{}:{}".format(
-            measures["last"], measures["total"], sources["last"], sources["total"]
-        )
+        version = counts_version()
+        if version:  # no need to count the measures
+            key = f"cazalis-weights:{version}:{sources['last']}:{sources['total']}"
+        else:
+            measures = CountingMeasure.objects.aggregate(last=Max("id"), total=Count("id"))
+            key = "cazalis-weights:{}:{}:{}:{}".format(
+                measures["last"], measures["total"], sources["last"], sources["total"]
+            )
         estimate = cache.get(key)
         if estimate is None:
             estimate = cls.estimate_source_weights()
@@ -335,7 +482,8 @@ class CazalisFrequentationScore(Score):
         eco-counter. Its reference value is its mean daily count over the
         summer half-months (June-September, from 2021) that have more than 10
         days of data. Each weighted source's value is its total count, over
-        all periods, near the counter (see ``BTA_SOURCE_MATCHING``).
+        all periods, near the counter (see ``BTA_SOURCE_MATCHING``; Outdoorvision
+        counts are multiplied by the km of their object, as in R).
 
         Simplification: the R code keeps, around each counter, only the paths
         connected to its Strava edge (a 100 m corridor); here every object
@@ -396,8 +544,8 @@ class CazalisFrequentationScore(Score):
             return result()
         reference = {station: fmean(values) for station, values in sorted(daily_means.items())}
 
-        for source_id, (radius, nearest_only) in sorted(candidates.items()):
-            near = _counts_near(reference, source_id, radius, nearest_only)
+        for source_id, (radius, nearest_only, length_weighted) in sorted(candidates.items()):
+            near = _counts_near(reference, source_id, radius, nearest_only, length_weighted)
             matched = [station for station in reference if station in near]
             correlations[source_id] = {
                 "r": _pearson_correlation(
@@ -415,7 +563,7 @@ class CazalisFrequentationScore(Score):
             source_weights = cls.cached_source_weights()
 
         counts = defaultdict(dict)
-        for row in queryset.values("id_area", "id_source").annotate(total=Sum("count")):
+        for row in queryset.values("id_area", "id_source").annotate(total=Sum("weighted")):
             if row["id_source"] not in source_weights:
                 raise ValueError(f"Missing weight for source ID {row['id_source']}")
             counts[row["id_source"]][row["id_area"]] = row["total"]
