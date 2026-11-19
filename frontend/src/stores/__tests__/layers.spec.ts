@@ -34,6 +34,34 @@ describe('layers store', () => {
     expect(load).toHaveBeenCalledTimes(1)
   })
 
+  it('shows a layer visible by default as soon as it is added', () => {
+    const layers = useLayersStore()
+    layers.addDefinitions([
+      { ...definition('traffic/area'), visibleByDefault: true },
+      definition('traffic/counter'),
+    ])
+
+    expect(layers.visible).toEqual({ 'traffic/area': true, 'traffic/counter': false })
+  })
+
+  it('shows one exclusive layer of a group at a time', () => {
+    const layers = useLayersStore()
+    const exclusive = (id: LayerId) => ({ ...definition(id), group: 'grid', exclusive: true })
+    layers.addDefinitions([
+      exclusive('traffic/area'),
+      exclusive('biodiversity/area'),
+      { ...definition('traffic/counter'), group: 'grid' },
+    ])
+
+    layers.setVisible('traffic/counter', true)
+    layers.setVisible('traffic/area', true)
+    layers.setVisible('biodiversity/area', true)
+
+    expect(layers.visible['traffic/area']).toBe(false)
+    expect(layers.visible['biodiversity/area']).toBe(true)
+    expect(layers.visible['traffic/counter']).toBe(true)
+  })
+
   it('sends only visible layers to the map', () => {
     const layers = useLayersStore()
     layers.setLayer('traffic/counter', [point])

@@ -9,7 +9,7 @@ const layers = useLayersStore()
 const open = ref(true)
 
 /** Ordre des groupes : les couches arrivent dans l'ordre des réponses de l'API, donc au hasard. */
-const GROUP_ORDER = ['traffic', 'biodiversity', 'outdoor', 'external']
+const GROUP_ORDER = ['grid', 'traffic', 'biodiversity', 'outdoor', 'external']
 
 const groups = computed(() => {
   const byGroup = new Map<string, LayerDefinition[]>()
@@ -20,6 +20,15 @@ const groups = computed(() => {
   const rank = (group: string) => GROUP_ORDER.indexOf(group) + 1 || GROUP_ORDER.length + 1
   return [...byGroup].sort(([a], [b]) => rank(a) - rank(b))
 })
+
+/** Groupe de couches `exclusive` : boutons radio, une seule couche à la fois. */
+function isExclusive(definitions: LayerDefinition[]) {
+  return definitions.every((d) => d.exclusive)
+}
+
+function hideAll(definitions: LayerDefinition[]) {
+  for (const d of definitions) layers.setVisible(d.id, false)
+}
 </script>
 
 <template>
@@ -31,7 +40,8 @@ const groups = computed(() => {
       <legend>{{ $t(`layerGroups.${group}`) }}</legend>
       <label v-for="definition in definitions" :key="definition.id" :title="definition.description">
         <input
-          type="checkbox"
+          :type="isExclusive(definitions) ? 'radio' : 'checkbox'"
+          :name="group"
           :checked="layers.visible[definition.id] ?? false"
           @change="layers.setVisible(definition.id, ($event.target as HTMLInputElement).checked)"
         />
@@ -40,6 +50,15 @@ const groups = computed(() => {
         <span v-else-if="layers.status[definition.id]?.error" class="error">{{
           $t('layers.failed')
         }}</span>
+      </label>
+      <label v-if="isExclusive(definitions)">
+        <input
+          type="radio"
+          :name="group"
+          :checked="!definitions.some((d) => layers.visible[d.id])"
+          @change="hideAll(definitions)"
+        />
+        {{ $t('layers.none') }}
       </label>
     </fieldset>
   </div>

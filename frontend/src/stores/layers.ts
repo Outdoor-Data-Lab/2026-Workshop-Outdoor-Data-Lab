@@ -4,6 +4,7 @@ import type { FeatureCollection, Geometry } from 'geojson'
 
 import { i18n } from '@/i18n'
 import { CONCEPTS, type Concept } from '@/types/concept'
+import type { LegendItem } from '@/types/legend'
 import { SEASON_MONTHS, type Season } from '@/types/season'
 import { layerDomain, type LayerId, type MapObject } from '@/types/mapObject'
 
@@ -44,6 +45,10 @@ export interface LayerDefinition {
   label: string
   /** Clé `layerGroups.<group>` des traductions. */
   group: string
+  /** Une seule couche `exclusive` visible à la fois dans son groupe. */
+  exclusive?: boolean
+  /** Affichée dès son ajout ; sinon l'utilisateur la coche. */
+  visibleByDefault?: boolean
   /** Affichée au survol du nom. */
   description?: string
   /** Type d'un objet de la couche, au singulier, en tête de son détail ; sinon `label`. */
@@ -52,6 +57,8 @@ export interface LayerDefinition {
   load?: (filters: LayerFilters) => Promise<MapObject[]>
   /** Tuiles vectorielles, dessinées par la carte à partir de `minzoom`. */
   tiles?: { url: (filters: LayerFilters) => string; minzoom: number }
+  /** Entrées de la légende quand la couche est visible, d'après ses objets chargés. */
+  legend?: (objects: MapObject[]) => LegendItem[]
 }
 
 /** Couches de la carte : définitions, visibilité et objets chargés. */
@@ -159,10 +166,10 @@ export const useLayersStore = defineStore('layers', () => {
     return CONCEPTS.find((c) => c.id === concept.value)!.domains.includes(layerDomain(layer))
   }
 
-  /** Les couches ajoutées sont décochées : l'utilisateur choisit celles à afficher. */
+  /** Les couches ajoutées sont décochées, sauf `visibleByDefault` : l'utilisateur choisit celles à afficher. */
   function addDefinitions(added: LayerDefinition[]) {
     definitions.value = [...definitions.value, ...added]
-    for (const definition of added) setVisible(definition.id, false)
+    for (const definition of added) setVisible(definition.id, definition.visibleByDefault ?? false)
   }
 
   /** Change de concept et réinitialise la visibilité des couches, sauf des externes. */
@@ -179,6 +186,13 @@ export const useLayersStore = defineStore('layers', () => {
   function setVisible(layer: LayerId, on: boolean) {
     visible.value[layer] = on
     const definition = definitions.value.find((d) => d.id === layer)
+    if (on && definition?.exclusive) {
+      for (const other of definitions.value) {
+        if (other.exclusive && other.group === definition.group && other.id !== layer) {
+          visible.value[other.id] = false
+        }
+      }
+    }
     if (
       on &&
       definition?.load &&

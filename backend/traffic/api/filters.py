@@ -1,4 +1,5 @@
 from django.core.exceptions import ValidationError
+from django.db.models import Subquery
 from django_filters import rest_framework as filters
 
 from rest_framework.exceptions import ValidationError as ApiValidationError
@@ -8,11 +9,11 @@ from ref_geo.filters import LAreaFilter
 from ref_geo.models import LArea
 from workshop2026.api.mixins import AreaFilterSet
 
-from ..models import CountingMeasure, CountingObject
+from ..models import CountingMeasure, CountingObject, CountingObjectType
 
 
 class CountingObjectFilter(AreaFilterSet, SpatialFilterSet):
-    type_code = filters.CharFilter(field_name="type__code")
+    type_code = filters.CharFilter(method="filter_by_type_code")
     source_code = filters.CharFilter(field_name="source__code")
     origin_code = filters.CharFilter(field_name="origin__code")
     area_code = filters.CharFilter(method="filter_by_area_code")
@@ -22,6 +23,14 @@ class CountingObjectFilter(AreaFilterSet, SpatialFilterSet):
     class Meta:
         model = CountingObject
         fields = []
+
+    def filter_by_type_code(self, queryset, name, value):
+        """On ``type_id``, not through a join: PostgreSQL then tests the type before
+        the area (``area_id``, ``area_code``), which costs about 1 ms per object
+        against a detailed polygon (8 s for the counters of a department, among
+        thousands of segments)."""
+        type_id = CountingObjectType.objects.filter(code=value).values("id")[:1]
+        return queryset.filter(type_id=Subquery(type_id))
 
 
 class TrafficAreaFilter(LAreaFilter):

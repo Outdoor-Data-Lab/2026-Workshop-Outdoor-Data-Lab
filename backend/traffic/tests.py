@@ -37,6 +37,7 @@ from workshop2026.processing.score import (
     counts_by_area,
     scored_rows,
 )
+from .api.views import ScoreSourcesView, ScoreMapView
 
 from .areas import refresh_cell_day_counts
 from .models import (
@@ -53,7 +54,6 @@ from .parsers.compteur import CompteurParser
 from .parsers.inaturalist import INaturalistParser, observer_day_id
 from .parsers.outdoorvision import OutdoorVisionParser
 from .parsers.strava import StravaParser
-from .views import ScoreMapView, ScoreSourcesView
 
 
 def dt(day, hour=0):
@@ -229,6 +229,9 @@ class CountingObjectApiTests(TrafficTestCase):
         self.assertEqual(self.get(f"intersects={square}")["count"], 1)
         self.assertEqual(self.get("origin_code=garmin")["count"], 1)
         self.assertEqual(self.get("type_code=segment")["count"], 0)
+        self.assertEqual(self.get("type_code=counter")["count"], 2)
+        self.assertEqual(self.get("type_code=counter&bbox=6,44,7,45")["count"], 1)
+        self.assertEqual(self.get("type_code=unknown")["count"], 0)
 
     def test_measures_paginated_with_codes(self):
         for day in (15, 16, 17):
@@ -1197,8 +1200,8 @@ class ScoreApiTests(SimpleTestCase):
             ),
         )
 
-    @patch("traffic.views.LArea.objects.filter")
-    @patch("traffic.views.BasicFrequentationScore.compute")
+    @patch("traffic.api.views.LArea.objects.filter")
+    @patch("traffic.api.views.BasicFrequentationScore.compute")
     def test_score_map_returns_scored_geojson(self, compute_score, filter_areas):
         filter_areas.return_value.order_by.return_value = [self.area]
         compute_score.return_value = {12: 25}
@@ -1211,8 +1214,8 @@ class ScoreApiTests(SimpleTestCase):
         self.assertEqual(response.data["features"][0]["properties"]["score"], 25)
         compute_score.assert_called_once_with(geom_ids=[12])
 
-    @patch("traffic.views.LArea.objects.filter")
-    @patch("traffic.views.CazalisFrequentationScore.compute")
+    @patch("traffic.api.views.LArea.objects.filter")
+    @patch("traffic.api.views.CazalisFrequentationScore.compute")
     def test_cazalis_weights_are_forwarded(self, compute_score, filter_areas):
         filter_areas.return_value.order_by.return_value = [self.area]
         compute_score.return_value = {12: 50}
@@ -1229,7 +1232,7 @@ class ScoreApiTests(SimpleTestCase):
             source_weights={3: 2.5},
         )
 
-    @patch("traffic.views.DataSource.objects.order_by")
+    @patch("traffic.api.views.DataSource.objects.order_by")
     def test_sources_endpoint_returns_source_metadata(self, order_sources):
         order_sources.return_value.values.return_value = [
             {"id": 3, "code": "outdoorvision", "label": "OutdoorVision"}

@@ -16,18 +16,40 @@ from . import serializers
 from .querysets import GRID, TAXA_GRID, cells_with_status_taxa
 
 class LAreaAreaTaxonStatusFilter(LAreaAreaFilter):
-    has_protected_or_threatened_taxa = filters.BooleanFilter(
-        method="filter_by_protected_or_threatened_taxa",
-        label="Has protected or threatened taxa",
-        help_text="Only show areas that have protected or threatened taxa (count > 0)"
+    taxa_status = filters.ChoiceFilter(
+        method="filter_by_taxa_status",
+        label="Taxa conservation status",
+        help_text="Filter by protected and/or threatened taxa",
+        choices=[
+            ('protected', 'Only protected'),
+            ('threatened', 'Only threatened'),
+            ('either', 'Protected or threatened'),
+            ('both', 'Both protected and threatened'),
+        ]
     )
-    def filter_by_protected_or_threatened_taxa(self, queryset, name, value):
-        """Filter areas that have protected or threatened taxa (count > 0)."""
-        if value:
-            # Not on the count annotation: it would be computed for every cell of the grid.
-            return queryset.filter(id_area__in=cells_with_status_taxa())
-        return queryset
 
+    def filter_by_taxa_status(self, queryset, name, value):
+        """Filter areas by protected and/or threatened taxa presence."""
+        if not value:
+            return queryset
+
+        from .querysets import PROTECTION_STATUS, REDLIST_STATUS
+
+        if value == 'protected':
+            return queryset.filter(id_area__in=cells_with_status_taxa(PROTECTION_STATUS))
+        elif value == 'threatened':
+            return queryset.filter(id_area__in=cells_with_status_taxa(REDLIST_STATUS))
+        elif value == 'either':
+            # Protected or threatened (at least one)
+            return queryset.filter(id_area__in=cells_with_status_taxa())
+        elif value == 'both':
+            # Both protected AND threatened
+            protected_cells = set(cells_with_status_taxa(PROTECTION_STATUS))
+            threatened_cells = set(cells_with_status_taxa(REDLIST_STATUS))
+            both_cells = protected_cells & threatened_cells
+            return queryset.filter(id_area__in=both_cells)
+
+        return queryset
 
 class TaxonAreaViewSet(viewsets.ReadOnlyModelViewSet):
     """Base read-only geographic view filtered with a WGS84 ``in_bbox``."""
