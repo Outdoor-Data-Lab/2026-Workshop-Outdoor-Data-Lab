@@ -108,7 +108,11 @@ function taxonText(taxon: AreaTaxon) {
           {{ source.absolute ? $t('cell.absolute') : $t('cell.relative') }} ·
           {{ years(source.first_data, source.latest_data) }}
         </div>
-        <div v-if="source.length_km != null && source.person_km != null" class="hint">
+        <div
+          v-if="source.length_km != null && source.person_km != null"
+          class="hint has-tip"
+          :title="$t('cell.kmHelp')"
+        >
           {{
             $t('cell.km', {
               km: oneDecimal(source.length_km),
@@ -209,6 +213,12 @@ p {
 
 .weight {
   font-weight: 600;
+}
+
+.has-tip {
+  cursor: help;
+  text-decoration: underline dotted;
+  text-underline-offset: 2px;
 }
 
 .formula {

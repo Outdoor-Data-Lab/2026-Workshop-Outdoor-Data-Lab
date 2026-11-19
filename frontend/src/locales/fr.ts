@@ -69,6 +69,8 @@ export default {
     absolute: 'absolu',
     relative: 'relatif',
     km: '{km} km de tracés dans la maille · {personKm} personnes·km',
+    kmHelp:
+      'Personnes·km = passages × km de tracé dans la maille. Exemple : 100 passages sur un tracé de 2 km = 200 personnes·km ; sur un tracé qui ne fait que frôler la maille (0,1 km) = 10. Cela permet de comparer les mailles sans que les petits bouts de tracé pèsent autant que les longs.',
     /** Ce que compte chaque source, par code. */
     units: {
       ecocompteur: '{n} passage compté | {n} passages comptés',

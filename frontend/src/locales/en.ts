@@ -70,6 +70,8 @@ export default {
     absolute: 'absolute',
     relative: 'relative',
     km: '{km} km of tracks in the cell · {personKm} person·km',
+    kmHelp:
+      'Person·km = passages × km of track in the cell. Example: 100 passages on a 2 km track = 200 person·km; on a track that only grazes the cell (0.1 km) = 10. This lets cells be compared without short bits of track weighing as much as long ones.',
     /** What each source counts, by code. */
     units: {
       ecocompteur: '{n} passage counted | {n} passages counted',

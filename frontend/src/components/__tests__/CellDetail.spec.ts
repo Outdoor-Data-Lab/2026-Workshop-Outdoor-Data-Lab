@@ -109,6 +109,7 @@ describe('CellDetail', () => {
     expect(text).toContain('Weights estimated on 12 eco-counters.')
     expect(text).toContain('12.4 km of tracks in the cell · 1,340.5 person·km')
     expect(text).not.toContain('null km')
+    expect(wrapper.find('[title*="Person·km = passages"]').exists()).toBe(true)
     expect(text).toContain('score = Σ weight × (frequentation − mean) ÷ standard deviation')
     expect(text).toContain('weight = 1 / (1 − r)')
     expect(text).toContain('Biodiversity1 protected or threatened taxon')
