@@ -54,7 +54,7 @@ export async function trafficLayers(): Promise<LayerDefinition[]> {
       id: TRAFFIC_AREA_LAYER,
       label: i18n.global.t('layers.trafficAreas'),
       group: 'traffic',
-      load: ({ areaId }) => getTrafficAreasForMap({ areaId }),
+      load: ({ areaId, months }) => getTrafficAreasForMap({ areaId, months }),
     },
   ]
 }

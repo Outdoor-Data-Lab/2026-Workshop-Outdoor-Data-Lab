@@ -106,6 +106,11 @@ class AreasQuerySerializer(DynamicFieldsMixin, serializers.Serializer):
     date_to = serializers.DateField(
         required=False, help_text="Last day of the period (YYYY-MM-DD), included."
     )
+    months = serializers.ListField(
+        child=serializers.IntegerField(min_value=1, max_value=12),
+        required=False,
+        help_text="Months of the year to keep, whatever the year (repeatable), e.g. 12, 1, 2 for the winters.",
+    )
     scores = serializers.MultipleChoiceField(
         choices=sorted(SCORES),
         required=False,

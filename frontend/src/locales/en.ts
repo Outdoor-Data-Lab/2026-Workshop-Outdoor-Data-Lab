@@ -28,6 +28,14 @@ export default {
     biodivArea: 'Cell {name}: {count} protected or threatened taxa',
     loadError: 'Could not load {label}',
   },
+  season: {
+    label: 'Season',
+    all: 'All year',
+    winter: 'Winter (Dec–Feb)',
+    spring: 'Spring (Mar–May)',
+    summer: 'Summer (Jun–Aug)',
+    autumn: 'Autumn (Sep–Nov)',
+  },
   areaFilter: {
     label: 'Area',
     placeholder: 'Search a municipality, a department…',

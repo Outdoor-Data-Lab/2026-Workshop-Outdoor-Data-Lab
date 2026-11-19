@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n'
 
 import AreaFilter from '@/components/AreaFilter.vue'
 import DetailPanel from '@/components/DetailPanel.vue'
+import SeasonFilter from '@/components/SeasonFilter.vue'
 import LayerSwitcher from '@/components/LayerSwitcher.vue'
 import MapLegend, { type LegendItem } from '@/components/MapLegend.vue'
 import MapView from '@/components/MapView.vue'
@@ -52,7 +53,10 @@ const legend = computed<LegendItem[]>(() => {
   <main class="home">
     <div class="map">
       <MapView />
-      <AreaFilter class="area-filter" />
+      <div class="controls">
+        <AreaFilter />
+        <SeasonFilter />
+      </div>
       <LayerSwitcher class="layer-switcher" />
       <MapLegend v-if="legend.length" :items="legend" />
     </div>
@@ -85,11 +89,16 @@ const legend = computed<LegendItem[]>(() => {
   min-width: 0;
 }
 
-/* En haut à gauche de la carte, en attendant le panneau des filtres. */
-.area-filter {
+/* Filtres en haut à gauche de la carte : zone, puis saison, à la même largeur. */
+.controls {
   position: absolute;
+  z-index: 1;
   top: 10px;
   left: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--space) / 1.5);
+  width: min(18rem, calc(100% - 20px));
 }
 
 /* Sous les boutons de zoom de MapLibre, en haut à droite. */

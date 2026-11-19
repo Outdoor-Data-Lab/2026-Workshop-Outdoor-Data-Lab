@@ -28,6 +28,14 @@ export default {
     biodivArea: 'Maille {name} : {count} taxons protégés ou menacés',
     loadError: 'Impossible de charger {label}',
   },
+  season: {
+    label: 'Saison',
+    all: "Toute l'année",
+    winter: 'Hiver (déc.–févr.)',
+    spring: 'Printemps (mars–mai)',
+    summer: 'Été (juin–août)',
+    autumn: 'Automne (sept.–nov.)',
+  },
   areaFilter: {
     label: 'Zone',
     placeholder: 'Rechercher une commune, un département…',

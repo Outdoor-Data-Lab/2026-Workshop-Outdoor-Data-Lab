@@ -40,4 +40,15 @@ describe('getTrafficAreasForMap', () => {
     ])
     expect(objects[0]!.label).toBe('Cell 1')
   })
+
+  it('sends the months of a season, repeated', async () => {
+    const fetch = vi.fn(
+      async (_url: string) =>
+        new Response(JSON.stringify({ type: 'FeatureCollection', features: [] })),
+    )
+    vi.stubGlobal('fetch', fetch)
+    await getTrafficAreasForMap({ months: [12, 1, 2] })
+
+    expect(fetch.mock.calls[0]![0]).toContain('months=12&months=1&months=2')
+  })
 })

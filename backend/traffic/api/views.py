@@ -80,7 +80,7 @@ class AreasViewSet(viewsets.ReadOnlyModelViewSet):
 
     Only the cells with measures matching ``source`` and the period
     ``date_from`` / ``date_to`` (YYYY-MM-DD, both included, on the start of
-    the measures).
+    the measures), and ``months`` of every year (e.g. 12, 1, 2: the winters).
     Properties: ``counts``, ``count_segment``, ``count_presence``, ``sources``
     (counts per data source, absolute or relative) and ``score``
     (``{score name: value}`` for the requested ``scores``). Geometry in WGS84.
@@ -120,6 +120,7 @@ class AreasViewSet(viewsets.ReadOnlyModelViewSet):
             sources=self.params.get("source"),
             date_from=self.params.get("date_from"),
             date_to=self.params.get("date_to"),
+            months=self.params.get("months"),
             area_type=self.area_type,
         )
 
@@ -182,6 +183,7 @@ class AreasViewSet(viewsets.ReadOnlyModelViewSet):
             sorted(self.params.get("source") or ()),
             str(self.params.get("date_from")),
             str(self.params.get("date_to")),
+            sorted(self.params.get("months") or ()),
             self.area_type,
             sorted((self.source_weights or {}).items()),
         )
