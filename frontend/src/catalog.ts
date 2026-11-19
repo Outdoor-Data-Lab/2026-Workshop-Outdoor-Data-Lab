@@ -13,10 +13,26 @@ import {
 import { gridSize, getInstanceSettings } from '@/api/settings'
 import { i18n, referenceLabel } from '@/i18n'
 import type { LayerDefinition } from '@/stores/layers'
-import { mapObjectKey, type LayerId, type MapObject } from '@/types/mapObject'
+import { shapeOf, type LegendItem } from '@/types/legend'
+import {
+  DOMAIN_COLORS,
+  VALUE_COLORS,
+  mapObjectKey,
+  valueMax,
+  type LayerId,
+  type MapObject,
+} from '@/types/mapObject'
 
 /** Types trop nombreux pour être chargés en entier (traces Outdoorvision) : servis en tuiles. */
 const TILED_TYPES = ['segment']
+
+/** Légende d'une couche d'une seule couleur, dans la forme de ses géométries. */
+function swatch(label: string, color: string) {
+  return (objects: MapObject[]): LegendItem[] => {
+    const shape = shapeOf(objects)
+    return shape ? [{ label, color, shape }] : []
+  }
+}
 
 /** Type d'objet des mailles, avec leur taille : « Maille de 500 m ». */
 async function cellItemLabel() {
@@ -40,6 +56,7 @@ export async function trafficLayers(): Promise<LayerDefinition[]> {
           url: ({ areaId }) => countingObjectTileUrl({ typeCode: type.code, areaId }),
           minzoom: TILE_MIN_ZOOM,
         },
+        legend: () => [{ label, color: DOMAIN_COLORS.traffic, shape: 'line' }],
       }
     }
     return {
@@ -47,6 +64,7 @@ export async function trafficLayers(): Promise<LayerDefinition[]> {
       label,
       group: 'traffic',
       itemLabel: i18n.global.t('items.counter'),
+      legend: () => [{ label, color: DOMAIN_COLORS.traffic, shape: 'point' }],
       // L'adaptateur range tous les compteurs dans une même couche : on les rattache à celle du type.
       load: async ({ areaId }) =>
         (await getCountingObjectsForMap({ typeCode: type.code, areaId })).map((o) => ({
@@ -66,33 +84,45 @@ export async function trafficLayers(): Promise<LayerDefinition[]> {
       visibleByDefault: true,
       itemLabel: cell,
       load: ({ areaId, months }) => getTrafficAreasForMap({ areaId, months }),
+      legend: (objects) => [
+        {
+          label: i18n.global.t('legend.trafficAreas'),
+          colors: VALUE_COLORS,
+          min: 0,
+          max: valueMax(objects.map((o) => o.value)),
+        },
+      ],
     },
   ]
 }
 
 /** Mailles ayant des taxons protégés ou menacés. */
 export async function biodiversityLayers(): Promise<LayerDefinition[]> {
+  const label = i18n.global.t('layers.biodivAreas')
   return [
     {
       id: BIODIV_AREA_LAYER,
-      label: i18n.global.t('layers.biodivAreas'),
+      label,
       group: 'grid',
       exclusive: true,
       itemLabel: await cellItemLabel(),
       load: () => getBiodivAreasForMap(),
+      legend: swatch(label, DOMAIN_COLORS.biodiversity),
     },
   ]
 }
 
 /** Offres d'activités outdoor. */
 export async function outdoorLayers(): Promise<LayerDefinition[]> {
+  const label = i18n.global.t('layers.outdoorOffers')
   return [
     {
       id: OFFER_LAYER,
-      label: i18n.global.t('layers.outdoorOffers'),
+      label,
       group: 'outdoor',
       itemLabel: i18n.global.t('items.offer'),
       load: ({ areaId }) => getOffersForMap({ areaId }),
+      legend: swatch(label, DOMAIN_COLORS.outdoor),
     },
   ]
 }
@@ -134,6 +164,17 @@ export async function externalLayers(): Promise<LayerDefinition[]> {
             ),
           }
         }),
+      // Colorée par attribut : une entrée par valeur, puis la couleur de la couche si des objets la gardent.
+      legend: (objects): LegendItem[] => {
+        const shape = shapeOf(objects)
+        if (!shape) return []
+        if (!layer.color_property) return [{ label: layer.label, color: layer.color, shape }]
+        const categories = Object.entries(layer.colors).map(([label, color]) => ({ label, color }))
+        if (objects.some((o) => o.color === layer.color)) {
+          categories.push({ label: i18n.global.t('legend.otherValues'), color: layer.color })
+        }
+        return [{ label: layer.label, shape, categories }]
+      },
     }
   })
 }

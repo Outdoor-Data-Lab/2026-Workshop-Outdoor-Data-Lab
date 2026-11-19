@@ -4,6 +4,7 @@ import type { FeatureCollection, Geometry } from 'geojson'
 
 import { i18n } from '@/i18n'
 import { CONCEPTS, type Concept } from '@/types/concept'
+import type { LegendItem } from '@/types/legend'
 import { SEASON_MONTHS, type Season } from '@/types/season'
 import { layerDomain, type LayerId, type MapObject } from '@/types/mapObject'
 
@@ -56,6 +57,8 @@ export interface LayerDefinition {
   load?: (filters: LayerFilters) => Promise<MapObject[]>
   /** Tuiles vectorielles, dessinées par la carte à partir de `minzoom`. */
   tiles?: { url: (filters: LayerFilters) => string; minzoom: number }
+  /** Entrées de la légende quand la couche est visible, d'après ses objets chargés. */
+  legend?: (objects: MapObject[]) => LegendItem[]
 }
 
 /** Couches de la carte : définitions, visibilité et objets chargés. */
