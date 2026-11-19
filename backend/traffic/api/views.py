@@ -221,6 +221,18 @@ class AreasViewSet(viewsets.ReadOnlyModelViewSet):
         }
         return self.get_serializer(areas if many else areas[0], many=many, context=context)
 
+    def response_cache_key(self):
+        """Key of this list response (its full URL), or None while the precomputed counts are stale.
+
+        The data only changes at an import, which changes the data version: a whole
+        page is cached, so the next visitors get the cells without any computation.
+        """
+        version = counts_version()
+        if version is None:
+            return None
+        url = self.request.build_absolute_uri()
+        return f"area-response:{version}:{hashlib.sha1(url.encode()).hexdigest()}"
+
     def with_source_weights(self, response):
         """Add the weights used by the "cazalis" score to the response."""
         if "cazalis" in self.params.get("scores", ()):
@@ -228,10 +240,17 @@ class AreasViewSet(viewsets.ReadOnlyModelViewSet):
         return response
 
     def list(self, request, *args, **kwargs):
-        page = self.paginate_queryset(self.filter_queryset(self.get_queryset()))
-        return self.with_source_weights(
-            self.get_paginated_response(self.serialize(page, many=True).data)
-        )
+        key = self.response_cache_key()
+        data = cache.get(key) if key else None
+        if data is None:
+            page = self.paginate_queryset(self.filter_queryset(self.get_queryset()))
+            data = self.with_source_weights(
+                self.get_paginated_response(self.serialize(page, many=True).data)
+            ).data
+            if key:
+                # Expires only to free the memory of the old data versions.
+                cache.set(key, data, timeout=7 * 24 * 3600)
+        return Response(data)
 
     def retrieve(self, request, *args, **kwargs):
         return self.with_source_weights(
