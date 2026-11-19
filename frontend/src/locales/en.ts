@@ -15,7 +15,7 @@ export default {
   /** Valeurs de référence de l'API, par code (repli : le libellé de l'API). */
   countingObjectTypes: {
     counter: 'Counter',
-    segment: 'Segment',
+    segment: 'Segments and tracks',
   },
   layers: {
     loading: '(loading)',
@@ -42,7 +42,6 @@ export default {
   legend: {
     title: 'Legend',
     counters: 'Counters',
-    tracks: 'Outings (tracks)',
     trafficAreas: 'Traffic per grid cell (score)',
   },
   offer: {

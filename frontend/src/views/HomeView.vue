@@ -25,14 +25,16 @@ externalLayers().then(layers.addDefinitions)
 const legend = computed<LegendItem[]>(() => {
   const visible = (Object.keys(layers.visible) as LayerId[]).filter((id) => layers.visible[id])
   const items: LegendItem[] = []
-  // Les couches en tuiles sont des traces (Outdoorvision), les autres des points.
+  // Couches en tuiles : des lignes, sous le nom de la couche ; les autres : des points.
   const tiled = new Set(layers.definitions.filter((d) => d.tiles).map((d) => d.id))
   const traffic = visible.filter((id) => id.startsWith('traffic/') && id !== TRAFFIC_AREA_LAYER)
   if (traffic.some((id) => !tiled.has(id))) {
     items.push({ label: t('legend.counters'), color: DOMAIN_COLORS.traffic, shape: 'point' })
   }
-  if (traffic.some((id) => tiled.has(id))) {
-    items.push({ label: t('legend.tracks'), color: DOMAIN_COLORS.traffic, shape: 'line' })
+  for (const definition of layers.definitions) {
+    if (tiled.has(definition.id) && traffic.includes(definition.id)) {
+      items.push({ label: definition.label, color: DOMAIN_COLORS.traffic, shape: 'line' })
+    }
   }
   if (visible.includes(TRAFFIC_AREA_LAYER)) {
     items.push({

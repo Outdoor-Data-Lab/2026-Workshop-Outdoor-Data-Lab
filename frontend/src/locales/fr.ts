@@ -15,7 +15,7 @@ export default {
   },
   countingObjectTypes: {
     counter: 'Compteur',
-    segment: 'Segment',
+    segment: 'Segments et traces',
   },
   layers: {
     loading: '(chargement)',
@@ -41,7 +41,6 @@ export default {
   legend: {
     title: 'Légende',
     counters: 'Compteurs',
-    tracks: 'Sorties (traces)',
     trafficAreas: 'Fréquentation par maille (score)',
   },
   offer: {
