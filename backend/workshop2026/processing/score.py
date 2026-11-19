@@ -33,15 +33,17 @@ from traffic.models import (
     CellDayCount,
     CountingMeasure,
     CountingObject,
+    CountingObjectArea,
 )
 
 BTA_REFERENCE_SOURCE = "ecocompteur"
 # How each weighted source is matched to an eco-counter (BTA_PrepareCorrelation):
-# (radius in metres, whether only the nearest object within it counts).
+# (radius in metres, whether only the nearest object within it counts, whether
+# each count is multiplied by the km of its object: R's DistPers).
 BTA_SOURCE_MATCHING = {
-    "strava": (500, True),  # passages of the nearest edge
-    "outdoorvision": (100, False),  # outings passing within 100 m
-    "inaturalist": (500, False),  # observer-days within 500 m
+    "strava": (500, True, False),  # passages of the nearest edge
+    "outdoorvision": (100, False, True),  # DistPers of the segments within 100 m
+    "inaturalist": (500, False, False),  # observer-days within 500 m
 }
 # Eco-counters (external_id) left out of the weight estimation. CARRELET was
 # already excluded by the R code; PREMCARL (Pré de Madame Carle, reached by car)
@@ -91,8 +93,13 @@ def _pearson_correlation(reference_values, source_values):
         return None
 
 
-def _counts_near(station_ids, source_id, radius, nearest_only):
+def _counts_near(station_ids, source_id, radius, nearest_only, length_weighted=False):
     """``{station id: total count}`` of the ``source_id`` objects within ``radius`` metres.
+
+    With ``length_weighted``, each count is multiplied by the length in km of its
+    object (R's ``DistPers = count x Length_km``, not only the part within
+    ``radius``): its part in the grid ``DEFAULT_GRID_AREA_TYPE``, from the stored
+    link lengths, else its whole length.
 
     With ``nearest_only``, only the closest object counts and stations with no
     object within ``radius`` are left out (in the R code, a counter without a
@@ -106,9 +113,24 @@ def _counts_near(station_ids, source_id, radius, nearest_only):
         if nearest_only
         else ""
     )
+    links = f'"{CountingObjectArea._meta.db_table}"'
+    # The km of the object inside the grid, summed from the stored lengths of its
+    # cells (no geometry work); ST_Length of the whole object while they are missing.
+    km = (
+        f"""COALESCE(
+                (SELECT SUM(coa.length_m) FROM {links} coa
+                 WHERE coa.counting_object_id = obj.id
+                   AND coa.id_type = (SELECT id_type FROM ref_geo.bib_areas_types
+                                      WHERE type_code = %(grid)s)) / 1000.0,
+                ST_Length(obj.geom::geography) / 1000.0
+            )::float8"""
+        if length_weighted
+        else "1.0::float8"
+    )
     sql = f"""
         WITH near AS (
-            SELECT {distinct} station.id AS station_id, obj.id AS object_id
+            SELECT {distinct} station.id AS station_id, obj.id AS object_id,
+                   {km} AS km
             FROM {objects} station
             JOIN {objects} obj
               ON obj.source_id = %(source)s
@@ -125,7 +147,7 @@ def _counts_near(station_ids, source_id, radius, nearest_only):
             WHERE station.id = ANY(%(stations)s)
             {order}
         )
-        SELECT near.station_id, COALESCE(SUM(measure.count), 0)
+        SELECT near.station_id, COALESCE(SUM(measure.count * near.km), 0)
         FROM near
         LEFT JOIN {measures} measure ON measure.counting_object_id = near.object_id
         GROUP BY near.station_id
@@ -134,6 +156,7 @@ def _counts_near(station_ids, source_id, radius, nearest_only):
         "source": source_id,
         "stations": list(station_ids),
         "radius": radius,
+        "grid": settings.DEFAULT_GRID_AREA_TYPE,
     }
     with connection.cursor() as cursor:
         cursor.execute(sql, params)
@@ -443,7 +466,8 @@ class CazalisFrequentationScore(Score):
         eco-counter. Its reference value is its mean daily count over the
         summer half-months (June-September, from 2021) that have more than 10
         days of data. Each weighted source's value is its total count, over
-        all periods, near the counter (see ``BTA_SOURCE_MATCHING``).
+        all periods, near the counter (see ``BTA_SOURCE_MATCHING``; Outdoorvision
+        counts are multiplied by the km of their object, as in R).
 
         Simplification: the R code keeps, around each counter, only the paths
         connected to its Strava edge (a 100 m corridor); here every object
@@ -504,8 +528,8 @@ class CazalisFrequentationScore(Score):
             return result()
         reference = {station: fmean(values) for station, values in sorted(daily_means.items())}
 
-        for source_id, (radius, nearest_only) in sorted(candidates.items()):
-            near = _counts_near(reference, source_id, radius, nearest_only)
+        for source_id, (radius, nearest_only, length_weighted) in sorted(candidates.items()):
+            near = _counts_near(reference, source_id, radius, nearest_only, length_weighted)
             matched = [station for station in reference if station in near]
             correlations[source_id] = {
                 "r": _pearson_correlation(

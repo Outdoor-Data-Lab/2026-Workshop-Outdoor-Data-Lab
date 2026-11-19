@@ -29,6 +29,7 @@ from ref_geo.models import BibAreasType, LArea
 from workshop2026.processing.score import (
     BasicFrequentationScore,
     CazalisFrequentationScore,
+    _counts_near,
     _standardize,
     _winsorize_and_rescale,
     cazalis_weights_from_correlations,
@@ -805,6 +806,17 @@ class CazalisWeightCalculationTests(AreasTestCase):
         segment("outdoorvision", a, 0.002, 50)
         segment("outdoorvision", b, 0.0005, 3)
         segment("outdoorvision", d, 0.0005, 2)
+
+    def test_outdoorvision_counts_are_weighted_by_the_km_of_their_object(self):
+        station = CountingObject.objects.get(
+            source__code="ecocompteur", geom=Point(6.3, 44.3, srid=4326), external_id=""
+        )
+        outdoorvision = DataSource.objects.get(code="outdoorvision").pk
+        raw = _counts_near([station.pk], outdoorvision, 100, False)
+        weighted = _counts_near([station.pk], outdoorvision, 100, False, length_weighted=True)
+        self.assertEqual(raw, {station.pk: 1})  # the 222 m track is out of range
+        # 0.002 degree of longitude at 44.3 N: 159 m
+        self.assertAlmostEqual(weighted[station.pk], 0.1594, places=3)
 
     def test_calculates_weights_from_summer_ecocompteur_correlations(self):
         weights = CazalisFrequentationScore.calculate_source_weights()
