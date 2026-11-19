@@ -1,3 +1,4 @@
+
 from django.urls import path
 from rest_framework.routers import SimpleRouter
 
@@ -12,5 +13,7 @@ router.register("counting-measures", views.CountingMeasureViewSet, basename="cou
 
 urlpatterns = [
     path("tiles/<int:z>/<int:x>/<int:y>.pbf", tiles.counting_object_tile, name="counting-object-tile"),
+    path("score-map", views.ScoreMapView.as_view(), name="score-map"),
+    path("score-sources", views.ScoreSourcesView.as_view(), name="score-sources"),
     *router.urls,
 ]
