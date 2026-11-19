@@ -16,6 +16,9 @@ To do this, we propose a stack composed of :
 
 ## Requirements
 
+- **Local repository clone** Keep a Git clone of this repository on the machine
+  running the application and run the commands below from its root directory.
+  Using a clone makes future updates straightforward with `git pull`.
 - **Docker** This app was envisioned to be used with Docker. Follow the [official documentation](https://docs.docker.com/get-started/get-docker/) if Docker is not setup on your machine.
 
 
@@ -73,7 +76,8 @@ docker compose down -v
 
 ## Deploy to production
 
-On the server, with Docker installed, ports 80 and 443 open and the domain's DNS pointing to it:
+From the repository clone on the server, with Docker installed, ports 80 and 443
+open and the domain's DNS pointing to it:
 
 ```sh
 cp .env.sample .env

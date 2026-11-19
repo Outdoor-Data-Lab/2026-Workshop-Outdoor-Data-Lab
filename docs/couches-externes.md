@@ -1,18 +1,23 @@
-# Couches externes
+# External layers
 
-Couches GeoJSON d'autres sites, proposées sur la carte dans le groupe « Couches externes ». Décochées au départ, chaque utilisateur les coche s'il le souhaite. Une couche se télécharge au moment où on la coche.
+GeoJSON layers from other websites are available on the map in the **External
+layers** group. They are disabled by default, and users can enable them as
+needed. A layer is downloaded when it is enabled.
 
-Dans l'admin Django : **Commons › External layers › Add**.
+In the Django admin interface, go to **Commons › External layers › Add**.
 
-| Champ | Contenu |
+| Field | Content |
 |---|---|
-| Label | nom affiché dans la liste des couches |
-| Url | FeatureCollection GeoJSON en WGS84 |
-| Description | affichée au survol du nom de la couche : contenu, producteur des données |
-| Properties | attributs affichés au clic, séparés par des virgules ; vide : tous |
-| Color | couleur de la couche |
-| Color property, Colors | facultatif : couleur selon la valeur d'un attribut, ex. `STATUT` et `{"IC": "#2e9e5b", "PR": "#c0392b"}` |
+| Label | Name displayed in the layer list |
+| Url | GeoJSON FeatureCollection in WGS84 |
+| Description | Displayed when hovering over the layer name; describes the content and data provider |
+| Properties | Comma-separated attributes displayed when a feature is clicked; leave blank to display all attributes |
+| Color | Layer color |
+| Color property, Colors | Optional: color features according to an attribute value, e.g. `STATUT` and `{"IC": "#2e9e5b", "PR": "#c0392b"}` |
 
-L'URL doit être lisible depuis le navigateur (en-tête CORS `Access-Control-Allow-Origin`). Une API paginée est suivie page par page (lien `next`) : bornez le volume dans l'URL, par exemple avec une emprise.
+The URL must be accessible from the browser (CORS
+`Access-Control-Allow-Origin` header). Paginated APIs are retrieved one page at
+a time by following the `next` link. Limit the amount of data in the URL, for
+example by specifying a bounding box.
 
-Les URL des couches se transmettent en interne : elles ne figurent pas dans ce dépôt, qui est public.
+Layer URLs are shared internally and are not stored in this public repository.

@@ -2,6 +2,9 @@
 
 ## Requirements
 
+- A local Git clone of this repository on the machine that runs the stack. Run
+  the commands in this guide from the repository root. Keeping the installation
+  as a clone makes later updates straightforward with `git pull`.
 - Docker Engine with the Docker Compose plugin (`docker compose`).
 - For production, a server reachable on ports 80 and 443, and a domain name
   whose DNS records point to that server.
