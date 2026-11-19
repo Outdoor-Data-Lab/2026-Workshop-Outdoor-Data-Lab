@@ -1,4 +1,7 @@
+import hashlib
+
 from django.conf import settings
+from django.core.cache import cache
 from django.contrib.postgres.expressions import ArraySubquery
 from django.db import connection
 from django.db.models import (
@@ -12,9 +15,9 @@ from django.db.models import (
     Subquery,
     Value,
 )
-from django.db.models.expressions import RawSQL
 from django.db.models.functions import Coalesce, JSONObject
 
+from commons.models import data_version
 from ref_geo.models import BibAreasType, LArea
 from taxhub.models import Taxref, VBdcStatus
 
@@ -53,10 +56,10 @@ def cells_with_status_taxa(statuses: QuerySet = PROTECTION_OR_REDLIST_STATUS):
     """Ids of the default grid cells holding an observation of a taxon with one of
     ``statuses``, for ``id_area__in``.
 
-    From the few observations with a status to their cells, through the spatial
-    index of the cells: on 22,000 cells of 500 m, 1.6 s instead of 32 s for a
-    count per cell then a filter. SQL: Django has no spatial join between two
-    unrelated models.
+    From the observations with a status to their cells, through the spatial index
+    of the cells. SQL: Django has no spatial join between two unrelated models.
+    Still 12 s in production (258,000 observations with a status): cached until
+    the next import, or a week (a change of the statuses is not an import).
     """
     quote = connection.ops.quote_name
     status_sql, status_params = statuses.values("cd_ref").query.sql_with_params()
@@ -68,7 +71,16 @@ def cells_with_status_taxa(statuses: QuerySet = PROTECTION_OR_REDLIST_STATUS):
          AND ST_Intersects(cell.geom_4326, record.geom)
         WHERE record.cd_ref IN ({status_sql})
     """
-    return RawSQL(sql, (settings.DEFAULT_GRID_AREA_TYPE, *status_params))
+    params = (settings.DEFAULT_GRID_AREA_TYPE, *status_params)
+    key = hashlib.sha1(repr((sql, params)).encode()).hexdigest()
+    key = f"status-taxa-cells:{data_version()}:{key}"
+    ids = cache.get(key)
+    if ids is None:
+        with connection.cursor() as cursor:
+            cursor.execute(sql, params)
+            ids = [row[0] for row in cursor.fetchall()]
+        cache.set(key, ids, timeout=7 * 24 * 3600)
+    return ids
 
 
 def _status_list(*filters: Q):

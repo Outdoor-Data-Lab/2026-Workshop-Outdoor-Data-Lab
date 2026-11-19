@@ -14,7 +14,7 @@ schema itself is created by migration 0001.
 from django.contrib.postgres.fields import ArrayField
 from django.core.exceptions import ImproperlyConfigured
 from django.db import models
-from django.db.models import F, Q
+from django.db.models import Count, F, Max, Q
 from django.utils.module_loading import import_string
 
 from ref_geo.models import LArea
@@ -156,6 +156,14 @@ class DataImport(models.Model):
 
     def __str__(self):
         return f"{self.source} {self.date_import:%Y-%m-%d %H:%M}"
+
+
+def data_version():
+    """Changes when an import ends (done) or is deleted: a cache key for what is
+    computed from the imported data. Not when a row is edited in the admin."""
+    done = DataImport.objects.filter(status=DataImport.Status.DONE)
+    version = done.aggregate(count=Count("id"), last=Max("id"))
+    return f"{version['count']}-{version['last']}"
 
 
 class ExternalLayer(models.Model):
