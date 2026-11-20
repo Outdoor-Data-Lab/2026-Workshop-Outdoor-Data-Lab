@@ -31,6 +31,7 @@ from workshop2026.processing.score import (
     CazalisFrequentationScore,
     SynthesisScore,
     _counts_near,
+    _half_month_bounds,
     _standardize,
     _winsorize_and_rescale,
     cazalis_weights_from_correlations,
@@ -1150,14 +1151,27 @@ class CazalisWeightCalculationTests(AreasTestCase):
                     (x - 0.001, y + north), (x + 0.001, y + north), srid=4326
                 ),
             )
-            start = datetime(2025, 1, 1, tzinfo=timezone.utc)
+            # In the counters' July 2021 window
+            start = datetime(2021, 7, 5, tzinfo=timezone.utc)
             CountingMeasure.objects.create(
                 counting_object=obj,
                 start_datetime=start,
-                end_datetime=start + timedelta(days=365),
+                end_datetime=start + timedelta(days=1),
                 count=count,
                 unit=person,
             )
+            # Outside it (a yearly measure, a day in August): must be ignored
+            for start, length in (
+                (datetime(2021, 1, 1, tzinfo=timezone.utc), 365),
+                (datetime(2021, 8, 5, tzinfo=timezone.utc), 1),
+            ):
+                CountingMeasure.objects.create(
+                    counting_object=obj,
+                    start_datetime=start,
+                    end_datetime=start + timedelta(days=length),
+                    count=100000,
+                    unit=person,
+                )
 
         counter(a, 11, 10)
         counter(b, 11, 30)
@@ -1178,9 +1192,10 @@ class CazalisWeightCalculationTests(AreasTestCase):
             source__code="ecocompteur", geom=Point(6.3, 44.3, srid=4326), external_id=""
         )
         outdoorvision = DataSource.objects.get(code="outdoorvision").pk
-        raw = _counts_near([station.pk], outdoorvision, 100, False)
+        july = {station.pk: [_half_month_bounds(2021, 7, 1)]}
+        raw = _counts_near([station.pk], outdoorvision, 100, False, windows=july)
         weighted = _counts_near(
-            [station.pk], outdoorvision, 100, False, length_weighted=True
+            [station.pk], outdoorvision, 100, False, length_weighted=True, windows=july
         )
         self.assertEqual(raw, {station.pk: 1})  # the 222 m track is out of range
         # 0.002 degree of longitude at 44.3 N: 159 m
