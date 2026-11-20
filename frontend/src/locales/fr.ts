@@ -29,7 +29,7 @@ export default {
     outdoorOffers: 'Offres outdoor',
     biodivAreas: 'Taxons menacés',
     none: 'Aucune',
-    synthesisAreas: 'Zones à enjeu',
+    synthesisAreas: 'Croisement Fréquentation x Biodiversité',
     synthesisDescription:
       'Mailles au score de fréquentation supérieur à 40 avec au moins une espèce menacée (liste rouge nationale).',
     loadError: 'Impossible de charger {label}',
@@ -56,7 +56,8 @@ export default {
     title: 'Légende',
     trafficAreas: 'Fréquentation par maille (score)',
     otherValues: 'Autre',
-    synthesisAreas: 'Zones à enjeu : forte fréquentation et espèce menacée',
+    synthesisAreas:
+      'Croisement Fréquentation x Biodiversité : forte fréquentation et espèce menacée',
   },
   offer: {
     practice: 'Pratique',
@@ -78,7 +79,7 @@ export default {
     zonings: 'Zonage réglementaire',
     scoreRange: '(entre 0 et 100)',
     soon: 'à venir',
-    taxa: 'aucun taxon protégé ou menacé | {n} taxon protégé ou menacé | {n} taxons protégés ou menacés',
+    taxa: 'aucune espèce protégée ou menacée (observée) | {n} espèce protégée ou menacée (observée) | {n} espèces protégées ou menacées (observées)',
     taxaList: 'Liste des taxons',
     habitats: 'Habitat',
     protected: 'protégé',
@@ -119,12 +120,12 @@ export default {
       weights: {
         title: "Poids d'une source",
         eq: 'poids = 1 / (1 − r)',
-        text: "Le poids indique à quel point les données de la source sont en accord avec celles des éco-compteurs : r (de 0 à 1) mesure cet accord. Sous 0,25, la source est ignorée. La somme des poids fait 100.",
+        text: 'Le poids indique à quel point les données de la source sont en accord avec celles des éco-compteurs : r (de 0 à 1) mesure cet accord. Sous 0,25, la source est ignorée. La somme des poids fait 100.',
       },
       final: {
         title: 'Score de la maille',
         eq: 'score = Σ poids × (fréquentation − moyenne) ÷ écart-type',
-        text: "Les valeurs de chaque source est centrée et réduite (i.e. ce qui permet de mettre sur la même échelle les scores pour chaque source). Le total est ensuite ramené entre 0 et 100 (les valeurs extrêmes sont plafonnées).",
+        text: 'Les valeurs de chaque source est centrée et réduite (i.e. ce qui permet de mettre sur la même échelle les scores pour chaque source). Le total est ensuite ramené entre 0 et 100 (les valeurs extrêmes sont plafonnées).',
       },
       counters: 'Poids estimés sur {n} éco-compteurs.',
       credit:
@@ -150,6 +151,8 @@ export default {
       'Conçu comme un outil évolutif, ce premier développement constitue une base de travail qui a vocation à être expérimentée, enrichie et appropriée par ses futurs utilisateurs dans un projet qui reste à structurer et financer.',
     repository: 'Consulter le dépôt GitHub de cet outil open source :',
     credits: 'Version 0.1 réalisée en novembre 2026 par :',
+    funding:
+      "Ce développement s'inscrit notamment dans le cadre du projet européen ALCOTRA BiodivTourAlps (projet n° 20140), qui a soutenu le hackathon préalable organisé en 2025, et du programme LIFE Biodiv'France – Sports & biodiversité, cofinancé par l'Union européenne et l'Office français de la biodiversité.",
     close: 'Fermer',
   },
   errors: {

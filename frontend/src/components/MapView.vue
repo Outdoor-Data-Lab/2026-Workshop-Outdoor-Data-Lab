@@ -11,6 +11,7 @@ import {
   type LayerSpecification,
   type PointLike,
   setWorkerUrl,
+  type StyleSpecification,
   type VectorTileSource,
 } from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
@@ -28,6 +29,23 @@ const props = defineProps<{
 setWorkerUrl(workerUrl)
 
 const store = useLayersStore()
+
+/** Fond de carte : Plan IGN v2 (Géoplateforme, WMTS). */
+const BASEMAP: StyleSpecification = {
+  version: 8,
+  sources: {
+    'plan-ign': {
+      type: 'raster',
+      tiles: [
+        'https://data.geopf.fr/wmts?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2&STYLE=normal&FORMAT=image/png&TILEMATRIXSET=PM&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}',
+      ],
+      tileSize: 256,
+      maxzoom: 19,
+      attribution: '© <a href="https://www.ign.fr/">IGN</a>',
+    },
+  },
+  layers: [{ id: 'plan-ign', type: 'raster', source: 'plan-ign' }],
+}
 
 const container = useTemplateRef<HTMLDivElement>('container')
 const map = shallowRef<MlMap | null>(null)
@@ -215,7 +233,7 @@ function featureAt(m: MlMap, point: PointLike) {
 onMounted(() => {
   const m = new MlMap({
     container: container.value!,
-    style: 'https://tiles.openfreemap.org/styles/liberty',
+    style: BASEMAP,
     center: props.center ?? [6.08, 45.2],
     zoom: props.zoom ?? 9,
   })
