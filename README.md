@@ -1,18 +1,33 @@
-# Workshop 2026
+# Outdoor Data Lab
 
-This repository contains a web application for publishing and displaying visitor frequentation data, either combined with or side by side with biodiversity data.
+Outdoor Data Lab (ODL) is a database and a web application designed to aggregate, process, summarize, and explore visitor traffic and biodiversity data in natural areas. By centralizing, harmonizing, and analyzing diverse data sources, it offers a comprehensive initial snapshot of local environmental challenges.
 
+- Presentation of the project and initial development workshop in November 2026: <https://data.ecrins-parcnational.fr/documents/technique/2026-11-19-restitution-workshop-ODL-presentation.pdf>
+- Demonstration version: <https://odl.ecrins.net>
 
-The data served are :
-- **Frequentation data.** From outdoor traces, hike trails to automatic counter data
-- **Naturalist data** Observation of species, natural habitats
+The data served are:
 
+- **Visitor traffic data.** From outdoor traces, hike trails to automatic counter data (Outdoorvision, Strava, Eco-compteurs, Camera traps, iNaturalist observers...)
+- **Biodiversity data** Observation of species, natural habitats (SINP, GeoNature, INPN, GBIF biodiversity observations
 
-To do this, we propose a stack composed of :
+To do this, the stack is composed of:
+
 - A database models based on exchange standards for naturalist and frequentation data (PostgreSQL database + PostGIS)
 - An API allowing any data-visualisation library or app to easily retrieved data (Django + Django-RestFramework)
-- A integrated visual interface (VueJS)
+- An integrated visual interface (VueJS + MapLibre)
 
+Main features:
+
+- Import data from ODL collective applications: outdoor offerings from Geotrek, visitation data for Outdoorvision, biodiversity observations from SINP/INPN/GeoNature/GBIF)
+- Multiple grid-based analysis scales, including 500m × 500m based on the national INPN grid
+- Process visitor data to generate a grid-level attendance index, based on a simplified (and to improve) version of [Victor Cazalis analyzis method](https://github.com/PnEcrins/BTA-analyse-frequentation)
+- Retrieve raw visitation or biodiversity data at the grid level
+- Display external or local/territorial geospatial data (sensitive areas from Biodiv'sports, field reports from Suricate or any external GeoJSON API or file)
+- Publish data via an interoperable API for web applications as well as GIS (Geographic Information System) and statistical software
+- Load grid cells and data for a customizable geographic extent/bounding box
+
+Full documentation available at
+<https://outdoor-data-lab.github.io/2026-Workshop-Outdoor-Data-Lab/>.
 
 ## Requirements
 
@@ -20,7 +35,6 @@ To do this, we propose a stack composed of :
   running the application and run the commands below from its root directory.
   Using a clone makes future updates straightforward with `git pull`.
 - **Docker** This app was envisioned to be used with Docker. Follow the [official documentation](https://docs.docker.com/get-started/get-docker/) if Docker is not setup on your machine.
-
 
 ### Development requirements
 
@@ -32,7 +46,6 @@ To do this, we propose a stack composed of :
    nvm use 
    ```
    If nvm is not installed on your computer, follow the [official documentation](https://nodejs.org/en/download) provided by Node.js
-
 
 ## Configuration
 
@@ -99,7 +112,7 @@ docker compose exec web python backend/manage.py createsuperuser
 
 ## Documentation
 
-The documentation is published at
+The full documentation is published at
 <https://outdoor-data-lab.github.io/2026-Workshop-Outdoor-Data-Lab/>.
 
 To preview it locally with live reload:
