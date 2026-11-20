@@ -22,4 +22,4 @@ example by specifying a bounding box.
 
 Layer URLs are shared internally and are not stored in this public repository.
 
-To place a layer in the layer list, see [ordre-des-couches.md](ordre-des-couches.md).
+To place a layer in the layer list, see [Layer order](layer-order.md).

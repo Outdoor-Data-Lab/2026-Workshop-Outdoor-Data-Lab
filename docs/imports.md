@@ -18,15 +18,23 @@ below **Source** describes the expected file format.
 
 The history of all imports is available under Commons › Data imports.
 
-> [!WARNING]
-> Do not import sensitive SINP data: sensitivity is not yet supported.
+!!! warning
 
-## Calculer la fréquentation par mailles
+    Do not import sensitive SINP data: sensitivity is not yet supported.
 
-Counts and scores per grid cell are computed on the fly from the measures. The cells of each counting object are kept in `traffic.counting_object_areas` by a database trigger. If ref_geo was loaded or reloaded after the counting objects, rebuild that table:
+## Computing visitor traffic per grid cell
+
+Counts and scores per grid cell are computed on the fly from the measures. The
+cells of each counting object are kept in `traffic.counting_object_areas` by a
+database trigger. If ref_geo was loaded or reloaded after the counting objects,
+rebuild that table:
 
 ```sh
 docker compose exec web python backend/manage.py sync_counting_object_areas
 ```
 
-The grid is the ref_geo area type given by `DEFAULT_GRID_AREA_TYPE` in `.env` (default `M0.5`, the 500 m grid added by traffic migration 0008; `M1`: 1 km), among the grids of `AREA_TYPES` (default `M1,M0.5`). After changing it, rerun the command above (or pass `--area-type M0.5` once) to rebuild `traffic.counting_object_areas` for the new grid.
+The grid is the ref_geo area type given by `DEFAULT_GRID_AREA_TYPE` in `.env`
+(default `M0.5`, the 500 m grid added by traffic migration 0008; `M1`: 1 km),
+among the grids of `AREA_TYPES` (default `M1,M0.5`). After changing it, rerun
+the command above (or pass `--area-type M0.5` once) to rebuild
+`traffic.counting_object_areas` for the new grid.

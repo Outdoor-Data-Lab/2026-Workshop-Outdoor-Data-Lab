@@ -161,7 +161,8 @@ To stop the services without deleting data:
 docker compose down
 ```
 
-> [!CAUTION]
-> `docker compose down -v` deletes the PostgreSQL data, uploaded files, and
-> Let's Encrypt certificate volumes. Do not run this command in production
-> without a backup.
+!!! danger
+
+    `docker compose down -v` deletes the PostgreSQL data, uploaded files, and
+    Let's Encrypt certificate volumes. Do not run this command in production
+    without a backup.

@@ -97,13 +97,20 @@ Create an admin account:
 docker compose exec web python backend/manage.py createsuperuser
 ```
 
-## Importer des données
+## Documentation
 
-Voir [docs/imports.md](docs/imports.md).
+The documentation is published at
+<https://outdoor-data-lab.github.io/2026-Workshop-Outdoor-Data-Lab/>.
 
-## Layer order
+To preview it locally with live reload:
 
-See [docs/ordre-des-couches.md](docs/ordre-des-couches.md).
+```sh
+uv run --group docs mkdocs serve
+```
+
+The source includes guides for [importing data](docs/imports.md), configuring
+[external layers](docs/external-layers.md), and changing the
+[layer order](docs/layer-order.md).
 
 ## Load demonstration traffic data
 
