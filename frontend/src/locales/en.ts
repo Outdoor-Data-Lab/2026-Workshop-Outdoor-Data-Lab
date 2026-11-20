@@ -29,7 +29,7 @@ export default {
     outdoorOffers: 'Outdoor offers',
     biodivAreas: 'Threatened taxa',
     none: 'None',
-    synthesisAreas: 'Areas at stake',
+    synthesisAreas: 'Traffic x Biodiversity crossing',
     synthesisDescription:
       'Grid cells with a traffic score above 40 and at least one threatened species (national red list).',
     loadError: 'Could not load {label}',
@@ -57,7 +57,7 @@ export default {
     title: 'Legend',
     trafficAreas: 'Traffic per grid cell (score)',
     otherValues: 'Other',
-    synthesisAreas: 'Areas at stake: high traffic and threatened species',
+    synthesisAreas: 'Traffic x Biodiversity crossing: high traffic and threatened species',
   },
   offer: {
     practice: 'Practice',
@@ -79,7 +79,7 @@ export default {
     zonings: 'Regulatory zoning',
     scoreRange: '(between 0 and 100)',
     soon: 'coming soon',
-    taxa: 'no protected or threatened taxon | {n} protected or threatened taxon | {n} protected or threatened taxa',
+    taxa: 'no protected or threatened species (observed) | {n} protected or threatened species (observed) | {n} protected or threatened species (observed)',
     taxaList: 'List of taxa',
     habitats: 'Habitat',
     protected: 'protected',
@@ -150,6 +150,8 @@ export default {
       'Designed as an evolving tool, this first development is a working basis meant to be tested, enriched and taken over by its future users, in a project that is yet to be structured and funded.',
     repository: 'See the GitHub repository of this open source tool:',
     credits: 'Version 0.1 made in November 2026 by:',
+    funding:
+      "This development is part of the European ALCOTRA BiodivTourAlps project (project no. 20140), which supported the preliminary hackathon held in 2025, and of the LIFE Biodiv'France – Sports & Biodiversity programme, co-funded by the European Union and the French Biodiversity Agency (OFB).",
     close: 'Close',
   },
   errors: {

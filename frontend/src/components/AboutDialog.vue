@@ -2,6 +2,8 @@
 /** Bouton « i » qui ouvre la fenêtre « À propos ». Textes : clés `about.*` des traductions. */
 import { useTemplateRef } from 'vue'
 
+import biodivTourAlpsLogo from '@/assets/logo-biodivtouralps.jpg'
+import lifeBiodivFranceLogo from '@/assets/logo-life-biodivfrance.jpg'
 import schemaUrl from '@/assets/schema-odl.webp'
 
 const REPOSITORY_URL = 'https://github.com/Outdoor-Data-Lab/2026-Workshop-Outdoor-Data-Lab'
@@ -50,6 +52,13 @@ function closeOnBackdrop(event: MouseEvent) {
       <ul>
         <li v-for="partner in PARTNERS" :key="partner">{{ partner }}</li>
       </ul>
+      <p>
+        <em>{{ $t('about.funding') }}</em>
+      </p>
+      <div class="logos">
+        <img :src="biodivTourAlpsLogo" alt="ALCOTRA BiodivTourAlps" width="600" height="153" />
+        <img :src="lifeBiodivFranceLogo" alt="LIFE Biodiv'France" width="600" height="173" />
+      </div>
       <form method="dialog">
         <button>{{ $t('about.close') }}</button>
       </form>
@@ -70,7 +79,7 @@ function closeOnBackdrop(event: MouseEvent) {
 }
 
 dialog {
-  width: min(44rem, calc(100vw - 2 * var(--space)));
+  width: min(64rem, calc(100vw - 2 * var(--space)));
   max-height: calc(100vh - 4 * var(--space));
   padding: 0;
   border: none;
@@ -104,6 +113,18 @@ ul {
 img {
   width: 100%;
   height: auto;
+}
+
+/* Logos des financeurs côte à côte, sur toute la largeur du texte. */
+.logos {
+  display: flex;
+  align-items: center;
+  gap: var(--space);
+}
+
+.logos img {
+  flex: 1;
+  min-width: 0;
 }
 
 /* Le lien long passe à la ligne au lieu de déborder. */
