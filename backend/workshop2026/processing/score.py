@@ -96,8 +96,23 @@ def _pearson_correlation(reference_values, source_values):
         return None
 
 
-def _counts_near(station_ids, source_id, radius, nearest_only, length_weighted=False):
+def _half_month_bounds(year, month, half_month):
+    """``[start, end)`` of a half-month (1-15 or 16-end), in the current time zone."""
+    if half_month == 1:
+        return _start_of_day(date(year, month, 1)), _start_of_day(date(year, month, 16))
+    following = date(year + month // 12, month % 12 + 1, 1)
+    return _start_of_day(date(year, month, 16)), _start_of_day(following)
+
+
+def _counts_near(
+    station_ids, source_id, radius, nearest_only, length_weighted=False, windows=None
+):
     """``{station id: total count}`` of the ``source_id`` objects within ``radius`` metres.
+
+    With ``windows`` (``{station id: [(start, end), ...]}``), only the measures lying
+    entirely within one of the station's windows count, so that the source covers
+    the same time span as the station (a measure longer than the window, such
+    as a yearly one, is left out).
 
     With ``length_weighted``, each count is multiplied by the length in km of its
     object (R's ``DistPers = count x Length_km``, not only the part within
@@ -130,6 +145,16 @@ def _counts_near(station_ids, source_id, radius, nearest_only, length_weighted=F
         if length_weighted
         else "1.0::float8"
     )
+    if windows is None:
+        window_join = window_filter = ""
+    else:
+        window_join = """
+        LEFT JOIN (
+            SELECT * FROM unnest(%(w_stations)s::bigint[], %(w_starts)s::timestamptz[],
+                                 %(w_ends)s::timestamptz[]) AS w(station_id, w_start, w_end)
+        ) win ON win.station_id = near.station_id"""
+        window_filter = """AND measure.start_datetime >= win.w_start
+            AND measure.end_datetime <= win.w_end"""
     sql = f"""
         WITH near AS (
             SELECT {distinct} station.id AS station_id, obj.id AS object_id,
@@ -152,7 +177,9 @@ def _counts_near(station_ids, source_id, radius, nearest_only, length_weighted=F
         )
         SELECT near.station_id, COALESCE(SUM(measure.count * near.km), 0)
         FROM near
+        {window_join}
         LEFT JOIN {measures} measure ON measure.counting_object_id = near.object_id
+            {window_filter}
         GROUP BY near.station_id
     """
     params = {
@@ -161,6 +188,11 @@ def _counts_near(station_ids, source_id, radius, nearest_only, length_weighted=F
         "radius": radius,
         "grid": settings.DEFAULT_GRID_AREA_TYPE,
     }
+    if windows is not None:
+        pairs = [(st, w) for st, ws in windows.items() for w in ws]
+        params["w_stations"] = [st for st, _ in pairs]
+        params["w_starts"] = [w[0] for _, w in pairs]
+        params["w_ends"] = [w[1] for _, w in pairs]
     with connection.cursor() as cursor:
         cursor.execute(sql, params)
         counts = dict(cursor.fetchall())
@@ -492,8 +524,10 @@ class CazalisFrequentationScore(Score):
         eco-counter. Its reference value is its mean daily count over the
         summer half-months (June-September, from 2021) that have more than 10
         days of data. Each weighted source's value is its total count, over
-        all periods, near the counter (see ``BTA_SOURCE_MATCHING``; Outdoorvision
-        counts are multiplied by the km of their object, as in R).
+        near the counter, over the same half-months as the counter's reference (see
+        ``BTA_SOURCE_MATCHING``; Outdoorvision counts are multiplied by the km of
+        their object, as in R). Measures longer than a half-month (Strava yearly
+        ones) are therefore left out, which also avoids their double counting.
 
         Simplification: the R code keeps, around each counter, only the paths
         connected to its Strava edge (a 100 m corridor); here every object
@@ -548,14 +582,21 @@ class CazalisFrequentationScore(Score):
             .filter(days__gt=BTA_MIN_DAYS_PER_HALF_MONTH)
         )
         daily_means = defaultdict(list)
+        windows = defaultdict(list)
         for row in half_months:
-            daily_means[row["counting_object_id"]].append(row["total"] / row["days"])
+            station = row["counting_object_id"]
+            daily_means[station].append(row["total"] / row["days"])
+            windows[station].append(
+                _half_month_bounds(row["year"], row["month"], row["half_month"])
+            )
         if not daily_means:
             return result()
         reference = {station: fmean(values) for station, values in sorted(daily_means.items())}
 
         for source_id, (radius, nearest_only, length_weighted) in sorted(candidates.items()):
-            near = _counts_near(reference, source_id, radius, nearest_only, length_weighted)
+            near = _counts_near(
+                reference, source_id, radius, nearest_only, length_weighted, windows
+            )
             matched = [station for station in reference if station in near]
             correlations[source_id] = {
                 "r": _pearson_correlation(
