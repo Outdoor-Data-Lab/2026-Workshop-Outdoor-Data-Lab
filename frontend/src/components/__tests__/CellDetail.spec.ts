@@ -124,7 +124,7 @@ describe('CellDetail', () => {
     expect(text).toContain('weight = 1 / (1 − r)')
     expect(text).toContain('Biodiversity1 protected or threatened species (observed)')
     expect(text).toContain(
-      'Salamandre tachetée Salamandra salamandraprotected · threatened (VU) · 4 observations · 2017–2024',
+      'Salamandre tachetée – Salamandra salamandraprotected · threatened (VU) · 4 observations · 2017–2024',
     )
     expect(text).toContain('Randonnée (2)')
     expect(text).toContain('Habitatcoming soon')

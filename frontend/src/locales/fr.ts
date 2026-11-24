@@ -27,11 +27,11 @@ export default {
     cellName: 'Maille',
     counterName: 'Compteur {id}',
     outdoorOffers: 'Offres outdoor',
-    biodivAreas: 'Taxons menacés',
+    biodivAreas: 'Espèces menacées (observées)',
     none: 'Aucune',
     synthesisAreas: 'Croisement Fréquentation x Biodiversité',
     synthesisDescription:
-      'Mailles au score de fréquentation supérieur à 40 avec au moins une espèce menacée (liste rouge nationale).',
+      'Mailles au score de fréquentation supérieur à 40/100, avec au moins une espèce menacée observée (liste rouge nationale).',
     loadError: 'Impossible de charger {label}',
   },
   season: {
@@ -55,6 +55,7 @@ export default {
   legend: {
     title: 'Légende',
     trafficAreas: 'Fréquentation par maille (score)',
+    biodivAreas: 'Maille avec au moins une espèce menacée (observée)',
     otherValues: 'Autre',
     synthesisAreas:
       'Croisement Fréquentation x Biodiversité : forte fréquentation et espèce menacée',
@@ -80,13 +81,13 @@ export default {
     scoreRange: '(entre 0 et 100)',
     soon: 'à venir',
     taxa: 'aucune espèce protégée ou menacée (observée) | {n} espèce protégée ou menacée (observée) | {n} espèces protégées ou menacées (observées)',
-    taxaList: 'Liste des taxons',
+    taxaList: 'Liste des espèces',
     habitats: 'Habitat',
     protected: 'protégé',
     threatened: 'menacé ({code})',
     observations: '{n} observation | {n} observations',
     taxaNote:
-      'Protégé : protection nationale. Menacé : liste rouge nationale (RE, CR, EN, VU, EX). Observations GBIF et SINP.',
+      'Protégé : protection nationale.\nMenacé : liste rouge nationale (RE, CR, EN, VU, EX).\nObservations GBIF et SINP.',
     offers: 'aucune offre | {n} offre | {n} offres',
     absolute: 'absolu',
     lengthLabel: 'Tracés dans la maille :',

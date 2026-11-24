@@ -126,7 +126,7 @@ export async function biodiversityLayers(): Promise<LayerDefinition[]> {
       exclusive: true,
       itemLabel: await cellItemLabel(),
       load: () => getBiodivAreasForMap(),
-      legend: swatch(label, DOMAIN_COLORS.biodiversity),
+      legend: swatch(i18n.global.t('legend.biodivAreas'), DOMAIN_COLORS.biodiversity),
     },
   ]
 }

@@ -27,11 +27,11 @@ export default {
     cellName: 'Cell',
     counterName: 'Counter {id}',
     outdoorOffers: 'Outdoor offers',
-    biodivAreas: 'Threatened taxa',
+    biodivAreas: 'Threatened species (observed)',
     none: 'None',
     synthesisAreas: 'Traffic x Biodiversity crossing',
     synthesisDescription:
-      'Grid cells with a traffic score above 40 and at least one threatened species (national red list).',
+      'Grid cells with a traffic score above 40/100, with at least one observed threatened species (national red list).',
     loadError: 'Could not load {label}',
   },
   season: {
@@ -56,6 +56,7 @@ export default {
   legend: {
     title: 'Legend',
     trafficAreas: 'Traffic per grid cell (score)',
+    biodivAreas: 'Grid cell with at least one threatened species (observed)',
     otherValues: 'Other',
     synthesisAreas: 'Traffic x Biodiversity crossing: high traffic and threatened species',
   },
@@ -80,13 +81,13 @@ export default {
     scoreRange: '(between 0 and 100)',
     soon: 'coming soon',
     taxa: 'no protected or threatened species (observed) | {n} protected or threatened species (observed) | {n} protected or threatened species (observed)',
-    taxaList: 'List of taxa',
+    taxaList: 'List of species',
     habitats: 'Habitat',
     protected: 'protected',
     threatened: 'threatened ({code})',
     observations: '{n} observation | {n} observations',
     taxaNote:
-      'Protected: national protection. Threatened: national red list (RE, CR, EN, VU, EX). GBIF and SINP observations.',
+      'Protected: national protection.\nThreatened: national red list (RE, CR, EN, VU, EX).\nGBIF and SINP observations.',
     offers: 'no offer | {n} offer | {n} offers',
     absolute: 'absolute',
     lengthLabel: 'Tracks in the cell:',

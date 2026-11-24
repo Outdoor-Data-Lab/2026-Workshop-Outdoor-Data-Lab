@@ -219,12 +219,12 @@ function taxonText(taxon: AreaTaxon) {
           <ul>
             <li v-for="taxon in data.taxa" :key="taxon.cd_ref">
               {{ taxon.nom_vern ?? taxon.lb_nom }}
-              <em v-if="taxon.nom_vern">{{ taxon.lb_nom }}</em>
+              <template v-if="taxon.nom_vern">– <em>{{ taxon.lb_nom }}</em></template>
               <div class="hint">{{ taxonText(taxon) }}</div>
             </li>
           </ul>
         </details>
-        <p class="hint note">{{ $t('cell.taxaNote') }}</p>
+        <p class="hint note lines">{{ $t('cell.taxaNote') }}</p>
         <h4>{{ $t('cell.habitats') }}</h4>
         <p class="hint">{{ $t('cell.soon') }}</p>
       </section>
@@ -343,6 +343,11 @@ p {
 .note {
   margin-top: calc(var(--space) / 2);
   font-size: 0.85rem;
+}
+
+/* Les \n de la traduction passent à la ligne. */
+.lines {
+  white-space: pre-line;
 }
 
 ul {
