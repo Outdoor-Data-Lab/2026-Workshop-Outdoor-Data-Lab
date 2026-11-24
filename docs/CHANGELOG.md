@@ -5,7 +5,7 @@
 ### 🚀 Nouveautés
 
 * Première version installable et fonctionnelle du logiciel du collectif Outdoor Data Lab.
-* Import de fichiers depuis l'interface d'administration, à partir de fichiers CSV, GPKG ou ZIP provenant de : 
+* Import de données depuis l'interface d'administration, à partir de fichiers CSV, GPKG ou ZIP provenant de : 
   * Outdoorvision
   * Strava
   * Compteurs (Eco-compteurs, pièges photo...)
