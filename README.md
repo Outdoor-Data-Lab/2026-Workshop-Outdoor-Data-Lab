@@ -2,6 +2,8 @@
 
 Outdoor Data Lab (ODL) is a database and a web application designed to aggregate, process, summarize, and explore visitor traffic and biodiversity data in natural areas. By centralizing, harmonizing, and analyzing diverse data sources, it offers a comprehensive initial snapshot of local environmental challenges.
 
+![ODL Screenshot 01](/docs/images/2026-11-ODL-v0.1-screenshot-01.jpg)
+
 - Presentation of the project and initial development workshop in November 2026: <https://data.ecrins-parcnational.fr/documents/technique/2026-11-19-restitution-workshop-ODL-presentation.pdf>
 - Demonstration version: <https://odl.ecrins.net>
 
@@ -25,6 +27,8 @@ Main features:
 - Display external or local/territorial geospatial data (sensitive areas from Biodiv'sports, field reports from Suricate or any external GeoJSON API or file)
 - Publish data via an interoperable API for web applications as well as GIS (Geographic Information System) and statistical software
 - Load grid cells and data for a customizable geographic extent/bounding box
+
+![ODL Screenshot 04](/docs/images/2026-11-ODL-v0.1-screenshot-04.jpg)
 
 Full documentation available at
 <https://outdoor-data-lab.github.io/2026-Workshop-Outdoor-Data-Lab/>.
