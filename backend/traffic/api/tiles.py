@@ -5,7 +5,9 @@ asks only the visible tiles, from zoom ``MIN_ZOOM``. Each tile simplifies
 ``geom_tiles`` (already simplified to 10 m) to a few pixels of its zoom.
 
 Tiles are cached (cache "tiles") until the data changes: the key holds
-``data_version()``, which changes when an import ends or is deleted.
+``data_version()``, which changes when an import ends or is deleted, and the
+sources hiding their raw data (``DataSource.hide_raw_data``), whose objects
+are left out of the tiles.
 """
 
 from django.conf import settings
@@ -13,7 +15,7 @@ from django.core.cache.backends.filebased import FileBasedCache
 from django.db import connection
 from django.http import HttpResponse, HttpResponseBadRequest
 
-from commons.models import data_version
+from commons.models import DataSource, data_version
 from ref_geo.models import LArea
 
 from ..models import CountingObject, CountingObjectType
@@ -35,7 +37,9 @@ SELECT ST_AsMVT(t, %(layer)s, %(extent)s, 'geom', 'id') FROM (
            ST_AsMVTGeom(ST_Simplify(o.geom_tiles, %(tolerance)s), ST_TileEnvelope(%(z)s, %(x)s, %(y)s),
                         %(extent)s, 64, true) AS geom
     FROM {objects} o JOIN {types} ty ON ty.id = o.type_id
-    WHERE o.geom_tiles && ST_TileEnvelope(%(z)s, %(x)s, %(y)s) {filters}
+    WHERE o.geom_tiles && ST_TileEnvelope(%(z)s, %(x)s, %(y)s)
+      AND o.source_id <> ALL(%(hidden)s::bigint[])
+      AND (o.origin_id IS NULL OR o.origin_id <> ALL(%(hidden)s::bigint[])) {filters}
 ) t
 """
 
@@ -57,17 +61,22 @@ def counting_object_tile(request, z, x, y):
     area_id = request.GET.get("area_id")
     if area_id is not None and not area_id.isdigit():
         return HttpResponseBadRequest("area_id must be an integer.")
-    key = f"{data_version()}:{z}/{x}/{y}:{type_code}:{area_id}"
+    hidden = list(
+        DataSource.objects.filter(hide_raw_data=True).order_by("id").values_list("id", flat=True)
+    )
+    key = f"{data_version()}:{','.join(map(str, hidden))}:{z}/{x}/{y}:{type_code}:{area_id}"
     tile = cache.get(key)
     if tile is None:
-        tile = render_tile(z, x, y, type_code, int(area_id) if area_id is not None else None)
+        tile = render_tile(
+            z, x, y, type_code, int(area_id) if area_id is not None else None, hidden
+        )
         cache.set(key, tile)
     response = HttpResponse(tile, content_type="application/vnd.mapbox-vector-tile")
     response["Cache-Control"] = "max-age=300"
     return response
 
 
-def render_tile(z, x, y, type_code, area_id):
+def render_tile(z, x, y, type_code, area_id, hidden=()):
     quote = connection.ops.quote_name
     filters = ""
     if type_code is not None:
@@ -90,5 +99,6 @@ def render_tile(z, x, y, type_code, area_id):
             "tolerance": tolerance_pixels(z) * WORLD_WIDTH / 2**z / EXTENT,
             "type_code": type_code,
             "area_id": area_id,
+            "hidden": list(hidden),
         })
         return bytes(cursor.fetchone()[0])

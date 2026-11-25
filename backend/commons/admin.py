@@ -34,7 +34,7 @@ class DataSourceForm(forms.ModelForm):
 @admin.register(DataSource)
 class DataSourceAdmin(admin.ModelAdmin):
     form = DataSourceForm
-    list_display = ("code", "label", "domains", "absolute_counts")
+    list_display = ("code", "label", "domains", "absolute_counts", "hide_raw_data")
     search_fields = ("code", "label")
 
 

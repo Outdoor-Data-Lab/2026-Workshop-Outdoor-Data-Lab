@@ -69,7 +69,8 @@ class CountingObjectViewSet(GeoViewSet):
     ordering_fields = ("id", "external_id", "installation_date", "date_update")
 
     def get_queryset(self):
-        queryset = super().get_queryset()
+        # Raw data: not the objects of a source hiding it (scores still use them).
+        queryset = super().get_queryset().shown()
         return queryset if self.is_geojson() else queryset.defer("geom")
 
 
@@ -80,6 +81,11 @@ class CountingMeasureViewSet(ReadOnlyViewSet):
     )
     serializer_class = CountingMeasureSerializer
     filterset_class = CountingMeasureFilter
+
+    def get_queryset(self):
+        return super().get_queryset().filter(
+            counting_object__in=CountingObject.objects.shown().values("id")
+        )
     ordering_fields = ("id", "start_datetime", "end_datetime", "count")
 
 

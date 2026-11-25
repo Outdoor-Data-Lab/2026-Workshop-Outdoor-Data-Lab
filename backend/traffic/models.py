@@ -56,6 +56,11 @@ class CountingObjectType(models.Model):
 
 
 class CountingObjectQuerySet(models.QuerySet):
+    def shown(self):
+        """Objects whose raw data may be shown: neither the source nor the origin
+        has ``hide_raw_data`` (objects without origin are kept)."""
+        return self.exclude(source__hide_raw_data=True).exclude(origin__hide_raw_data=True)
+
     def with_data_range(self):
         """Annotate each object with the bounds of its measures (first_data, latest_data)."""
         return self.annotate(
