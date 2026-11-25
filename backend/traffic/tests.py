@@ -238,6 +238,25 @@ class CountingObjectApiTests(TrafficTestCase):
         self.assertEqual(self.get("type_code=counter&bbox=6,44,7,45")["count"], 1)
         self.assertEqual(self.get("type_code=unknown")["count"], 0)
 
+    def test_hides_the_raw_data_of_a_source(self):
+        measure = CountingMeasure.objects.create(
+            counting_object=self.inside, start_datetime=dt(1), end_datetime=dt(2),
+            count=3, unit=self.person,
+        )
+        measures = "/api/traffic/counting-measures"
+        self.garmin.hide_raw_data = True  # as origin
+        self.garmin.save()
+        self.assertEqual(self.get()["count"], 1)
+        self.assertEqual(self.get("format=geojson")["count"], 1)
+        self.assertEqual(self.client.get(f"{self.url}/{self.inside.pk}").status_code, 404)
+        self.assertEqual(self.client.get(measures).json()["count"], 0)
+        self.assertEqual(self.client.get(f"{measures}/{measure.pk}").status_code, 404)
+
+        DataSource.objects.filter(pk=self.garmin.pk).update(hide_raw_data=False)
+        self.source.hide_raw_data = True  # as provider
+        self.source.save()
+        self.assertEqual(self.get()["count"], 0)
+
     def test_measures_paginated_with_codes(self):
         for day in (15, 16, 17):
             CountingMeasure.objects.create(
@@ -1819,6 +1838,15 @@ class CountingObjectTileTests(AreasTestCase):
         self.assertGreater(len(self.get(*tile, area_id=12).content), 0)
         self.assertEqual(len(self.get(*tile, area_id=13).content), 0)
         self.assertEqual(self.get(*tile, area_id="x").status_code, 400)
+
+    def test_hides_the_objects_of_a_source(self):
+        tile = tile_of(6.2, 44.2, 12)
+        self.assertGreater(len(self.get(*tile).content), 0)  # cached, then...
+        DataSource.objects.filter(pk__in=(self.s1, self.s2)).update(hide_raw_data=True)
+        self.assertEqual(len(self.get(*tile).content), 0)
+        DataSource.objects.filter(pk=self.s2).update(hide_raw_data=False)
+        self.assertGreater(len(self.get(*tile, type_code="segment").content), 0)
+        self.assertEqual(len(self.get(*tile, type_code="counter").content), 0)
 
     def test_cached_until_an_import_ends(self):
         tile = tile_of(6.2, 44.2, 12)

@@ -82,6 +82,14 @@ class DataSource(models.Model):
         default=False,
         help_text="Counts every passage (e.g. an eco-counter), not only a sample of users.",
     )
+    hide_raw_data = models.BooleanField(
+        default=False,
+        help_text=(
+            "Do not show the raw objects (segments, tracks...) and measures of this source,"
+            " as provider or origin, in the interface (license terms). They still count in"
+            " the scores and the cell aggregates."
+        ),
+    )
 
     class Meta:
         db_table = table("data_sources")
